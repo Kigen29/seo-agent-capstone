@@ -1,0 +1,30 @@
+# Sourcery AI code review.
+#
+# This file only configures the bot's behaviour. It does not install it: the GitHub App
+# has to be authorised on the repo by the owner at https://github.com/apps/sourcery-ai
+#
+# Sourcery reviews the diff in a pull request, not the whole codebase. The legacy
+# rule_settings / python_version half of the schema is the old Python refactoring engine
+# and does not apply to a TypeScript repo, so it is deliberately absent.
+#
+# Docs: https://docs.sourcery.ai
+
+ignore:
+  - node_modules
+  - dist
+  - .next
+  - .turbo
+  - coverage
+  - pnpm-lock.yaml
+
+github:
+  # Suggested fixes arrive as a branch off the PR under review, so nothing lands on the
+  # PR head without a human merging it. Consistent with rule 2: no bot writes to main.
+  sourcery_branch: sourcery/{base_branch}
+
+  # Label a PR "sourcery-ignore" to keep the bot out of it.
+  ignore_labels:
+    - sourcery-ignore
+
+  labels: []
+  request_review: author
