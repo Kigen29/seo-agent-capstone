@@ -8,13 +8,7 @@
 export type ModelRole = 'fast' | 'smart' | 'embed' | 'judge'
 
 export type ProviderId =
-  | 'openai'
-  | 'anthropic'
-  | 'google'
-  | 'groq'
-  | 'openrouter'
-  | 'ollama'
-  | 'custom' // any OpenAI-compatible endpoint
+  'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter' | 'ollama' | 'custom' // any OpenAI-compatible endpoint
 
 /** A single resolved target, e.g. { provider: 'openai', model: 'gpt-4.1-mini' } */
 export interface ModelTarget {

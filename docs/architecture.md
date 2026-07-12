@@ -6,17 +6,19 @@ See `docs/adr/` for the decisions and their rationale. This file is the map.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  apps/web  (Next.js 15, App Router)                              │
+│  apps/web  (Next.js 15, App Router)          Vercel Hobby, free  │
 │  Dashboard · Scorecard · Findings inbox · PR review · Reports    │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ REST + SSE
 ┌───────────────────────────▼──────────────────────────────────────┐
-│  apps/api  (Fastify)                                             │
+│  apps/api  (Fastify)                    Render free web service  │
 │  Auth · Tenancy · Job enqueue · Budget guard · Audit log         │
 └───────────────────────────┬──────────────────────────────────────┘
-                            │ BullMQ (Redis)
+                            │ 1. enqueue in pg-boss (Postgres)
+                            │ 2. fire repository_dispatch
 ┌───────────────────────────▼──────────────────────────────────────┐
-│  apps/worker                                                     │
+│  apps/worker      GitHub Actions runner, free, Chromium preinst. │
+│  Claims the job from pg-boss, runs it, writes results back.      │
 │  crawl · evaluate · fetch-gsc · fetch-cwv · poll-ai · fix · verify│
 └───┬──────────┬──────────┬──────────┬──────────┬──────────────────┘
     │          │          │          │          │
@@ -24,11 +26,18 @@ See `docs/adr/` for the decisions and their rationale. This file is the map.
 │crawler ││  rules   ││connect-││ fixers ││   agent    │
 │Playwr- ││ ~40 pure ││  ors   ││ + vcs  ││ LLM orch.  │
 │ight    ││ functions││ GSC/PSI││ GitHub ││ skills     │
-│        ││ ZERO LLM ││ CrUX...││  App   ││ Haiku/Sonnet│
-└────────┘└──────────┘└────────┘└────────┘└────────────┘
-                            │
+│        ││ ZERO LLM ││ CrUX...││  App   ││ fast/smart │
+└────────┘└──────────┘└────────┘└────────┘└─────┬──────┘
+                            │                   │ roles, never vendors
+                            │             ┌─────▼──────┐
+                            │             │ @seo/llm   │
+                            │             │ chain from │
+                            │             │ .env       │
+                            │             └────────────┘
 ┌───────────────────────────▼──────────────────────────────────────┐
-│  Postgres (RLS by tenant_id) · Object store · Vector store        │
+│  Supabase Postgres, free tier. One database, three jobs:          │
+│  Drizzle (data, RLS by tenant_id) · pg-boss (queue) · pgvector    │
+│  + Supabase Storage (crawl artefacts). No Redis. See ADR-0006.    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,7 +58,9 @@ Never move detection across that line. ADR-0001.
 
 | Pattern | Where | Why |
 |---|---|---|
-| Strategy / Adapter | `VersionControlProvider`, `LLMProvider`, `SerpProvider` | Swap GitHub for GitLab, Sonnet for GPT, SerpApi for DataForSEO, without touching call sites |
+| Strategy / Adapter | `VersionControlProvider`, `@seo/llm` providers, `SerpProvider` | Swap GitHub for GitLab, or one model vendor for another, or SerpApi for DataForSEO, without touching call sites |
+| Role-based indirection | `@seo/llm`: code asks for `fast` / `smart` / `embed` / `judge` | No vendor or model name appears in application code. Swapping a model is a `.env` edit, enforced by an ESLint rule that confines vendor SDKs to `providers.ts`. ADR-0005 |
+| Chain of responsibility | The per-role fallback chain, e.g. `LLM_SMART=openai:gpt-4.1,google:gemini-2.5-pro` | Falls through on 429, quota, or 5xx. Targets whose API key is absent are dropped silently, so the free tier degrades instead of breaking |
 | Repository | `packages/db` | Keeps Drizzle out of the domain logic; makes tenancy enforceable in one place |
 | Pipeline / Chain | crawl -> evaluate -> prioritise -> fix -> verify | Each stage is independently testable and resumable |
 | Saga | AI visibility 3-day poll; CWV 28-day verification window | Long-horizon stateful workflows that outlive any process |

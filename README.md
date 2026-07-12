@@ -6,7 +6,7 @@ An autonomous SEO agent that connects to your repository, audits your entire sea
 
 **Live deployment:** _(add the Render/Vercel URL here before submission)_
 **Task board:** _(add the Trello / GitHub Projects URL here before submission)_
-**Design and testing document:** [`docs/design-and-testing.md`](docs/design-and-testing.md)
+**Design and testing document:** `docs/design-and-testing.md` _(generated from the ADRs via `/design-doc` before submission)_
 
 ---
 
