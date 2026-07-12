@@ -5,7 +5,7 @@ An autonomous SEO agent that connects to your repository, audits your entire sea
 > Every other AI-SEO tool sends your marketer a list. We send your repo a pull request.
 
 **Live deployment:** [seo-agent-capstone.vercel.app](https://seo-agent-capstone.vercel.app)
-**Task board:** _(add the Trello / GitHub Projects URL here before submission)_
+**Task board:** [GitHub Projects](https://github.com/users/Kigen29/projects/3)
 **Design and testing document:** `docs/design-and-testing.md` _(generated from the ADRs via `/design-doc` before submission)_
 
 ---
