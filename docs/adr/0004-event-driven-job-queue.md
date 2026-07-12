@@ -1,6 +1,6 @@
 # ADR-0004: Event-driven job queue over synchronous request-response
 
-**Status:** Accepted
+**Status:** Accepted. The event-driven decision stands. The **mechanism** below (BullMQ on Redis) is superseded by [ADR-0006](0006-free-tier-infrastructure.md), which keeps the queue but moves it to pg-boss on Postgres and moves the workers to GitHub Actions. The body of this ADR is left as written, per the never-edit-an-accepted-ADR convention.
 **Date:** 2026-07-12
 
 ## Context

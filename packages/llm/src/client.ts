@@ -89,9 +89,7 @@ export class LlmClient {
   }
 
   /** Structured generation. Use this for anything the code will parse. Never parse free text. */
-  async object<T>(
-    opts: LlmCallOptions & { schema: z.ZodType<T> },
-  ): Promise<LlmResult<T>> {
+  async object<T>(opts: LlmCallOptions & { schema: z.ZodType<T> }): Promise<LlmResult<T>> {
     const budget = await this.checkBudget(opts.tenantId)
     if (!budget.allowed) throw new Error(`Budget guard: ${budget.reason}`)
 
