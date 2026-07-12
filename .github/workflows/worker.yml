@@ -1,0 +1,63 @@
+# Free worker fleet. See ADR-0006.
+# Public repo = unlimited Actions minutes. Chromium is preinstalled. 6h job limit.
+name: worker
+
+on:
+  # The API fires this via the GitHub REST API when a job is enqueued in pg-boss.
+  repository_dispatch:
+    types: [run-jobs]
+  # Safety net: drain the queue every 15 minutes regardless.
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      queue:
+        description: 'Which queue to drain (crawl | audit | poll-ai | fix | verify | all)'
+        required: false
+        default: 'all'
+
+concurrency:
+  group: worker
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Drain the queue
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LLM_FAST: ${{ vars.LLM_FAST }}
+          LLM_SMART: ${{ vars.LLM_SMART }}
+          LLM_EMBED: ${{ vars.LLM_EMBED }}
+          LLM_JUDGE: ${{ vars.LLM_JUDGE }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_PSI_API_KEY: ${{ secrets.GOOGLE_PSI_API_KEY }}
+          GOOGLE_CRUX_API_KEY: ${{ secrets.GOOGLE_CRUX_API_KEY }}
+          BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          QUEUE: ${{ github.event.inputs.queue || 'all' }}
+        # Claims jobs from pg-boss, runs them, writes results back, exits when the queue is empty.
+        run: pnpm --filter @seo/worker drain
