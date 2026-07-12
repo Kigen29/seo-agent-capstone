@@ -1,0 +1,48 @@
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+
+/**
+ * ADR-0005 says packages/llm/src/providers.ts is the only file allowed to import a vendor SDK.
+ * The rule below makes that law mechanical instead of a matter of memory: import @ai-sdk/openai
+ * anywhere else and CI fails. The provider-agnostic `ai` core is not restricted.
+ */
+const VENDOR_SDK_PATTERNS = [
+  '@ai-sdk/*',
+  'openai',
+  '@anthropic-ai/*',
+  '@google/generative-ai',
+  '@google-cloud/*',
+  'groq-sdk',
+  'ollama',
+]
+
+export default tseslint.config(
+  {
+    ignores: ['**/dist/**', '**/node_modules/**', '**/.turbo/**', '**/.next/**', '**/coverage/**'],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    files: ['**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: VENDOR_SDK_PATTERNS,
+              message:
+                'Vendor SDKs are confined to packages/llm/src/providers.ts (ADR-0005). Ask @seo/llm for a role instead: llm.object({ role: "smart", ... }).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/llm/src/providers.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+)
