@@ -1,0 +1,6 @@
+export { LlmClient } from './client.js'
+export type { LlmCallOptions, LlmResult, SpendRecorder, BudgetChecker } from './client.js'
+export { resolveChain, parseTarget, API_KEY_ENV } from './config.js'
+export { PRICING } from './pricing.js'
+export type { ModelRole, ModelTarget, ProviderId, RoleChain, LlmUsage } from './types.js'
+export { NoProviderConfiguredError, AllTargetsFailedError } from './types.js'
