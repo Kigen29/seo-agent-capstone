@@ -1,0 +1,6 @@
+# Prettier writes LF; Windows checks out CRLF under core.autocrlf. Without this, every
+# format run marks untouched files as modified and the CI runs on Linux against different
+# bytes than the developer sees. Normalise on LF everywhere.
+* text=auto eol=lf
+
+pnpm-lock.yaml linguist-generated=true -diff
