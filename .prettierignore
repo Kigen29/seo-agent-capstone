@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+pnpm-lock.yaml
+
+# Prose, not code. The ADRs are immutable once accepted (CLAUDE.md), and reformatting
+# the dossier would churn a document whose diffs should always be substantive.
+*.md

@@ -99,7 +99,8 @@ The repo is **public** (the Quantic handbook encourages it, and it is what makes
 apps/
   web/          Next.js dashboard
   api/          Fastify REST API
-  worker/       BullMQ job processors (crawls, audits, polls)
+  worker/       Job processors (crawls, audits, polls). Claims from pg-boss,
+                runs on a GitHub Actions runner. See ADR-0006.
 packages/
   core/         Domain types: Finding, Audit, Site, Tenant, Severity
   crawler/      Playwright crawler + link graph builder
