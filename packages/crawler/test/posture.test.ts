@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { evaluateAiCrawlerPosture } from '../src/robots/posture.js'
-import { ALLOW_ALL } from '../src/robots/parse.js'
+import { ALLOW_ALL, parseRobotsTxt } from '../src/robots/parse.js'
 import { loadRobots } from './fixtures.js'
 
 const tokens = (agents: { token: string }[]) => agents.map((a) => a.token).sort()
@@ -33,6 +33,20 @@ describe('evaluateAiCrawlerPosture', () => {
     expect(googleExtended?.allowed).toBe(false)
     expect(googleExtended?.agent.category).toBe('opt_out')
     expect(posture.blockedSearchAgents).toEqual([])
+  })
+
+  it('still reports blocked search crawlers when no training crawler is blocked', () => {
+    // Pins the copy-paste heuristic. Blocking ONLY the search crawlers is not the
+    // copy-paste signature, but it is still critical: the site is uncitable either way.
+    // looksLikeCopyPastedAiBlock explains WHY it probably happened; it is not the finding.
+    const robots = parseRobotsTxt(
+      'User-agent: OAI-SearchBot\nDisallow: /\n\nUser-agent: *\nAllow: /',
+    )
+    const posture = evaluateAiCrawlerPosture(robots)
+
+    expect(tokens(posture.blockedSearchAgents)).toEqual(['OAI-SearchBot'])
+    expect(posture.blockedTrainingAgents).toEqual([])
+    expect(posture.looksLikeCopyPastedAiBlock).toBe(false)
   })
 
   it('flags nothing on a site with no robots.txt at all', () => {

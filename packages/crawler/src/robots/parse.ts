@@ -91,14 +91,20 @@ export function parseRobotsTxt(text: string): RobotsTxt {
 
     switch (field) {
       case 'user-agent': {
-        if (!value) break
-
         if (!current || !acceptingAgents) {
           current = { userAgents: [], rules: [] }
           groups.push(current)
           acceptingAgents = true
         }
-        current.userAgents.push(value.toLowerCase())
+
+        /**
+         * A `User-agent:` line with no value is malformed. It still opens a group, and
+         * that group names nobody, so the rules beneath it match no crawler and are
+         * inert. The alternative (ignore the line, keep appending to the previous group)
+         * would silently attribute those rules to the last agent named, inventing
+         * disallows the site never wrote for a crawler it never mentioned.
+         */
+        if (value) current.userAgents.push(value.toLowerCase())
         break
       }
 

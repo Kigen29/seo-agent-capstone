@@ -12,10 +12,27 @@ import type { RobotsGroup, RobotsRule, RobotsTxt } from './parse.js'
  * a critical finding, which is the exact failure the story's falsification names.
  */
 
-/** `Googlebot/2.1` and `googlebot` are the same crawler. Version numbers are noise. */
+/**
+ * Reduce a crawler's identifier to its product token.
+ *
+ * RFC 9309 says a product token contains only letters, underscores and hyphens, so we
+ * take the leading run of those and drop whatever follows: `Googlebot/2.1`, `GPTBot 1.0`
+ * and `googlebot` all reduce to the same token.
+ *
+ * Matching is then EXACT on that token (plus the `*` catch-all). It is deliberately not
+ * a prefix match: `Googlebot` must not match `Googlebot-Image`, and `GPTBot` must not
+ * match some future `GPTBot-Image`, because those are different products with their own
+ * groups. Treating them as one would report sites as blocking crawlers they never
+ * blocked, and a false positive on TECH-002 (severity: critical) is the worst bug this
+ * package can have.
+ *
+ * The RFC's "substring" language is about the token appearing inside the crawler's full
+ * identification header, not about one token prefixing another. Callers here pass a
+ * product token, not a raw User-Agent header.
+ */
 function normaliseAgent(userAgent: string): string {
-  const token = userAgent.trim().toLowerCase().split('/')[0] ?? ''
-  return token.trim()
+  const match = /^[a-z_-]+/.exec(userAgent.trim().toLowerCase())
+  return match?.[0] ?? ''
 }
 
 /**

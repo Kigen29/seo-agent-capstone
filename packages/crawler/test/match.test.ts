@@ -60,6 +60,37 @@ describe('isAllowed: group selection', () => {
   it('matches user agents case-insensitively', () => {
     expect(isAllowed(robots, 'GOOGLEBOT', '/admin')).toBe(true)
   })
+
+  it('does not prefix-match, because Googlebot-Image is a different product', () => {
+    // RFC 9309's "substring" rule is about the token appearing in the crawler's full
+    // identification header, not one token prefixing another. If `Googlebot` matched
+    // `Googlebot-Image`, we would report sites as blocking crawlers they never blocked.
+    // On TECH-002 (critical) that false positive is the worst bug this package can have.
+    expect(isAllowed(robots, 'Googlebot-Image', '/admin')).toBe(false) // falls back to *
+    expect(isAllowed(robots, 'Googlebot', '/admin')).toBe(true) // its own group
+  })
+})
+
+describe('isAllowed: url handling', () => {
+  const robots = loadRobots('precedence')
+
+  it('accepts an absolute URL, which is what the crawler actually passes', () => {
+    expect(isAllowed(robots, 'SomeBot', 'https://example.com/admin')).toBe(false)
+    expect(isAllowed(robots, 'SomeBot', 'https://example.com/blog/public/x')).toBe(true)
+  })
+
+  it('keeps the query string when given an absolute URL', () => {
+    expect(isAllowed(robots, 'SomeBot', 'https://example.com/search?q=shoes')).toBe(false)
+    expect(isAllowed(robots, 'SomeBot', 'https://example.com/search')).toBe(true)
+  })
+
+  it('ignores the fragment, which is never sent to the server', () => {
+    expect(isAllowed(robots, 'SomeBot', 'https://example.com/blog/public/x#section')).toBe(true)
+  })
+
+  it('treats a bare path with no leading slash as rooted', () => {
+    expect(isAllowed(robots, 'SomeBot', 'admin')).toBe(false)
+  })
 })
 
 describe('isAllowed: permissive defaults', () => {
