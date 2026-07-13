@@ -1,6 +1,6 @@
 # ADR-0006: Zero-cost infrastructure. Postgres as the queue, GitHub Actions as the worker.
 
-**Status:** Accepted
+**Status:** Accepted. The Supabase choices below (Postgres host, and Supabase Storage for artefacts) are superseded by [ADR-0007](0007-neon-postgres-over-supabase.md): the database is now plain Postgres on Neon, and artefacts live in that database. Everything else here stands, including pg-boss as the queue and GitHub Actions as the worker fleet. Body left as written, per the never-edit-an-accepted-ADR convention.
 **Date:** 2026-07-12
 
 ## Context

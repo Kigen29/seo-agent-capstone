@@ -22,8 +22,8 @@ Cover, at minimum:
 - Deterministic-first, LLM-second detection architecture, and why (this is the most important decision in the codebase)
 - Repository pattern over direct ORM calls
 - Multi-tenancy model: row-level security in Postgres, tenant_id on every table
-- Zero-cost infrastructure (ADR-0006): pg-boss on Supabase Postgres as the queue, GitHub Actions on a public repo as the worker fleet. Explain the Redis rejection and the known scaling ceiling that was deliberately accepted
-- Deployment cost table: free tier (Vercel + Render + Supabase + GitHub Actions, total $0) vs cloud (AWS ECS + RDS + ElastiCache) vs on-premises, with actual monthly figures in USD
+- Zero-cost infrastructure (ADR-0006 and ADR-0007): pg-boss on plain Postgres as the queue, GitHub Actions on a public repo as the worker fleet, one database holding data, queue, vectors and crawl artefacts. Explain the Redis rejection, the Supabase rejection (idle pausing, and adopting a platform to use one commodity part of it), and the known scaling ceilings that were deliberately accepted, with their documented migration triggers
+- Deployment cost table: free tier (Vercel + Render + Neon + GitHub Actions, total $0) vs cloud (AWS ECS + RDS + ElastiCache + S3) vs on-premises, with actual monthly figures in USD
 - Testing pyramid: unit (rule engine, 100% deterministic), integration, contract tests per external API, e2e, and the **LLM evaluation harness** measuring precision, recall, and hallucination rate against a golden dataset
 
 Use no em dashes.

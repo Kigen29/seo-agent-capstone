@@ -60,8 +60,7 @@ These are architectural laws. Do not violate them, do not ask to violate them.
 | Language | TypeScript (strict) everywhere |
 | Web app | Next.js 15 App Router, Tailwind, shadcn/ui, on **Vercel Hobby** |
 | API | Fastify (REST) + Zod, on **Render free web service** |
-| DB + queue + vectors | **Supabase Postgres free tier.** One database serves all three: Drizzle ORM for data, **pg-boss** for the job queue, **pgvector** for embeddings. **No Redis.** |
-| Storage | Supabase Storage (crawl artefacts) |
+| DB + queue + vectors + artefacts | **Plain Postgres, on Neon's free tier.** One database serves all of it: Drizzle ORM for data, **pg-boss** for the job queue, **pgvector** for embeddings, and compressed crawl artefacts. **No Redis. No object store.** Addressed only by `DATABASE_URL`: no vendor SDK, so the host is swappable. See ADR-0007. |
 | Workers | **GitHub Actions on a public repo (unlimited free minutes).** The API enqueues in pg-boss, then fires `repository_dispatch`. The runner claims the job, runs the crawl, writes results back. |
 | Crawler | Playwright (Chromium, preinstalled on the runner) |
 | LLM | **`@seo/llm`. Role-based, provider-agnostic.** Code asks for `fast` / `smart` / `embed` / `judge`. Provider and model resolve from `.env` as ordered fallback chains. |

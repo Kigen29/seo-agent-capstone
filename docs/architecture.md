@@ -35,9 +35,10 @@ See `docs/adr/` for the decisions and their rationale. This file is the map.
                             │             │ .env       │
                             │             └────────────┘
 ┌───────────────────────────▼──────────────────────────────────────┐
-│  Supabase Postgres, free tier. One database, three jobs:          │
+│  Plain Postgres on Neon, free tier. One database, four jobs:      │
 │  Drizzle (data, RLS by tenant_id) · pg-boss (queue) · pgvector    │
-│  + Supabase Storage (crawl artefacts). No Redis. See ADR-0006.    │
+│  · compressed crawl artefacts. No Redis, no object store.         │
+│  Only DATABASE_URL. See ADR-0006 and ADR-0007.                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
