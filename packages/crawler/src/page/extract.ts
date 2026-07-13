@@ -163,7 +163,7 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
    * the page silently loses functionality its author never sees, because their own
    * browser has it cached.
    */
-  const resources: PageResource[] = [
+  const linked: { type: PageResource['type']; url: string }[] = [
     ...$('script[src]')
       .toArray()
       .map((el) => ({ type: 'script' as const, url: $(el).attr('src') ?? '' })),
@@ -173,10 +173,20 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
     ...$('iframe[src]')
       .toArray()
       .map((el) => ({ type: 'iframe' as const, url: $(el).attr('src') ?? '' })),
-    ...images.map((image) => ({ type: 'image' as const, url: image.src })),
   ]
-    .filter((resource) => resource.url.trim().length > 0)
-    .map((resource) => ({ ...resource, resolved: resolve(resource.url, baseUrl) }))
+
+  const resources: PageResource[] = [
+    ...linked
+      .filter((resource) => resource.url.trim().length > 0)
+      .map((resource) => ({ ...resource, resolved: resolve(resource.url, baseUrl) })),
+    // Images already carry a resolved URL from above. Reuse it rather than resolving a
+    // second time, so the two answers cannot drift apart.
+    ...images.map((image) => ({
+      type: 'image' as const,
+      url: image.src,
+      resolved: image.resolved,
+    })),
+  ]
 
   // Script and style content is not page text. Counting it would inflate the word
   // count of every page with an inline analytics blob and hide genuinely thin content.

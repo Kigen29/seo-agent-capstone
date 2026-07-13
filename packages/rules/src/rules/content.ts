@@ -1,3 +1,4 @@
+import { normaliseUrl } from '@seo/crawler'
 import { indexableHtmlPages, markupEvidence, metricEvidence } from '../evidence.js'
 import type { Rule } from '../types.js'
 
@@ -30,8 +31,10 @@ export const TECH_015: Rule = {
             title: `${page.finalUrl} loads ${insecure.length} resource(s) over insecure HTTP`,
             evidence: markupEvidence(
               page,
-              insecure.map((r) => r.type).join(', '),
-              insecure.map((r) => r.resolved ?? r.url).join('\n'),
+              // A replayable selector, not a label. Evidence that cannot be re-checked by
+              // running it against the page is not really evidence.
+              'script[src^="http://"], link[href^="http://"], img[src^="http://"], iframe[src^="http://"]',
+              insecure.map((r) => `${r.type}: ${r.resolved ?? r.url}`).join('\n'),
             ),
             affectedUrls: [page.finalUrl],
             confidence: 1,
@@ -64,17 +67,28 @@ export const TECH_016: Rule = {
   description: 'An hreflang annotation is not reciprocated by the page it points at.',
 
   evaluate: (context) => {
-    const byUrl = new Map(context.pages.map((page) => [page.finalUrl, page]))
+    /**
+     * Both sides are normalised. Keying on the raw URL means /sw and /sw/ look like
+     * different pages, so a crawled alternate reads as "never crawled" and the rule goes
+     * silent on a site that genuinely has broken hreflang. A false negative, and an
+     * invisible one.
+     */
+    const key = (url: string) => normaliseUrl(url) ?? url
+    const byUrl = new Map(context.pages.map((page) => [key(page.finalUrl), page]))
 
     return context.pages.flatMap((page) => {
+      const self = key(page.finalUrl)
+
       const missing = page.extract.hreflang.filter((alternate) => {
         if (alternate.hreflang === 'x-default') return false
-        if (alternate.href === page.finalUrl) return false
 
-        const target = byUrl.get(alternate.href)
-        if (!target) return false // never crawled, so we know nothing
+        const target = key(alternate.href)
+        if (target === self) return false
 
-        return !target.extract.hreflang.some((back) => back.href === page.finalUrl)
+        const crawled = byUrl.get(target)
+        if (!crawled) return false // never crawled, so we know nothing
+
+        return !crawled.extract.hreflang.some((back) => key(back.href) === self)
       })
 
       if (missing.length === 0) return []

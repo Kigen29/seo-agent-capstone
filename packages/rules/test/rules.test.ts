@@ -504,6 +504,23 @@ describe('TECH-016: hreflang without a return tag', () => {
     ).toEqual([])
   })
 
+  it('matches alternates by normalised URL, so a trailing slash does not hide the bug', () => {
+    // The alternate is declared as /sw/ but the page was crawled as /sw. Keying on the
+    // raw URL makes the crawled page look uncrawled, and the rule goes quiet on a site
+    // that genuinely has broken hreflang. A false negative, and an invisible one.
+    const findings = fire(
+      'TECH-016',
+      context({
+        pages: [
+          page({ path: '/en', html: withHreflang(['sw', `${u('/sw')}?utm_source=x`]) }),
+          page({ path: '/sw', html: html.doc('<h1>H</h1>') }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+  })
+
   it('stays silent when the alternate was never crawled, because we know nothing', () => {
     expect(
       fire(
