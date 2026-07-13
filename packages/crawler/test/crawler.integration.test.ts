@@ -120,6 +120,40 @@ describe('crawl: against a live server', () => {
     expect(pathsOf(result)).toContain('/orphan')
     expect(result.sitemapOnlyUrls).toEqual([`${site.origin}/orphan`])
   })
+
+  /**
+   * The crawl already fetched robots.txt and expanded the sitemap in order to obey them.
+   * Handing both back is what lets a caller build a RuleContext without going back to the
+   * network, and everything downstream depends on it.
+   */
+  describe('hands back what it already fetched', () => {
+    it('returns the robots.txt it actually obeyed, so nobody fetches it twice', () => {
+      // Re-fetching would be a second request to someone else's origin for bytes we already
+      // have. Worse, a robots.txt that changed between the two fetches would leave the audit
+      // reporting on a file the crawl never obeyed.
+      const robotsRequests = site.requests.filter((r) => r.url === '/robots.txt')
+
+      expect(robotsRequests).toHaveLength(1)
+      expect(result.robots.absent).toBe(false)
+      expect(result.robots.sitemaps).toEqual([`${site.origin}/sitemap.xml`])
+    })
+
+    it('returns the AI crawler posture, which is what TECH-002 reads', () => {
+      // The test site allows everyone, so nothing is blocked. The assertion that matters is
+      // that the posture is present and populated at all: an undefined posture crashes the
+      // rule engine, which is exactly how this gap was found.
+      expect(result.posture.blockedSearchAgents).toEqual([])
+      expect(result.posture.verdicts.length).toBeGreaterThan(0)
+    })
+
+    it('returns every URL the sitemap declared, not just the orphans', () => {
+      // sitemapOnlyUrls is a filtered view and cannot substitute for this: the rules that
+      // ask "is this indexable page missing from the sitemap?" need the full declared set,
+      // and a linked page correctly listed in the sitemap never appears in the orphan list.
+      expect(result.sitemapUrls).toContain(`${site.origin}/orphan`)
+      expect(result.sitemapUrls.length).toBeGreaterThan(result.sitemapOnlyUrls.length)
+    })
+  })
 })
 
 describe('crawl: politeness', () => {
