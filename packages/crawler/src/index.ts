@@ -45,3 +45,8 @@ export type {
   SitemapFetcher,
   SitemapProblem,
 } from './sitemap/expand.js'
+
+export { buildLinkGraph, toGraphPages } from './graph/build.js'
+export type { GraphNode, GraphPage, LinkGraph, LinkGraphOptions } from './graph/build.js'
+export { pageRank } from './graph/pagerank.js'
+export type { PageRankOptions } from './graph/pagerank.js'
