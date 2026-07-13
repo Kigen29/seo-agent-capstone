@@ -37,6 +37,30 @@ export interface CrawlOptions {
   resumeFrom?: FrontierState
 }
 
+/**
+ * Thrown when a persistence hook fails.
+ *
+ * A crawl that cannot store its results is pointless, so we do not swallow this and
+ * carry on. But dying without handing back the frontier state would force the caller to
+ * restart from page 1 and re-hammer a site that already served us hundreds of pages,
+ * which is the precise rudeness this crawler is built to avoid. So the error carries
+ * everything needed to resume: pass `state` back as `resumeFrom` and nothing is refetched.
+ */
+export class CrawlAbortedError extends Error {
+  constructor(
+    override readonly cause: unknown,
+    readonly pages: CrawledPage[],
+    readonly state: FrontierState,
+  ) {
+    super(
+      `The crawl was aborted after ${pages.length} page(s) because a persistence hook failed: ` +
+        `${cause instanceof Error ? cause.message : String(cause)}. ` +
+        `Pass the .state on this error as resumeFrom to continue without refetching.`,
+    )
+    this.name = 'CrawlAbortedError'
+  }
+}
+
 export interface CrawlHooks {
   /**
    * Called after each page. Persist here, and persist the state alongside it: the
@@ -246,7 +270,13 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
 
           // Persist BEFORE marking complete. A crash between the two re-crawls one page,
           // which is cheap. The other order loses it, which is not.
-          await hooks.onPage?.(crawled, frontier.toState())
+          try {
+            await hooks.onPage?.(crawled, frontier.toState())
+          } catch (err) {
+            // This page is deliberately NOT marked complete, so a resume refetches it.
+            throw new CrawlAbortedError(err, pages, frontier.toState())
+          }
+
           frontier.complete(entry.url)
         }
       } finally {

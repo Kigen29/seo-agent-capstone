@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { crawl, DEFAULT_USER_AGENT } from '../src/crawl/crawler.js'
+import { crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from '../src/crawl/crawler.js'
 import type { CrawlResult } from '../src/crawl/types.js'
 import { startTestSite, type TestSite } from './server.js'
 
@@ -143,6 +143,52 @@ describe('crawl: politeness', () => {
         .filter((gap) => gap > 0)
 
       expect(Math.max(...gaps)).toBeGreaterThan(50)
+    } finally {
+      await site.close()
+    }
+  }, 120_000)
+})
+
+describe('crawl: a failing persistence hook', () => {
+  it('aborts, but hands back enough state to resume without refetching', async () => {
+    const site = await startTestSite()
+
+    try {
+      let seen = 0
+
+      const failing = crawl(
+        { seed: site.origin, delayMs: 0, concurrency: 1, maxPages: 6 },
+        {
+          onPage: () => {
+            seen += 1
+            // The database falls over on the second page.
+            if (seen === 2) throw new Error('database is down')
+          },
+        },
+      )
+
+      await expect(failing).rejects.toThrow(CrawlAbortedError)
+
+      const error = await failing.catch((err: unknown) => err as CrawlAbortedError)
+
+      // Without the state on the error, the caller has to start from page 1 and re-hammer
+      // a site that already served us everything up to the failure.
+      expect(error.state.visited).toHaveLength(1)
+      expect(error.pages).toHaveLength(2)
+
+      const requestsBefore = site.requests.filter((r) => r.url === '/').length
+
+      const resumed = await crawl({
+        seed: site.origin,
+        delayMs: 0,
+        concurrency: 1,
+        maxPages: 6,
+        resumeFrom: error.state,
+      })
+
+      // The page that was already persisted is not fetched again.
+      expect(site.requests.filter((r) => r.url === '/').length).toBe(requestsBefore)
+      expect(resumed.pages.length).toBeGreaterThan(0)
     } finally {
       await site.close()
     }
