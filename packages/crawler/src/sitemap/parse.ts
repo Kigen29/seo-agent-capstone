@@ -78,6 +78,21 @@ export function parseSitemap(xml: string): Sitemap {
   if (!xml.trim()) return { kind: 'unparseable', reason: 'The sitemap was empty.' }
 
   /**
+   * The protocol caps an uncompressed sitemap at 50 MB. Past that, search engines stop
+   * reading it, so parsing the rest would tell the user about URLs that Google will
+   * never see. Refusing is the honest answer, and it is also the finding.
+   */
+  const bytes = Buffer.byteLength(xml, 'utf8')
+  if (bytes > MAX_SITEMAP_BYTES) {
+    return {
+      kind: 'unparseable',
+      reason:
+        `The sitemap is ${Math.round(bytes / 1024 / 1024)} MB, over the 50 MB protocol limit. ` +
+        `Search engines will not read it. Split it into a sitemap index.`,
+    }
+  }
+
+  /**
    * Validate before parsing. fast-xml-parser is lenient by default and will happily
    * return a plausible-looking object from truncated XML, which would let us report a
    * broken sitemap as a working one. Validate first, so malformed is malformed.

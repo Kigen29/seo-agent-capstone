@@ -135,6 +135,24 @@ describe('expandSitemaps', () => {
     expect(fetcher.mock.calls.length).toBeLessThanOrEqual(6)
   })
 
+  it('caps fetches even when every sitemap fails, because the cap counts attempts', async () => {
+    // The cap must count fetch ATTEMPTS, not successes. Counting successes would let a
+    // site whose sitemaps all 404 pull unlimited requests out of us while the visited
+    // count stayed at zero, which is exactly the case the cap exists to prevent.
+    const children = Array.from({ length: 100 }, (_, i) => `https://example.com/s${i}.xml`)
+    const fetcher = vi.fn<SitemapFetcher>(async (url) =>
+      url.endsWith('sitemap.xml') ? index(...children) : undefined,
+    )
+
+    const result = await expandSitemaps(['https://example.com/sitemap.xml'], fetcher, {
+      maxSitemaps: 5,
+    })
+
+    expect(fetcher.mock.calls.length).toBe(5)
+    expect(result.visited).toEqual(['https://example.com/sitemap.xml'])
+    expect(result.truncated).toBe(true)
+  })
+
   it('accepts several roots, because robots.txt may declare more than one sitemap', async () => {
     const fetcher = fetcherFor({
       'https://example.com/a.xml': urlset('https://example.com/a'),

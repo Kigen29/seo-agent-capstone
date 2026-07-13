@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { parseSitemap } from '../src/sitemap/parse.js'
+import { MAX_SITEMAP_BYTES, parseSitemap } from '../src/sitemap/parse.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const load = (name: string) => readFileSync(join(here, 'fixtures', `${name}.xml`), 'utf8')
@@ -114,6 +114,20 @@ describe('parseSitemap: bad input', () => {
     if (sitemap.kind !== 'urlset') throw new Error('expected a urlset')
 
     expect(sitemap.urls).toEqual([])
+  })
+
+  it('refuses a sitemap over the 50 MB protocol limit rather than parsing it anyway', () => {
+    // Past 50 MB search engines stop reading, so parsing the rest would tell the user
+    // about URLs Google will never see. Refusing is the honest answer.
+    const padding = ' '.repeat(MAX_SITEMAP_BYTES + 1)
+    const sitemap = parseSitemap(
+      `<urlset><!--${padding}--><url><loc>https://x.com/</loc></url></urlset>`,
+    )
+
+    expect(sitemap.kind).toBe('unparseable')
+    if (sitemap.kind !== 'unparseable') throw new Error('expected unparseable')
+
+    expect(sitemap.reason).toContain('50 MB')
   })
 
   it('handles a single <url> element, which XML makes look like an object not a list', () => {

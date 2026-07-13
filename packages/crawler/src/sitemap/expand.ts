@@ -47,6 +47,13 @@ export async function expandSitemaps(
   const seen = new Set<string>()
   let truncated = false
 
+  /**
+   * Counts fetch ATTEMPTS, not successes. Counting successes would let a site whose
+   * sitemaps all 404 pull unlimited requests out of us while `visited` stayed at zero,
+   * which is precisely the case the cap exists to prevent.
+   */
+  let fetched = 0
+
   const queue: { url: string; depth: number }[] = roots.map((url) => ({ url, depth: 0 }))
 
   while (queue.length > 0) {
@@ -58,12 +65,13 @@ export async function expandSitemaps(
     if (seen.has(url)) continue
     seen.add(url)
 
-    if (visited.length >= maxSitemaps) {
+    if (fetched >= maxSitemaps) {
       truncated = true
       break
     }
 
     let xml: string | undefined
+    fetched += 1
     try {
       xml = await fetcher(url)
     } catch (err) {
