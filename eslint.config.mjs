@@ -33,6 +33,17 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx}'],
     rules: {
+      // A leading underscore means "deliberately discarded", most often when
+      // destructuring a field off an object to prove a default gets applied.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {
