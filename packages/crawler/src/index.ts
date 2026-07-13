@@ -28,6 +28,7 @@ export type {
   PageExtract,
   PageImage,
   PageLink,
+  PageResource,
 } from './page/types.js'
 
 export { Frontier, normaliseUrl } from './crawl/frontier.js'

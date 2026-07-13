@@ -1,5 +1,13 @@
 import * as cheerio from 'cheerio'
-import type { Heading, Hreflang, MetaRobots, PageExtract, PageImage, PageLink } from './types.js'
+import type {
+  Heading,
+  Hreflang,
+  MetaRobots,
+  PageExtract,
+  PageImage,
+  PageLink,
+  PageResource,
+} from './types.js'
 
 /**
  * Everything we can learn from a page's HTML, as a pure function.
@@ -149,6 +157,37 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
       return [{ hreflang: lang, href: resolve(href, baseUrl) ?? href }]
     })
 
+  /**
+   * Subresources, collected before we strip the script tags below. An HTTPS page that
+   * pulls a script over plain HTTP is mixed content: the browser blocks it outright, so
+   * the page silently loses functionality its author never sees, because their own
+   * browser has it cached.
+   */
+  const linked: { type: PageResource['type']; url: string }[] = [
+    ...$('script[src]')
+      .toArray()
+      .map((el) => ({ type: 'script' as const, url: $(el).attr('src') ?? '' })),
+    ...$('link[rel="stylesheet"][href]')
+      .toArray()
+      .map((el) => ({ type: 'stylesheet' as const, url: $(el).attr('href') ?? '' })),
+    ...$('iframe[src]')
+      .toArray()
+      .map((el) => ({ type: 'iframe' as const, url: $(el).attr('src') ?? '' })),
+  ]
+
+  const resources: PageResource[] = [
+    ...linked
+      .filter((resource) => resource.url.trim().length > 0)
+      .map((resource) => ({ ...resource, resolved: resolve(resource.url, baseUrl) })),
+    // Images already carry a resolved URL from above. Reuse it rather than resolving a
+    // second time, so the two answers cannot drift apart.
+    ...images.map((image) => ({
+      type: 'image' as const,
+      url: image.src,
+      resolved: image.resolved,
+    })),
+  ]
+
   // Script and style content is not page text. Counting it would inflate the word
   // count of every page with an inline analytics blob and hide genuinely thin content.
   $('script, style, noscript, template').remove()
@@ -167,6 +206,7 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
     jsonLd,
     jsonLdErrors,
     hreflang,
+    resources,
     text,
     wordCount,
   }
