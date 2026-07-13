@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9"
+           xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <sm:url>
+    <sm:loc>https://example.com/gallery</sm:loc>
+    <image:image>
+      <image:loc>https://example.com/photo.jpg</image:loc>
+    </image:image>
+  </sm:url>
+  <sm:url>
+    <sm:loc>https://example.com/about</sm:loc>
+  </sm:url>
+</sm:urlset>
