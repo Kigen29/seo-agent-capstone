@@ -44,6 +44,13 @@ export interface MetaRobots {
   follow: boolean
 }
 
+/** A subresource the page loads. Needed to detect mixed content on an HTTPS page. */
+export interface PageResource {
+  type: 'script' | 'stylesheet' | 'image' | 'iframe'
+  url: string
+  resolved?: string
+}
+
 export interface PageExtract {
   title: string | null
   metaDescription: string | null
@@ -59,6 +66,7 @@ export interface PageExtract {
   /** A JSON-LD block that does not parse is invisible to Google, so it is a finding. */
   jsonLdErrors: string[]
   hreflang: Hreflang[]
+  resources: PageResource[]
   text: string
   wordCount: number
 }
