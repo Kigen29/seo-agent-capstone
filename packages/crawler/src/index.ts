@@ -33,6 +33,11 @@ export type {
 export { Frontier, normaliseUrl } from './crawl/frontier.js'
 export type { FrontierEntry, FrontierOptions, FrontierState } from './crawl/frontier.js'
 
+export { crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from './crawl/crawler.js'
+export type { CrawlHooks, CrawlOptions } from './crawl/crawler.js'
+export { Pacer } from './crawl/pacer.js'
+export type { CrawledPage, CrawlResult, SkippedUrl } from './crawl/types.js'
+
 export { expandSitemaps } from './sitemap/expand.js'
 export type {
   ExpandedSitemap,
