@@ -3,6 +3,7 @@ import { extractPage } from '../page/extract.js'
 import { compareRenders } from '../page/render.js'
 import { crawlDelayFor, isAllowed } from '../robots/match.js'
 import { ALLOW_ALL, parseRobotsTxt, type RobotsTxt } from '../robots/parse.js'
+import { evaluateAiCrawlerPosture } from '../robots/posture.js'
 import { expandSitemaps } from '../sitemap/expand.js'
 import { Frontier, normaliseUrl, type FrontierState } from './frontier.js'
 import { Pacer } from './pacer.js'
@@ -296,6 +297,9 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
     return {
       pages,
       skipped,
+      robots,
+      posture: evaluateAiCrawlerPosture(robots),
+      sitemapUrls: [...fromSitemap],
       sitemapOnlyUrls: [...fromSitemap].filter((url) => !linkedTo.has(url) && url !== seedUrl),
       state: frontier.toState(),
     }

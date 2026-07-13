@@ -45,3 +45,12 @@ export { tenantSchema } from './tenant.js'
 export type { Tenant } from './tenant.js'
 
 export { prioritise, priorityScore } from './prioritise.js'
+
+export {
+  axisCoverageSchema,
+  axisScoreSchema,
+  axisStatusSchema,
+  buildScorecard,
+  scorecardSchema,
+} from './scorecard.js'
+export type { AxisCoverage, AxisScore, AxisStatus, Scorecard, ScorecardInput } from './scorecard.js'
