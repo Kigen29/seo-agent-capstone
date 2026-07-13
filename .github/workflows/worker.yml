@@ -57,8 +57,6 @@ jobs:
           GOOGLE_PSI_API_KEY: ${{ secrets.GOOGLE_PSI_API_KEY }}
           GOOGLE_CRUX_API_KEY: ${{ secrets.GOOGLE_CRUX_API_KEY }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           QUEUE: ${{ github.event.inputs.queue || 'all' }}
         # Claims jobs from pg-boss, runs them, writes results back, exits when the queue is empty.
         run: pnpm --filter @seo/worker drain

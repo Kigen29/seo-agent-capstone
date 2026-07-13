@@ -2,10 +2,11 @@
 
 Everything below is genuinely free, permanently, at capstone scale. Total out of pocket: **$0**, plus whatever OpenAI credit you already have.
 
-Two decisions do most of the work:
+Three decisions do most of the work:
 
 1. **Make the capstone repo public.** The Quantic handbook explicitly allows it and even encourages it ("with the option to make it public... showcase your engineering skills to potential employers"). Public repos get **unlimited free GitHub Actions minutes**. That single fact turns GitHub into your free worker fleet.
 2. **Drop Redis. Use Postgres as the queue.** `pg-boss` gives you a durable job queue, scheduling, retries, and dead-letter handling on top of the Postgres you already have. One less service, one less free tier to babysit, and the free Redis tiers (Upstash: 10,000 commands/day) would have throttled a single 500-page crawl anyway.
+3. **One Postgres, and nothing else. No platform, no object store.** Data, the job queue, the vector store, and the compressed crawl artefacts all live in the same database, addressed only by `DATABASE_URL`. There is no vendor SDK anywhere in the repo, so the host is a commodity you can swap in an env var. See ADR-0007.
 
 ---
 
@@ -13,14 +14,14 @@ Two decisions do most of the work:
 
 | Layer | Choice | Free tier reality | Notes |
 |---|---|---|---|
-| **Database** | **Supabase** Postgres | 500 MB, 2 projects, pauses after 7 days idle | You already know Supabase. Gives you Postgres + auth + storage + pgvector in one free project. Neon is the alternative (0.5 GB, no pause). |
+| **Database** | **Neon** Postgres | ~0.5 GB, **does not pause on idle** | Plain Postgres. No vendor SDK, no service-role key: the integration surface is `DATABASE_URL` and nothing else. Supabase was the original pick and was dropped because its free tier pauses a project after 7 days idle, and a paused database is a failed demo. ADR-0007. |
 | **Job queue** | **pg-boss** on the same Postgres | free | No Redis. No second service. Durable, scheduled, retryable. |
-| **Object storage** | **Supabase Storage** | 1 GB | Crawl artefacts: HTML, screenshots. Prune aggressively; keep only the latest crawl per site. |
+| **Artefact storage** | **The same Postgres**, compressed | shares the ~0.5 GB | Crawl artefacts: HTML, screenshots. Prune hard, keep only the latest crawl per site. Blobs in Postgres do not scale and we know it; the documented trigger to move to Cloudflare R2 is ~300 MB. |
 | **Vector store** | **pgvector** in the same Postgres | free | For internal-link relevance and content gap analysis. |
 | **Web app** | **Vercel** Hobby | free, non-commercial | Next.js. Perfect fit. |
 | **API** | **Render** free web service | free, spins down after 15 min idle, cold start ~30s | Acceptable for a demo. Add a `/health` ping if the cold start annoys you. |
 | **Workers (crawls, audits, polls)** | **GitHub Actions** on a public repo | **unlimited minutes** | This is the unlock. See below. |
-| **Auth** | **Supabase Auth** | free | Or Auth.js with GitHub OAuth. |
+| **Auth** | **Auth.js** with GitHub OAuth | free | The users are developers connecting a repo, so GitHub is the identity they already have. |
 | **Email** | **Resend** | 3,000/month free | Weekly digest emails. |
 | **CI** | GitHub Actions | free (public repo) | lint, typecheck, test, build |
 
