@@ -104,10 +104,17 @@ export function buildLinkGraph(pages: readonly GraphPage[], options: LinkGraphOp
   const clickDepth = new Map<string, number>()
   if (known.has(seed)) {
     clickDepth.set(seed, 0)
-    const queue: string[] = [seed]
 
-    while (queue.length > 0) {
-      const current = queue.shift() as string
+    // A cursor rather than shift(). Array.shift reindexes the whole array, which makes
+    // the traversal quadratic in the number of pages. It does not bite at a 500-page cap,
+    // but it is free to avoid and it stops being free if that cap ever moves.
+    const queue: string[] = [seed]
+    let cursor = 0
+
+    while (cursor < queue.length) {
+      const current = queue[cursor] as string
+      cursor += 1
+
       const depth = clickDepth.get(current) ?? 0
 
       for (const target of outbound.get(current) ?? []) {
