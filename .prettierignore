@@ -8,3 +8,8 @@ pnpm-lock.yaml
 # Prose, not code. The ADRs are immutable once accepted (CLAUDE.md), and reformatting
 # the dossier would churn a document whose diffs should always be substantive.
 *.md
+
+# Test fixtures are INPUTS, not source. Several are malformed on purpose: a robots.txt
+# with a stray colonless line, an HTML page with a trailing comma in its JSON-LD. Prettier
+# cheerfully repairs them, which silently deletes the case the fixture exists to prove.
+**/test/fixtures/**
