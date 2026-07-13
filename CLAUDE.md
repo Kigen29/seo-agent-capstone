@@ -230,6 +230,8 @@ No competitor can do this, because no competitor has the repo. This is the demo 
 ## Conventions
 
 - Commits: Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`)
+- **No AI attribution in commits or PRs.** No `Co-Authored-By: Claude` trailers, no "Generated with Claude Code" footers. This is a graded capstone submitted as the author's own engineering work.
+- Node 24 (current LTS), pinned in `.nvmrc`, `engines`, and both workflows. An open-ended range lets a new major ship and break the build with no code change.
 - Branches: `feat/<slug>`, `fix/<slug>`. Agent-generated: `seo-agent/<finding-id>-<slug>`
 - Every new rule needs a unit test with a fixture HTML file before it merges
 - Every external API client needs a contract test
