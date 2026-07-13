@@ -1,0 +1,14 @@
+﻿# Leading BOM above. Blank lines, a stray line with no colon, an unknown
+# directive, mixed case fields, and an empty Disallow, which restricts nothing.
+
+USER-AGENT: *
+Disallow:
+
+this line has no colon and must be ignored
+Host: example.com
+Request-rate: 1/10s
+
+  Allow:   /
+
+User-agent:
+Disallow: /orphaned-value-with-no-agent

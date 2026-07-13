@@ -1,0 +1,13 @@
+# Cloudflare's managed robots.txt, using the Content-Signals syntax.
+# From 15 September 2026 these defaults apply automatically to new domains and
+# un-reviewed free-tier customers.
+
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
+Allow: /
+
+User-agent: Bytespider
+Disallow: /
+
+Sitemap: https://example.com/sitemap.xml
+Sitemap: https://example.com/news-sitemap.xml

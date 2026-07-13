@@ -1,0 +1,15 @@
+# Exercises the precedence rules: longest pattern wins, ties go to allow.
+
+User-agent: *
+Disallow: /admin
+Disallow: /blog/
+Allow: /blog/public/
+Disallow: /downloads/*.pdf$
+Allow: /downloads/brochure.pdf$
+Disallow: /search?
+Crawl-delay: 2
+
+# A more specific group wins outright over the catch-all above.
+User-agent: Googlebot
+Allow: /
+Disallow: /private/
