@@ -43,6 +43,20 @@ describe('compareRenders', () => {
     expect(result.likelyCsrOnly).toBe(false)
   })
 
+  it('reports a ratio above 1 when JavaScript removes content, rather than hiding it', () => {
+    // A consent wall or paywall that replaces the article after load. Google indexes the
+    // rendered DOM, so content the server sent and the browser then deleted is content
+    // Google never sees. Clamping the ratio to 1 would destroy the only evidence of it.
+    const served = `<html><body><h1>Tiles</h1><p>${'word '.repeat(200)}</p></body></html>`
+    const afterJs = '<html><body><h1>Accept cookies to continue</h1></body></html>'
+
+    const result = compareRenders(served, afterJs, URL_)
+
+    expect(result.ratio).toBeGreaterThan(1)
+    expect(result.preJsWordCount).toBeGreaterThan(result.postJsWordCount)
+    expect(result.likelyCsrOnly).toBe(false) // it is the opposite problem
+  })
+
   it('does not flag a page where JavaScript adds a little to a lot', () => {
     const base = `<html><body><h1>Tiles</h1><p>${'word '.repeat(200)}</p>`
     const result = compareRenders(

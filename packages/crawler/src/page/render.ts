@@ -15,7 +15,16 @@ import { extractPage } from './extract.js'
 export interface RenderComparison {
   preJsWordCount: number
   postJsWordCount: number
-  /** Share of the final text that was present before JavaScript ran, 0 to 1. */
+  /**
+   * Text present before JavaScript ran, as a share of the text after it ran.
+   *
+   * Usually 0 to 1, but it can EXCEED 1, and that case is deliberately not clamped away.
+   * A ratio above 1 means JavaScript removed content that the server had sent: a consent
+   * wall replacing the article, a paywall stripping the body, an SPA router blanking the
+   * page before it rehydrates. Google indexes the rendered DOM, so content the server
+   * sent and the browser then deleted is content Google does not see. Clamping to 1 would
+   * throw away the only evidence of it.
+   */
   ratio: number
   preJsH1Count: number
   postJsH1Count: number
