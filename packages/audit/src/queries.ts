@@ -75,12 +75,26 @@ export async function getAudit(
     if (!audit) return undefined
 
     const [site] = await tx.select().from(sites).where(eq(sites.id, audit.siteId)).limit(1)
+
+    /**
+     * A foreign key with ON DELETE CASCADE means an audit without its site cannot exist, so
+     * if we are here the database has been corrupted or the query is scoped wrong.
+     *
+     * Defaulting to '' would paper over that: the dashboard would render an audit attached
+     * to a blank site and look perfectly normal, and the invariant violation would go
+     * unnoticed until someone wondered why a row had no URL. An impossible state should be
+     * loud, not plausible.
+     */
+    if (!site) {
+      throw new Error(`Audit ${auditId} references site ${audit.siteId}, which does not exist.`)
+    }
+
     const rows = await tx.select().from(findings).where(eq(findings.auditId, auditId))
 
     return {
       id: audit.id,
       siteId: audit.siteId,
-      siteUrl: site?.url ?? '',
+      siteUrl: site.url,
       status: audit.status,
       pagesCrawled: audit.pagesCrawled,
       startedAt: audit.startedAt,
