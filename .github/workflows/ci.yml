@@ -15,6 +15,35 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # A real Postgres, because row-level security is enforced by Postgres and by nothing
+    # else, so a mock would only be testing our beliefs about it. Those beliefs were wrong
+    # once already: see packages/db/src/rls.ts.
+    #
+    # Not Neon. CI runs on every push and would trample the shared database, and a container
+    # is hermetic, parallel-safe, and free. It also exercises the fix on a second Postgres:
+    # the container's `postgres` role is a superuser and superusers bypass RLS too, so if
+    # dropping to `seo_app` were not working, this job would fail here rather than in
+    # production.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          # Throwaway. This database is created for this job, listens on localhost inside
+          # the runner, and is destroyed with it.
+          POSTGRES_PASSWORD: ${{ env.PGPASSWORD }}
+          POSTGRES_DB: seo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGPASSWORD: postgres
+
     steps:
       - uses: actions/checkout@v4
 
@@ -45,8 +74,21 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
-
       - name: Build
         run: pnpm build
+
+      # Assembled here rather than written out as a literal connection string, so that no
+      # credential-shaped URI is ever committed. The password is a throwaway for a
+      # localhost container, but "it is only a test credential" is the reasoning that puts
+      # real ones in repos, and a secret scanner that has been taught to ignore this file
+      # is a secret scanner that will ignore the next thing too.
+      - name: Point the tests at the service container
+        run: echo "DATABASE_URL=postgresql://postgres:${PGPASSWORD}@localhost:5432/seo_test" >> "$GITHUB_ENV"
+
+      # Before the tests, not after: the RLS suite has nothing to assert against until the
+      # schema and the policies exist.
+      - name: Migrate the test database
+        run: pnpm --filter @seo/db db:migrate
+
+      - name: Test
+        run: pnpm test
