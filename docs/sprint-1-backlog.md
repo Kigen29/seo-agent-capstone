@@ -202,7 +202,38 @@
 
 ---
 
-## Epic 4: Web app
+## Epic 4: The API
+
+### STORY-013: The REST API, and the rule that nothing else touches the database
+
+**As a** platform, **I want** a single Fastify service that owns every read and write to Postgres, **so that** the database has exactly one door, and that door validates, authorises, and scopes everything that goes through it.
+
+This story was missing from the backlog, and its absence nearly cost us the architecture. `apps/api` is named in the CLAUDE.md repo layout and drawn in the architecture.md system diagram, but no story ever asked anyone to build it, so STORY-012 quietly assumed it existed. The first draft of the dashboard was going to read Postgres directly from React Server Components. That is a legitimate Next.js pattern in general, and the wrong answer here for four specific reasons:
+
+- **Connection exhaustion.** Every Vercel serverless invocation opens its own pool. Neon's free tier has a hard connection ceiling. Render is one long-lived process with one pool.
+- **We need the service anyway.** OAuth callbacks (STORY-009), GitHub App webhooks (sprint 2), and `repository_dispatch` to the worker (ADR-0006) all need a server that is not Vercel.
+- **Blast radius.** Reading from the web app means `DATABASE_URL` (the owner credential, which carries `BYPASSRLS`) has to live in Vercel's environment as well as Render's. One secret, two places, for no gain.
+- **The deployed system must match the design document.** The graded artefact is generated from `docs/adr/` and `architecture.md`. If those describe a Fastify API while production reads the database directly, the document is fiction.
+
+**Acceptance criteria**
+- Given the web app, when it needs data, then it calls the API over HTTP and holds no `DATABASE_URL`. Nothing outside `apps/api` and the worker imports `@seo/db`.
+- Given any request, when it reaches a handler, then its params, query, and body have been validated by Zod, and an invalid request is rejected with a 400 before any query runs.
+- Given a request for another tenant's resource, when it is served, then it returns 404 and not 403. A 403 confirms the row exists, which is an information leak; the API must not admit that another tenant's audit is even a thing.
+- Given every database call, then it goes through `withTenant`, so Postgres enforces isolation even if a handler forgets (ADR-0008).
+- Given the free tier, when the Render service has been idle and cold-starts, then the web app degrades honestly rather than showing a broken page.
+
+**Tasks**
+- Fastify + Zod, deployed to Render's free web service
+- `GET /sites`, `GET /audits/:id`, `GET /findings/:id`, `POST /audits` (enqueue)
+- A typed client in `packages/api-client`, so the web app cannot hand-roll a fetch
+- Contract tests: the API is an external surface and gets the same treatment as any other
+- OpenAPI document generated from the Zod schemas, so the contract is not prose
+
+**Falsification:** `grep -r "@seo/db" apps/web` returns a hit. Or: a request for a finding belonging to another tenant returns anything other than 404.
+
+---
+
+## Epic 5: Web app
 
 ### STORY-012: Dashboard, auth, findings inbox
 **As a** client, **I want** to log in, add a site, run an audit, and read my findings, **so that** the product is usable by a non-engineer.

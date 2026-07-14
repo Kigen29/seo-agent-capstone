@@ -233,5 +233,38 @@ export const oauthCredentials = pgTable(
   (table) => [uniqueIndex('oauth_tenant_provider_idx').on(table.tenantId, table.provider)],
 )
 
+/**
+ * How a request proves which tenant it is.
+ *
+ * Only the SHA-256 of the token is stored, never the token itself. We can verify a presented
+ * token by hashing it; we can never print one back. Losing a token means minting a new one,
+ * which is the right trade: a database dump is the most plausible way to lose these, and a
+ * leaked token is a live credential to somebody's account.
+ */
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+
+    /** Shown in the UI so a human can tell two tokens apart before revoking one. */
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (table) => [uniqueIndex('api_tokens_hash_idx').on(table.tokenHash)],
+)
+
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
-export const TENANT_SCOPED = [sites, audits, findings, artefacts, oauthCredentials] as const
+export const TENANT_SCOPED = [
+  sites,
+  audits,
+  findings,
+  artefacts,
+  oauthCredentials,
+  apiTokens,
+] as const

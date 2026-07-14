@@ -36,6 +36,13 @@
       "when": 1783983887867,
       "tag": "0004_tenants_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783983887868,
+      "tag": "0005_api_tokens",
+      "breakpoints": true
     }
   ]
 }
