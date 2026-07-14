@@ -85,3 +85,23 @@ export async function withoutTenant<T>(
     return work(scoped)
   })
 }
+
+/**
+ * Run as the connection's own role, which on Neon holds BYPASSRLS. **This sees and can
+ * write every tenant's data.** It is the only function in the codebase that can.
+ *
+ * It exists for exactly one thing: creating a tenant. Onboarding cannot run "as a tenant",
+ * because at that moment the tenant does not exist, so there is no id to put in
+ * `app.tenant_id` and no policy that could pass. That is a real hole in the model, and the
+ * honest response is to name it, give it one narrow entrance, and make that entrance
+ * impossible to use by accident.
+ *
+ * Do not reach for this because a query "isn't returning anything". That is row-level
+ * security working. Reaching for `asOwner` to make it stop is disabling the one mechanism
+ * standing between a forgotten WHERE clause and a cross-tenant breach.
+ *
+ * Every call site should be countable on one hand, and each one should be obvious in review.
+ */
+export async function asOwner<T>(db: Database, work: (tx: Database) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => work(tx as unknown as Database))
+}

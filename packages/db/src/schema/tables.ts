@@ -112,6 +112,14 @@ export const findings = pgTable(
     /** e.g. 'TECH-007'. Not a foreign key: the rules live in code, not in a table. */
     ruleId: text('rule_id').notNull(),
 
+    /**
+     * The rule engine's derived identity for this finding, e.g. 'TECH-002#0'. Stable across
+     * runs of the same crawl, so the verifier can re-check one finding by name and the
+     * inbox does not reshuffle on refresh. Unique within an audit, which is why it is not
+     * the primary key.
+     */
+    key: text('key').notNull(),
+
     axis: axisEnum('axis').notNull(),
     severity: severityEnum('severity').notNull(),
     confidence: real('confidence').notNull(),
@@ -151,6 +159,8 @@ export const findings = pgTable(
   (table) => [
     index('findings_audit_idx').on(table.auditId),
     index('findings_site_status_idx').on(table.siteId, table.status),
+    /** Re-running an audit must not silently duplicate its findings. */
+    uniqueIndex('findings_audit_key_idx').on(table.auditId, table.key),
   ],
 )
 

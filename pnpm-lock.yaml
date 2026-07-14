@@ -58,6 +58,40 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/audit:
+    dependencies:
+      '@seo/core':
+        specifier: workspace:*
+        version: link:../core
+      '@seo/crawler':
+        specifier: workspace:*
+        version: link:../crawler
+      '@seo/db':
+        specifier: workspace:*
+        version: link:../db
+      '@seo/rules':
+        specifier: workspace:*
+        version: link:../rules
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(pg@8.22.0)
+    devDependencies:
+      '@seo/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
   packages/core:
     dependencies:
       zod:

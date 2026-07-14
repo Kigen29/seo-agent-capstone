@@ -1,4 +1,4 @@
-export { createDb, withoutTenant, withTenant } from './client.js'
+export { asOwner, createDb, withoutTenant, withTenant } from './client.js'
 export type { Database } from './client.js'
 
 export {
