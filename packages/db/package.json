@@ -1,0 +1,40 @@
+{
+  "name": "@seo/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "pnpm build && drizzle-kit generate",
+    "db:migrate": "pnpm build && node --env-file-if-exists=../../.env dist/migrate.js"
+  },
+  "dependencies": {
+    "@seo/core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@seo/tsconfig": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.2",
+    "vitest": "^2.0.0"
+  }
+}
