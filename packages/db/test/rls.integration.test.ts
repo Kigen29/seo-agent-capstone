@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDb, withoutTenant, withTenant, type Database } from '../src/client.js'
+import { asOwner, createDb, withoutTenant, withTenant, type Database } from '../src/client.js'
 import { sites, tenants } from '../src/schema/tables.js'
 
 /**
@@ -53,9 +53,9 @@ describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
     db = created.db
     close = () => created.pool.end()
 
-    // The tenants table is the root of the ownership chain and carries no tenant_id, so it
-    // has no RLS policy and is written without a tenant context. Everything else below is.
-    await withoutTenant(db, async (tx) => {
+    // Onboarding runs as the owner, because a tenant cannot be created "as a tenant": at
+    // this moment it does not exist. This is the one narrow use of asOwner.
+    await asOwner(db, async (tx) => {
       await tx.insert(tenants).values([
         { id: tenantA, name: 'Tenant A' },
         { id: tenantB, name: 'Tenant B' },
@@ -73,7 +73,7 @@ describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
   afterAll(async () => {
     if (!db) return
     // Cascades to sites, audits, findings, artefacts, credentials.
-    await withoutTenant(db, async (tx) => {
+    await asOwner(db, async (tx) => {
       await tx.delete(tenants).where(eq(tenants.id, tenantA))
       await tx.delete(tenants).where(eq(tenants.id, tenantB))
     })
@@ -143,9 +143,9 @@ describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
     // by every tenant. This asks the catalog instead of asking me to remember.
     //
     // The allow-list is what a reviewer should be made to argue with: to add a table without
-    // RLS, you have to come here and write down why.
+    // RLS, you have to come here and write down why. `tenants` used to be on it and has
+    // earned its way off: it is now enabled, forced, and carries a self-read policy.
     const ALLOWED_WITHOUT_RLS = new Set([
-      'tenants', // root of the ownership chain; has no tenant_id to filter on
       '__drizzle_migrations', // migration bookkeeping, written only by the owner
     ])
 
@@ -163,6 +163,29 @@ describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
         .map((r) => r.table)
 
       expect(unprotected, 'tables with no enforced RLS policy').toEqual([])
+    })
+  })
+
+  describe('the tenants table itself', () => {
+    it('does not let the app enumerate the customer list', async () => {
+      // `tenants` was originally left unprotected on the grounds that it is the root of the
+      // ownership chain and holds only an id and a name. That reasoning was wrong: a name
+      // IS the customer list, and any tenant able to SELECT the table could read every
+      // other customer's name. It now carries a self-read policy.
+      const seen = await withTenant(db, tenantA, (tx) => tx.select().from(tenants))
+
+      expect(seen.map((t) => t.name)).toEqual(['Tenant A'])
+    })
+
+    it('refuses to let the app create a tenant, so onboarding must be deliberate', async () => {
+      // There is no INSERT policy on tenants, so seo_app cannot create one at all. Tenant
+      // creation is an owner-only operation reached through asOwner, and it should be
+      // impossible to do accidentally from ordinary request-path code.
+      const error = await withTenant(db, tenantA, (tx) =>
+        tx.insert(tenants).values({ name: 'Smuggled Tenant' }),
+      ).catch((e: unknown) => e)
+
+      expect(sqlState(error)).toBe(INSUFFICIENT_PRIVILEGE)
     })
   })
 
