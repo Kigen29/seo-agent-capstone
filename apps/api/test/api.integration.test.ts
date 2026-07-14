@@ -119,6 +119,20 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(res.statusCode).toBe(401)
     })
 
+    it('records that a token was used, so an abandoned one can be spotted and revoked', async () => {
+      // The column existed and nothing ever wrote to it, which is worse than not having it:
+      // a permanently null last_used_at reads as "never used" and would have talked somebody
+      // into revoking a live token. Best-effort, though: a failure to write bookkeeping must
+      // never turn a valid token into a 401 and lock a customer out of their own account.
+      await get('/sites', token)
+
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(apiTokens).where(eq(apiTokens.tenantId, tenantId)),
+      )
+
+      expect(row?.lastUsedAt).toBeInstanceOf(Date)
+    })
+
     it('stores only the hash, so a stolen database yields no usable tokens', async () => {
       const rows = await withTenant(db, tenantId, (tx) =>
         tx.select().from(apiTokens).where(eq(apiTokens.tenantId, tenantId)),
@@ -166,6 +180,31 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(intruder.statusCode).toBe(404)
       expect(intruder.statusCode).not.toBe(403)
       expect(intruder.json()).toEqual({ error: 'Not Found' })
+
+      /**
+       * The assertion that actually proves the property, and the one I had missed.
+       *
+       * "Cross-tenant returns 404" is only half of it. Non-enumerability requires that a
+       * request for somebody else's real audit is INDISTINGUISHABLE from a request for an
+       * audit that never existed. If the two responses differed in status, body, or shape by
+       * so much as a byte, an attacker could still tell "real, not yours" from "not real",
+       * and could still enumerate every audit id on the platform. The 404 would be theatre.
+       */
+      const missing = await get('/audits/00000000-0000-0000-0000-000000000000', otherToken)
+
+      expect(missing.statusCode).toBe(intruder.statusCode)
+      expect(missing.json()).toEqual(intruder.json())
+      expect(missing.body).toBe(intruder.body)
+    })
+
+    it('gives an owner the same 404 for a missing audit as an intruder gets for a real one', async () => {
+      // The same property from the other side: a tenant asking for an id that does not exist
+      // must not learn that it does not exist *anywhere*, only that it is not theirs.
+      const mine = await get('/audits/00000000-0000-0000-0000-000000000000', token)
+      const theirs = await get('/audits/00000000-0000-0000-0000-000000000000', otherToken)
+
+      expect(mine.statusCode).toBe(404)
+      expect(mine.body).toBe(theirs.body)
     })
 
     it('cannot be steered into another tenant by writing a site they own', async () => {

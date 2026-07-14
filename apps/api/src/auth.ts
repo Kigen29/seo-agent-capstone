@@ -1,6 +1,6 @@
 import { apiTokens, asOwner, type Database } from '@seo/db'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, lt, or } from 'drizzle-orm'
 
 /**
  * Authentication, which is the hinge the whole isolation story hangs on.
@@ -77,5 +77,45 @@ export async function tenantForToken(db: Database, token: string): Promise<strin
   const b = Buffer.from(presented, 'hex')
   if (a.length !== b.length || !timingSafeEqual(a, b)) return undefined
 
+  await touch(db, row.id)
+
   return row.tenantId
+}
+
+/**
+ * How long a `last_used_at` may be stale before we bother rewriting it.
+ *
+ * Updating it on every request would mean a row rewrite on every authenticated call, which
+ * on a free-tier database is a real cost paid for a field nobody reads to the minute. The
+ * question it answers is "is this token still in use, or can I revoke it?", and an hour's
+ * resolution answers that perfectly.
+ */
+const TOUCH_INTERVAL_MS = 60 * 60 * 1000
+
+/**
+ * Record that a token was used, so a human can tell a live token from an abandoned one and
+ * revoke the abandoned ones.
+ *
+ * Best-effort, and deliberately so: this is bookkeeping, not authentication. A failure to
+ * write it must never turn a valid token into a 401, because that would mean a hiccup in a
+ * usage counter could lock a customer out of their own account.
+ */
+async function touch(db: Database, id: string): Promise<void> {
+  const stale = new Date(Date.now() - TOUCH_INTERVAL_MS)
+
+  try {
+    await asOwner(db, (tx) =>
+      tx
+        .update(apiTokens)
+        .set({ lastUsedAt: new Date() })
+        .where(
+          and(
+            eq(apiTokens.id, id),
+            or(isNull(apiTokens.lastUsedAt), lt(apiTokens.lastUsedAt, stale)),
+          ),
+        ),
+    )
+  } catch {
+    // Bookkeeping. Never fail a valid request over it.
+  }
 }
