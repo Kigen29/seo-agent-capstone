@@ -60,10 +60,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The crawler's integration tests drive a real browser against a real HTTP server.
-      # The story's falsification condition is about how it behaves against a live origin,
-      # and no mock can falsify that, so the ~1 minute this costs is the price of the test
-      # actually meaning something.
+      # The crawler's integration tests drive a real browser against a real HTTP server, and
+      # the dashboard's e2e drives one against the real app. The falsification conditions for
+      # both are about behaviour against a live origin, and no mock can falsify that, so the
+      # ~1 minute this costs is the price of the tests meaning anything.
       - name: Install Chromium
         run: pnpm --filter @seo/crawler exec playwright install --with-deps chromium
 
@@ -86,3 +86,12 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # STORY-012's acceptance criteria are claims about a screen ("I see the evidence, the
+      # affected URLs, the impact, the effort, and the falsification condition"), so nothing
+      # but a browser can check them. This drives the real Next app against the real API
+      # against the Postgres service container, with row-level security on. The assertions
+      # that matter most here (a blank axis stays blank; another tenant gets a 404) are
+      # precisely the ones a mock would cheerfully lie about.
+      - name: End-to-end
+        run: pnpm --filter @seo/web e2e
