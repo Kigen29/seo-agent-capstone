@@ -18,6 +18,29 @@ import { sites, tenants } from '../src/schema/tables.js'
 const url = process.env.DATABASE_URL
 const shouldRun = Boolean(url) || Boolean(process.env.CI)
 
+/** Postgres `insufficient_privilege`, which is what an RLS policy violation raises. */
+const INSUFFICIENT_PRIVILEGE = '42501'
+
+/**
+ * Dig the SQLSTATE out of whatever the ORM wrapped the driver error in.
+ *
+ * The assertion this supports used to match on the error *message*, and a drizzle upgrade
+ * broke it: 0.45 wraps the driver error in a DrizzleQueryError whose message is
+ * "Failed query: insert into ..." and moves the original to `cause`. The write was still
+ * refused, so isolation never regressed, but the test went red anyway because it was
+ * asserting on prose that an ORM is free to rewrite.
+ *
+ * The SQLSTATE is a contract in the Postgres manual. It survives ORM upgrades, it survives
+ * locale changes, and it cannot be reworded. Assert on that instead.
+ */
+function sqlState(error: unknown): string | undefined {
+  for (let e: unknown = error; e != null; e = (e as { cause?: unknown }).cause) {
+    const code = (e as { code?: unknown }).code
+    if (typeof code === 'string') return code
+  }
+  return undefined
+}
+
 describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
   let db: Database
   let close: () => Promise<void>
@@ -162,12 +185,17 @@ describe.skipIf(!shouldRun)('tenant isolation, enforced by Postgres', () => {
     // WITH CHECK, not USING. A read-side-only policy would let tenant A read only its own
     // rows while cheerfully INSERTing rows owned by B, which is a write-side cross-tenant
     // breach that no amount of SELECT testing would ever surface.
-    await expect(
-      withTenant(db, tenantA, (tx) =>
-        tx.insert(sites).values({ tenantId: tenantB, url: 'https://smuggled.example.com' }),
-      ),
-    ).rejects.toThrow(/row-level security/i)
+    const error = await withTenant(db, tenantA, (tx) =>
+      tx.insert(sites).values({ tenantId: tenantB, url: 'https://smuggled.example.com' }),
+    ).catch((e: unknown) => e)
 
+    expect(sqlState(error), 'the cross-tenant insert was not refused by a policy').toBe(
+      INSUFFICIENT_PRIVILEGE,
+    )
+
+    // Belt and braces. An error is what we expect, but what actually matters is that the row
+    // is not there, and the two are different claims: a policy could conceivably raise and
+    // still write, or a future ORM could swallow the error. Ask tenant B what it can see.
     const bSites = await withTenant(db, tenantB, (tx) => tx.select().from(sites))
     expect(bSites.map((s) => s.url)).toEqual(['https://b.example.com'])
   })

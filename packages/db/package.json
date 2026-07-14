@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@seo/core": "workspace:*",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.45.2",
     "pg": "^8.13.0",
     "zod": "^3.23.0"
   },
@@ -33,7 +33,7 @@
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "dotenv": "^17.4.2",
-    "drizzle-kit": "^0.28.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.2",
     "vitest": "^2.0.0"
   }
