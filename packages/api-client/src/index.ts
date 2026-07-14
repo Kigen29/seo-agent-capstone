@@ -79,9 +79,18 @@ export function createApiClient(options: ApiClientOptions) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    /**
+     * Composed, not overwritten. Setting `signal` to the timeout alone would silently throw
+     * away a caller's own AbortController, so a page that cancels its requests on unmount, or
+     * a job that cancels on shutdown, would find its cancellation quietly ignored. Whichever
+     * fires first wins, which is what both parties actually meant.
+     */
+    const timeout = AbortSignal.timeout(timeoutMs)
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+
     const response = await doFetch(`${base}${path}`, {
       ...init,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal,
       headers: {
         ...init.headers,
         authorization: `Bearer ${options.token}`,

@@ -1,6 +1,15 @@
-import type { Scorecard } from '@seo/core'
+import type { Axis, AxisStatus, Scorecard } from '@seo/core'
 
-const AXIS_LABEL: Record<string, string> = {
+/**
+ * Keyed by the domain types, not by `string`.
+ *
+ * With `Record<string, string>` a ninth axis could be added to `@seo/core` and this file
+ * would still compile: the new axis would simply render with no label, silently, and nobody
+ * would find out until they saw a blank row in production. Keying on `Axis` means adding one
+ * is a compile error here, which is the whole reason the Postgres enums are derived from the
+ * Zod schemas rather than retyped.
+ */
+const AXIS_LABEL: Record<Axis, string> = {
   crawl_health: 'Crawl health',
   performance: 'Performance',
   content: 'Content',
@@ -11,14 +20,14 @@ const AXIS_LABEL: Record<string, string> = {
   agent_readiness: 'Agent readiness',
 }
 
-const STATUS_STYLE: Record<string, string> = {
+const STATUS_STYLE: Record<AxisStatus, string> = {
   good: 'text-emerald-400',
   needs_work: 'text-amber-400',
   poor: 'text-red-400',
   not_measured: 'text-neutral-600',
 }
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL: Record<AxisStatus, string> = {
   good: 'Good',
   needs_work: 'Needs work',
   poor: 'Poor',
@@ -46,7 +55,7 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
         return (
           <li key={axis.axis} className="bg-neutral-950 p-4">
             <div className="flex items-baseline justify-between gap-4">
-              <p className="font-medium text-neutral-200">{AXIS_LABEL[axis.axis] ?? axis.axis}</p>
+              <p className="font-medium text-neutral-200">{AXIS_LABEL[axis.axis]}</p>
 
               <p className={`font-mono text-2xl tabular-nums ${STATUS_STYLE[axis.status]}`}>
                 {measured ? Math.round(axis.score!) : '--'}
