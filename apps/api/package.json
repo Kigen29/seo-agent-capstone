@@ -1,0 +1,32 @@
+{
+  "name": "@seo/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --env-file-if-exists=../../.env --watch dist/server.js",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "mint-token": "pnpm build && node --env-file-if-exists=../../.env dist/mint-token.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@seo/audit": "workspace:*",
+    "@seo/core": "workspace:*",
+    "@seo/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.2.0",
+    "fastify-type-provider-zod": "^4.0.2",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@seo/tsconfig": "workspace:*",
+    "@types/node": "^22.10.2",
+    "dotenv": "^17.4.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.0.0"
+  }
+}

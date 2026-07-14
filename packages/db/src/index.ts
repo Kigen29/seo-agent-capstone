@@ -12,6 +12,7 @@ export {
 
 export * as schema from './schema/index.js'
 export {
+  apiTokens,
   artefacts,
   audits,
   findings,

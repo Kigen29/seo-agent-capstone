@@ -16,6 +16,34 @@ const VENDOR_SDK_PATTERNS = [
   'ollama',
 ]
 
+const VENDOR_SDK_RULE = {
+  group: VENDOR_SDK_PATTERNS,
+  message:
+    'Vendor SDKs are confined to packages/llm/src/providers.ts (ADR-0005). Ask @seo/llm for a role instead: llm.object({ role: "smart", ... }).',
+}
+
+/**
+ * The database has one door, and it is the API (STORY-013).
+ *
+ * The web app was one commit away from reading Postgres directly out of a React Server
+ * Component. That is a legitimate Next.js pattern in general and the wrong answer here: it
+ * would have put DATABASE_URL (the owner credential, which carries BYPASSRLS) into Vercel's
+ * environment, opened a fresh connection pool on every serverless invocation against a free
+ * tier with a hard connection ceiling, and left the deployed system contradicting the
+ * architecture document that gets graded.
+ *
+ * A rule nobody can enforce is a rule nobody keeps, so this is the enforcement. Import
+ * @seo/db anywhere outside the allow-list below and CI fails.
+ */
+const DB_RULE = {
+  group: ['@seo/db', '@seo/db/*'],
+  message:
+    'Only the API and the worker may talk to Postgres (STORY-013). Everything else goes through the API over HTTP. If you are in apps/web, use @seo/api-client.',
+}
+
+/** The only places allowed to hold a database handle. Adding to this list is an ADR, not a fix. */
+const DB_ALLOWED = ['apps/api/**', 'apps/worker/**', 'packages/audit/**', 'packages/db/**']
+
 export default tseslint.config(
   {
     ignores: [
@@ -44,18 +72,14 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: VENDOR_SDK_PATTERNS,
-              message:
-                'Vendor SDKs are confined to packages/llm/src/providers.ts (ADR-0005). Ask @seo/llm for a role instead: llm.object({ role: "smart", ... }).',
-            },
-          ],
-        },
-      ],
+      'no-restricted-imports': ['error', { patterns: [VENDOR_SDK_RULE, DB_RULE] }],
+    },
+  },
+  {
+    // The API, the worker, the audit runner, and the db package itself. Nothing else.
+    files: DB_ALLOWED,
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [VENDOR_SDK_RULE] }],
     },
   },
   {

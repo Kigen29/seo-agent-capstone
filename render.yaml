@@ -1,0 +1,32 @@
+# The API, on Render's free web service. See ADR-0006 (everything runs on a free tier).
+#
+# The free instance spins down after ~15 minutes of inactivity and takes 30 to 60 seconds to
+# wake. That is a real property of the product, not a footnote: the dashboard has to handle a
+# cold start honestly rather than showing a broken page, and the sprint demo should wake the
+# service before it starts.
+services:
+  - type: web
+    name: seo-agent-api
+    runtime: node
+    plan: free
+    region: oregon
+
+    # Build from the monorepo root: the API depends on five workspace packages, and pnpm
+    # needs the lockfile and the workspace manifest to resolve them.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node apps/api/dist/server.js
+
+    # Render polls this. It must not require a token, or the service is marked unhealthy and
+    # restarted forever.
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      # Set in the Render dashboard, never here. This is the owner credential and it carries
+      # BYPASSRLS (ADR-0008).
+      - key: DATABASE_URL
+        sync: false
+      # The web app's origin, so CORS admits it and nothing else.
+      - key: WEB_URL
+        sync: false
