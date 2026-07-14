@@ -29,9 +29,11 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          # Throwaway. This database is created for this job, listens on localhost inside
-          # the runner, and is destroyed with it.
-          POSTGRES_PASSWORD: ${{ env.PGPASSWORD }}
+          # No password, deliberately. This database is created for this job, is reachable
+          # only on localhost inside the runner, and is destroyed with it, so a password
+          # would protect nothing and would be one more credential-shaped string living in
+          # the repo. The best way not to commit a secret is not to have one.
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: seo_test
         ports:
           - 5432:5432
@@ -42,7 +44,7 @@ jobs:
           --health-retries 5
 
     env:
-      PGPASSWORD: postgres
+      DATABASE_URL: postgresql://postgres@localhost:5432/seo_test
 
     steps:
       - uses: actions/checkout@v4
@@ -76,14 +78,6 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-      # Assembled here rather than written out as a literal connection string, so that no
-      # credential-shaped URI is ever committed. The password is a throwaway for a
-      # localhost container, but "it is only a test credential" is the reasoning that puts
-      # real ones in repos, and a secret scanner that has been taught to ignore this file
-      # is a secret scanner that will ignore the next thing too.
-      - name: Point the tests at the service container
-        run: echo "DATABASE_URL=postgresql://postgres:${PGPASSWORD}@localhost:5432/seo_test" >> "$GITHUB_ENV"
 
       # Before the tests, not after: the RLS suite has nothing to assert against until the
       # schema and the policies exist.
