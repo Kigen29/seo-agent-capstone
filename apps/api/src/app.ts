@@ -1,8 +1,16 @@
 import cors from '@fastify/cors'
 import { getAudit, getFinding, listSites } from '@seo/audit'
-import { audits, createDb, sites, withTenant, type Database } from '@seo/db'
+import {
+  buildAuthUrl,
+  encryptToken,
+  exchangeCode,
+  signState,
+  verifyState,
+  type OAuthConfig,
+} from '@seo/connectors'
+import { audits, createDb, oauthCredentials, sites, withTenant, type Database } from '@seo/db'
 import type { AuditJob } from '@seo/queue'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify'
 import {
   serializerCompiler,
@@ -22,6 +30,14 @@ export interface AppOptions {
    * `POST /audits` reports 503 rather than creating a queued row that nothing will ever run.
    */
   enqueue?: (job: AuditJob) => Promise<unknown>
+  /**
+   * Google OAuth. Injected so the connection routes can be tested with a mocked token
+   * endpoint, and so the app never reads process.env directly. Absent means the routes report
+   * 503 rather than sending users to a half-configured consent screen.
+   */
+  google?: { config: OAuthConfig; fetch?: typeof globalThis.fetch }
+  /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
+  webUrl?: string
 }
 
 const uuidParam = z.object({ id: z.string().uuid() })
@@ -77,6 +93,79 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
   /** Render's health check hits this, and it must not require a token. */
   app.get('/health', async () => ({ status: 'ok' }))
+
+  /**
+   * The Google OAuth callback. Unauthenticated on purpose: it is a browser redirect back from
+   * Google and carries no bearer token. It cannot be, because the user is mid-consent and has
+   * no session on this API.
+   *
+   * What makes that safe is the signed `state`. It was minted by the authenticated start route
+   * for one specific tenant, and `verifyState` refuses anything forged, tampered with, or
+   * stale. So the tenant this credential is stored against is one only this server could have
+   * named, never one the caller supplied.
+   */
+  const webUrl = options.webUrl ?? process.env.WEB_URL ?? 'http://localhost:3000'
+  const backToDashboard = (status: string) =>
+    `${webUrl.replace(/\/$/, '')}/dashboard?google=${status}`
+
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/auth/google/callback',
+    {
+      schema: {
+        querystring: z.object({
+          code: z.string().optional(),
+          state: z.string().optional(),
+          error: z.string().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const { code, state, error } = request.query
+
+      // The user declined consent, or Google returned an error. Send them back with a note,
+      // not a stack trace: declining is a choice, not a failure.
+      if (error || !code || !state) return reply.redirect(backToDashboard('declined'))
+
+      if (!options.google) return reply.redirect(backToDashboard('unavailable'))
+
+      const tenantId = verifyState(state)
+      if (!tenantId) return reply.redirect(backToDashboard('invalid'))
+
+      try {
+        const tokens = await exchangeCode(options.google.config, code, options.google.fetch)
+
+        // Store the refresh token encrypted, never in the clear (ADR-0003). Upsert, so
+        // re-connecting replaces the old grant rather than colliding on (tenant, provider).
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .insert(oauthCredentials)
+            .values({
+              tenantId,
+              provider: 'google',
+              accountEmail: tokens.email,
+              refreshTokenEncrypted: encryptToken(tokens.refreshToken),
+              scopes: ['webmasters', 'siteverification'],
+            })
+            .onConflictDoUpdate({
+              target: [oauthCredentials.tenantId, oauthCredentials.provider],
+              set: {
+                accountEmail: tokens.email,
+                refreshTokenEncrypted: encryptToken(tokens.refreshToken),
+                updatedAt: sql`now()`,
+              },
+            }),
+        )
+
+        return reply.redirect(backToDashboard('connected'))
+      } catch (err) {
+        // Never leak a token or a Google error detail into a redirect URL, where it would
+        // land in browser history and server logs. Log it server-side, send back a generic
+        // failure the dashboard can explain.
+        console.error('google oauth callback failed', err)
+        return reply.redirect(backToDashboard('failed'))
+      }
+    },
+  )
 
   await app.register(async (protectedRoutes) => {
     /**
@@ -233,6 +322,36 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           return reply.status(202).send({ auditId: created.auditId })
         },
       )
+
+    /** Whether this tenant has connected Google, and as whom, so the UI can show it. */
+    protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/connections', async (request) => {
+      const [google] = await withTenant(db, request.tenantId, (tx) =>
+        tx
+          .select({ email: oauthCredentials.accountEmail })
+          .from(oauthCredentials)
+          .where(eq(oauthCredentials.provider, 'google'))
+          .limit(1),
+      )
+
+      return { google: google ? { connected: true, email: google.email } : { connected: false } }
+    })
+
+    /**
+     * Begin connecting Google. Returns the consent URL for the browser to visit; the state in
+     * it is signed for this authenticated tenant, so the eventual callback can trust it.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .post('/connections/google', async (request, reply) => {
+        if (!options.google) {
+          return reply
+            .status(503)
+            .send({ error: 'Service Unavailable', message: 'Google is not configured.' })
+        }
+
+        const state = signState(request.tenantId)
+        return { url: buildAuthUrl(options.google.config, state) }
+      })
   })
 
   return app

@@ -30,3 +30,15 @@ services:
       # The web app's origin, so CORS admits it and nothing else.
       - key: WEB_URL
         sync: false
+      # Encrypts Google refresh tokens at rest, and signs the OAuth callback state
+      # (ADR-0003, ADR-0009). Generate with: openssl rand -base64 32
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      # Google OAuth for Search Console. Set in the dashboard, never here. The redirect URI
+      # must be this service's public /auth/google/callback and match the Cloud console.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false
