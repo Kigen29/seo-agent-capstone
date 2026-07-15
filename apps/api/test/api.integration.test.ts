@@ -1,4 +1,14 @@
-import { apiTokens, asOwner, createDb, sites, tenants, withTenant, type Database } from '@seo/db'
+import {
+  apiTokens,
+  asOwner,
+  audits,
+  createDb,
+  sites,
+  tenants,
+  withTenant,
+  type Database,
+} from '@seo/db'
+import type { AuditJob } from '@seo/queue'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -28,6 +38,9 @@ describe.skipIf(!shouldRun)('the API', () => {
   let otherToken: string
   let siteId: string
 
+  /** Every job the injected enqueue was handed, so a test can prove what was queued. */
+  const enqueued: AuditJob[] = []
+
   const mint = (tenant: string) => {
     const plain = generateToken()
     return asOwner(db, async (tx) => {
@@ -42,7 +55,14 @@ describe.skipIf(!shouldRun)('the API', () => {
     const created = createDb(url)
     db = created.db
     close = () => created.pool.end()
-    app = await buildApp({ db })
+    // A spy enqueue: the queue itself is tested in @seo/queue, so here we only need to prove
+    // the route creates the right row and hands the right job over.
+    app = await buildApp({
+      db,
+      enqueue: async (job) => {
+        enqueued.push(job)
+      },
+    })
 
     const names = [`api-test-${Date.now()}`, `api-other-${Date.now()}`]
     const [a, b] = await asOwner(db, (tx) =>
@@ -253,6 +273,84 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
 
       expect(res.statusCode).toBe(401)
+    })
+  })
+
+  describe('POST /audits', () => {
+    it('queues an audit for the caller own site, and hands the worker the right job', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/audits',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { siteId },
+      })
+
+      expect(res.statusCode).toBe(202)
+      const { auditId } = res.json() as { auditId: string }
+      expect(auditId).toMatch(/^[0-9a-f-]{36}$/)
+
+      // The row exists, scoped to this tenant, and starts queued.
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(audits).where(eq(audits.id, auditId)),
+      )
+      expect(row?.status).toBe('queued')
+
+      // The worker was handed a job carrying that audit id and the site's URL, so it can run
+      // the existing row rather than creating a second one.
+      const job = enqueued.find((j) => j.auditId === auditId)
+      expect(job).toMatchObject({ auditId, tenantId, siteId, seed: 'https://owned.example.com' })
+    })
+
+    it('returns 404 for a site belonging to another tenant, and queues nothing', async () => {
+      // The same non-enumerability as the read routes: an intruder must not learn that the
+      // site exists, and certainly must not get an audit scheduled against it.
+      const before = enqueued.length
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/audits',
+        headers: { authorization: `Bearer ${otherToken}` },
+        payload: { siteId },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(enqueued.length).toBe(before)
+    })
+
+    it('rejects a missing or malformed siteId with 400', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/audits',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { siteId: 'not-a-uuid' },
+      })
+
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('marks the audit failed rather than leaving it queued when there is no queue', async () => {
+      // A build with no enqueue wired must not create a row that hangs on `queued` forever.
+      // It fails it with a reason the dashboard can show.
+      const noQueue = await buildApp({ db })
+
+      const res = await noQueue.inject({
+        method: 'POST',
+        url: '/audits',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { siteId },
+      })
+
+      expect(res.statusCode).toBe(503)
+
+      const rows = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(audits).where(eq(audits.siteId, siteId)),
+      )
+      // The most recent audit for this site is the one just created, and it is failed.
+      const latest = rows.sort((a, b) => +b.startedAt - +a.startedAt)[0]
+      expect(latest?.status).toBe('failed')
+      expect(latest?.error).toMatch(/queue is not configured/i)
+
+      await noQueue.close()
     })
   })
 

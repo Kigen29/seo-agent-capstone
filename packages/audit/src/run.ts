@@ -8,6 +8,11 @@ import { measurePerformance } from './performance.js'
 export interface RunAuditOptions {
   tenantId: string
   siteId: string
+  /**
+   * An existing audit row to run into, created as `queued` by the API. Omit when running
+   * directly from the CLI, and a fresh row is created.
+   */
+  auditId?: string
   /** The homepage. Click depth and orphan status are measured from here. */
   seed: string
   maxPages?: number
@@ -80,7 +85,24 @@ function assertSiteWasReachable(pages: CrawledPage[], seed: string): void {
 export async function runAudit(db: Database, options: RunAuditOptions): Promise<AuditResult> {
   const { tenantId, siteId, seed } = options
 
+  /**
+   * Two entry points, one function. When the worker runs a queued job, the API has already
+   * created the audit row (status `queued`) and the job carries its id, so we move that row
+   * to `crawling` rather than creating a second one, which would leave a phantom queued audit
+   * on the dashboard forever. When the CLI runs directly, there is no row yet, so we make one.
+   *
+   * Either way the row is in `crawling` before the first page is fetched, so the dashboard's
+   * live progress has something true to show from the outset.
+   */
   const auditId = await withTenant(db, tenantId, async (tx) => {
+    if (options.auditId) {
+      await tx
+        .update(audits)
+        .set({ status: 'crawling', startedAt: new Date() })
+        .where(eq(audits.id, options.auditId))
+      return options.auditId
+    }
+
     const [row] = await tx
       .insert(audits)
       .values({ tenantId, siteId, status: 'crawling' })
