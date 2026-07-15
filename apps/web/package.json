@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "next": "^15.1.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@seo/api-client": "workspace:*",
+    "@seo/core": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -19,6 +22,8 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@playwright/test": "^1.49.1",
+    "dotenv": "^17.4.2"
   }
 }

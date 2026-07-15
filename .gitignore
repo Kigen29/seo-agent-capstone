@@ -16,3 +16,4 @@ test-results/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+.playwright/
