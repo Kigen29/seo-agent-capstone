@@ -127,6 +127,15 @@ export function createApiClient(options: ApiClientOptions) {
 
     getAudit: async (id: string) => (await request<{ audit: Audit }>(`/audits/${id}`)).audit,
 
+    /** Queue an audit for a site. Returns the new audit's id; the crawl runs on the worker. */
+    startAudit: async (siteId: string) =>
+      (
+        await request<{ auditId: string }>('/audits', {
+          method: 'POST',
+          body: JSON.stringify({ siteId }),
+        })
+      ).auditId,
+
     getFinding: async (id: string) =>
       (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))
         .finding,

@@ -1,0 +1,21 @@
+{
+  "name": "@seo/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "drain": "node --env-file-if-exists=../../.env dist/drain.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@seo/audit": "workspace:*",
+    "@seo/db": "workspace:*",
+    "@seo/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "@seo/tsconfig": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

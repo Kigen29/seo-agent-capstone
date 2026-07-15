@@ -1,6 +1,7 @@
 import cors from '@fastify/cors'
 import { getAudit, getFinding, listSites } from '@seo/audit'
-import { createDb, sites, withTenant, type Database } from '@seo/db'
+import { audits, createDb, sites, withTenant, type Database } from '@seo/db'
+import type { AuditJob } from '@seo/queue'
 import { and, eq } from 'drizzle-orm'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify'
 import {
@@ -15,6 +16,12 @@ export interface AppOptions {
   db?: Database
   /** Origins allowed to call the API from a browser. The web app, and nothing else. */
   corsOrigins?: string[]
+  /**
+   * Puts an audit on the queue and nudges the worker. Injected rather than built here, so the
+   * route knows nothing about pg-boss or GitHub, and a test can pass a spy. When absent,
+   * `POST /audits` reports 503 rather than creating a queued row that nothing will ever run.
+   */
+  enqueue?: (job: AuditJob) => Promise<unknown>
 }
 
 const uuidParam = z.object({ id: z.string().uuid() })
@@ -155,6 +162,77 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         if (!finding) return notFound(reply)
         return { finding }
       })
+
+    /**
+     * Queue an audit for a site the caller owns. Returns immediately with the new audit's id;
+     * the crawl runs on the worker, and the dashboard polls the row for live progress.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .post(
+        '/audits',
+        { schema: { body: z.object({ siteId: z.string().uuid() }) } },
+        async (request, reply) => {
+          // Create the row as `queued` first, so ownership is checked (RLS) and the audit exists
+          // before we promise to run it. A site that is not the caller's returns 404, never 403.
+          const created = await withTenant(db, request.tenantId, async (tx) => {
+            const [site] = await tx
+              .select()
+              .from(sites)
+              .where(eq(sites.id, request.body.siteId))
+              .limit(1)
+
+            if (!site) return undefined
+
+            const [audit] = await tx
+              .insert(audits)
+              .values({ tenantId: request.tenantId, siteId: site.id, status: 'queued' })
+              .returning({ id: audits.id })
+
+            return { auditId: audit!.id, seed: site.url }
+          })
+
+          if (!created) return notFound(reply)
+
+          if (!options.enqueue) {
+            // No queue wired. Do not leave a row stuck on `queued` that nothing will ever run:
+            // mark it failed with a reason the dashboard can show.
+            await withTenant(db, request.tenantId, (tx) =>
+              tx
+                .update(audits)
+                .set({
+                  status: 'failed',
+                  error: 'The audit queue is not configured on this server.',
+                })
+                .where(eq(audits.id, created.auditId)),
+            )
+            return reply
+              .status(503)
+              .send({ error: 'Service Unavailable', message: 'The audit queue is not configured.' })
+          }
+
+          try {
+            await options.enqueue({
+              auditId: created.auditId,
+              tenantId: request.tenantId,
+              siteId: request.body.siteId,
+              seed: created.seed,
+            })
+          } catch (error) {
+            // The row exists but the job does not, so the schedule would never pick it up. Mark
+            // it failed rather than leave a queued audit that hangs on the dashboard forever.
+            await withTenant(db, request.tenantId, (tx) =>
+              tx
+                .update(audits)
+                .set({ status: 'failed', error: 'Could not enqueue the audit. Try again shortly.' })
+                .where(eq(audits.id, created.auditId)),
+            )
+            throw error
+          }
+
+          return reply.status(202).send({ auditId: created.auditId })
+        },
+      )
   })
 
   return app
