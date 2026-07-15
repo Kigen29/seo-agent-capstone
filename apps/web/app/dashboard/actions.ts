@@ -45,7 +45,10 @@ export async function addSite(
  */
 export async function startAudit(formData: FormData): Promise<void> {
   const siteId = String(formData.get('siteId') ?? '')
-  if (!siteId) return
+  // A missing siteId is a broken form, not a user mistake: the field is a hidden input this
+  // code controls. Throw rather than no-op, so a wiring regression surfaces as an error
+  // instead of a button that silently does nothing.
+  if (!siteId) throw new Error('startAudit called without a siteId; the hidden field is missing.')
 
   const api = await getClient()
   if (!api) redirect('/login')
