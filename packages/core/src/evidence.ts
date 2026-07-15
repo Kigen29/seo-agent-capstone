@@ -84,12 +84,37 @@ export const graphEvidenceSchema = z.object({
   clickDepth: z.number().int().min(0).nullable(),
 })
 
+/**
+ * A row of real search performance from Search Console: what a page actually ranks for, and
+ * how it is doing. This is the evidence behind a quick win, and it is field data about real
+ * Google users, not a crawl or a guess.
+ *
+ * The window is carried, not dropped, because every number here is a claim about a specific
+ * span of days (and Search Console lags two to three, so "recent" always means a few days
+ * back). `position` is the average rank, 1 being the top; `ctr` is 0..1.
+ */
+export const searchEvidenceSchema = z.object({
+  ...evidenceBase,
+  kind: z.literal('search'),
+  /** The page this row is about. Present when the query was grouped by page. */
+  url: z.string().url().optional(),
+  /** The search query, when the row is grouped by query. */
+  query: z.string().optional(),
+  position: z.number().min(0),
+  impressions: z.number().int().min(0),
+  clicks: z.number().int().min(0),
+  ctr: z.number().min(0).max(1),
+  startDate: z.string(),
+  endDate: z.string(),
+})
+
 export const evidenceSchema = z.discriminatedUnion('kind', [
   httpEvidenceSchema,
   markupEvidenceSchema,
   metricEvidenceSchema,
   fileEvidenceSchema,
   graphEvidenceSchema,
+  searchEvidenceSchema,
 ])
 
 export type Evidence = z.infer<typeof evidenceSchema>
@@ -98,3 +123,4 @@ export type MarkupEvidence = z.infer<typeof markupEvidenceSchema>
 export type MetricEvidence = z.infer<typeof metricEvidenceSchema>
 export type FileEvidence = z.infer<typeof fileEvidenceSchema>
 export type GraphEvidence = z.infer<typeof graphEvidenceSchema>
+export type SearchEvidence = z.infer<typeof searchEvidenceSchema>

@@ -192,5 +192,26 @@ function EvidenceBlock({ evidence }: { evidence: Evidence }) {
           <p className="mt-2 font-mono text-xs break-all text-neutral-600">{evidence.url}</p>
         </>
       )
+
+    case 'search':
+      return (
+        <>
+          {pre(
+            [
+              evidence.query ? `query: "${evidence.query}"` : undefined,
+              `average position: ${evidence.position.toFixed(1)}`,
+              `impressions: ${evidence.impressions.toLocaleString()}`,
+              `clicks: ${evidence.clicks.toLocaleString()}`,
+              `click-through rate: ${(evidence.ctr * 100).toFixed(1)}%`,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          )}
+          <p className="mt-2 text-xs text-neutral-600">
+            Real Search Console data over {evidence.startDate} to {evidence.endDate}. Position is
+            the average rank across those impressions; Search Console lags two to three days.
+          </p>
+        </>
+      )
   }
 }

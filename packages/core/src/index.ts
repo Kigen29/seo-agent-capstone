@@ -14,6 +14,7 @@ export {
   httpEvidenceSchema,
   markupEvidenceSchema,
   metricEvidenceSchema,
+  searchEvidenceSchema,
 } from './evidence.js'
 export type {
   Evidence,
@@ -23,6 +24,7 @@ export type {
   HttpEvidence,
   MarkupEvidence,
   MetricEvidence,
+  SearchEvidence,
 } from './evidence.js'
 
 export {

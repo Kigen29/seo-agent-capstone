@@ -1,9 +1,20 @@
 import { buildScorecard, type Finding, type Scorecard } from '@seo/core'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
 import { audits, findings as findingsTable, withTenant, type Database } from '@seo/db'
+import { QUICK_WIN_CHECKS, googleOAuthConfigFromEnv, type OAuthConfig } from '@seo/connectors'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
 import { measurePerformance } from './performance.js'
+import { measureSearch } from './search.js'
+
+/** The env OAuth config, or undefined when Google is not configured. Never throws. */
+function googleOAuthConfig(): OAuthConfig | undefined {
+  try {
+    return googleOAuthConfigFromEnv()
+  } catch {
+    return undefined
+  }
+}
 
 export interface RunAuditOptions {
   tenantId: string
@@ -21,6 +32,8 @@ export interface RunAuditOptions {
   onProgress?: (crawled: number) => void
   /** CrUX API key for the performance axis. Falls back to GOOGLE_CRUX_API_KEY. */
   cruxApiKey?: string
+  /** Google OAuth config for the Search Console quick-wins step. Falls back to the env. */
+  googleOAuth?: OAuthConfig
 }
 
 export interface AuditResult {
@@ -182,16 +195,31 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       options.cruxApiKey ?? process.env.GOOGLE_CRUX_API_KEY,
     )
 
-    const found = [...crawlFindings, ...performance.findings]
+    /**
+     * Quick wins from Search Console, if this tenant has connected it. Unlike the crawl axes,
+     * this reaches into the tenant's own field data (behind their OAuth grant), so it is only
+     * available for a connected site whose host matches a verified property. When it is not,
+     * the content axis is simply the crawl checks, and that is honest rather than empty.
+     */
+    const search = await measureSearch(
+      db,
+      { tenantId, siteId, siteUrl: seed },
+      { config: options.googleOAuth ?? googleOAuthConfig() },
+    )
 
-    const scorecard = buildScorecard({
-      siteId,
-      findings: found,
-      // ruleCoverage() reports the crawl axes. Performance is not a crawl axis: whether it was
-      // measured depends on the CrUX lookup, so the runner supplies its coverage and overrides
-      // the placeholder the rules package would otherwise leave.
-      coverage: { ...ruleCoverage(), performance: performance.coverage },
-    })
+    const found = [...crawlFindings, ...performance.findings, ...search.findings]
+
+    const coverage = { ...ruleCoverage(), performance: performance.coverage }
+    if (search.measured) {
+      // Content is already measured by the crawl rules; the quick wins add to it rather than
+      // replacing it, so the check count grows and the note records that Search Console fed in.
+      coverage.content = {
+        checksRun: coverage.content.checksRun + QUICK_WIN_CHECKS,
+        note: search.note,
+      }
+    }
+
+    const scorecard = buildScorecard({ siteId, findings: found, coverage })
 
     await withTenant(db, tenantId, async (tx) => {
       if (found.length > 0) {
