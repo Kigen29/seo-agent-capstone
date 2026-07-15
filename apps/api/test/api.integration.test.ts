@@ -470,6 +470,52 @@ describe.skipIf(!shouldRun)('the API', () => {
       await google.close()
     })
 
+    it('redirects failed and stores nothing when the token exchange errors', async () => {
+      // Google returned a valid-looking callback, but the token endpoint rejected the code
+      // (a reused or expired code, say). The credential must not be written, and the error
+      // detail must not leak into the redirect URL where it would land in browser history.
+      const badToken = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'invalid_grant' }),
+        text: async () => 'invalid_grant',
+      } as Response)
+
+      const google = await buildApp({
+        db,
+        webUrl: 'http://web.test',
+        google: { config: GOOGLE_CONFIG, fetch: badToken },
+      })
+
+      // A tenant with no existing credential, so "stored nothing" is unambiguous.
+      const freshTenant = await asOwner(db, async (tx) => {
+        const [row] = await tx
+          .insert(tenants)
+          .values({ name: `fresh-${Date.now()}` })
+          .returning()
+        return row!.id
+      })
+
+      try {
+        const res = await google.inject({
+          method: 'GET',
+          url: `/auth/google/callback?code=bad-code&state=${encodeURIComponent(signState(freshTenant))}`,
+        })
+
+        expect(res.statusCode).toBe(302)
+        expect(res.headers.location).toBe('http://web.test/dashboard?google=failed')
+        expect(res.headers.location).not.toMatch(/invalid_grant/)
+
+        const creds = await withTenant(db, freshTenant, (tx) =>
+          tx.select().from(oauthCredentials).where(eq(oauthCredentials.provider, 'google')),
+        )
+        expect(creds).toEqual([])
+      } finally {
+        await asOwner(db, (tx) => tx.delete(tenants).where(eq(tenants.id, freshTenant)))
+        await google.close()
+      }
+    })
+
     it('sends a user who declined consent back with a note, not an error', async () => {
       const google = await buildApp({
         db,

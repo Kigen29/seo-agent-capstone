@@ -7,7 +7,13 @@ import { connectGoogle } from '@/app/dashboard/actions'
  * declined" are three different things and lumping them under one grey message is the kind
  * of vagueness this product is meant to avoid.
  */
-const CALLBACK_MESSAGE: Record<string, { tone: 'ok' | 'warn' | 'error'; text: string }> = {
+/** The exact set of statuses the OAuth callback redirects with. See the API's backToDashboard. */
+type GoogleCallbackStatus = 'connected' | 'declined' | 'invalid' | 'unavailable' | 'failed'
+
+const CALLBACK_MESSAGE: Record<
+  GoogleCallbackStatus,
+  { tone: 'ok' | 'warn' | 'error'; text: string }
+> = {
   connected: { tone: 'ok', text: 'Search Console connected.' },
   declined: { tone: 'warn', text: 'Consent was declined. Nothing was connected.' },
   invalid: {
@@ -17,6 +23,9 @@ const CALLBACK_MESSAGE: Record<string, { tone: 'ok' | 'warn' | 'error'; text: st
   unavailable: { tone: 'warn', text: 'Search Console is not configured on this server yet.' },
   failed: { tone: 'error', text: 'Something went wrong connecting Google. Try again shortly.' },
 }
+
+/** The callback value is an untrusted query string, so narrow it to a known status before use. */
+const isCallbackStatus = (value: string): value is GoogleCallbackStatus => value in CALLBACK_MESSAGE
 
 const TONE: Record<'ok' | 'warn' | 'error', string> = {
   ok: 'border-emerald-900 bg-emerald-950/40 text-emerald-300',
@@ -31,7 +40,7 @@ export function GoogleConnection({
   connection: { connected: boolean; email?: string | null }
   callback?: string
 }) {
-  const message = callback ? CALLBACK_MESSAGE[callback] : undefined
+  const message = callback && isCallbackStatus(callback) ? CALLBACK_MESSAGE[callback] : undefined
 
   return (
     <section className="mt-8 rounded-lg border border-neutral-800 bg-neutral-950 p-4">
