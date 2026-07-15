@@ -1,10 +1,5 @@
 import type { AxisCoverage, Finding } from '@seo/core'
-import {
-  CORE_WEB_VITALS_CHECKS,
-  createCruxClient,
-  evaluateCoreWebVitals,
-  CruxRateLimitError,
-} from '@seo/connectors'
+import { createCruxClient, evaluateCoreWebVitals, CruxRateLimitError } from '@seo/connectors'
 
 export interface PerformanceResult {
   findings: Finding[]
@@ -72,17 +67,43 @@ export async function measurePerformance(
       }
     }
 
+    /**
+     * Count the vitals CrUX actually returned, not the number we know how to check.
+     *
+     * CrUX does not always report all three. INP in particular needs interaction data an
+     * origin may not have accumulated, so a real record can carry LCP and CLS and no INP.
+     * Reporting a flat "3 checks" then would overstate the coverage: we would be claiming to
+     * have measured a vital the field data never gave us. The scorecard is meant to say
+     * exactly what we looked at, so it counts what came back.
+     */
+    const checksRun = lookup.record.metrics.length
+
+    // A record with no usable vitals is measurement-shaped but empty. Treat it as unmeasured
+    // rather than score an axis on nothing, and say which of the two empty cases this is.
+    if (checksRun === 0) {
+      return {
+        findings: [],
+        coverage: {
+          checksRun: 0,
+          note:
+            'Not measured. CrUX has a record for this origin but no Core Web Vitals in it yet, ' +
+            'which happens while a new origin is still accumulating enough samples.',
+        },
+      }
+    }
+
     const findings = evaluateCoreWebVitals(siteId, lookup.record)
     const { firstDate, lastDate } = lookup.record.collectionPeriod
+    const measured = lookup.record.metrics.map((m) => m.metric.toUpperCase()).join(', ')
 
     return {
       findings,
       coverage: {
-        checksRun: CORE_WEB_VITALS_CHECKS,
+        checksRun,
         note:
           `Measured from CrUX field data at the 75th percentile of real Chrome users, over ` +
-          `the 28 days from ${firstDate} to ${lastDate}. A fix will not move these numbers ` +
-          `for up to 28 days, because the window is rolling.`,
+          `the 28 days from ${firstDate} to ${lastDate} (${measured}). A fix will not move ` +
+          `these numbers for up to 28 days, because the window is rolling.`,
       },
     }
   } catch (error) {
