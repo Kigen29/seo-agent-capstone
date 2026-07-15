@@ -33,3 +33,6 @@ export type {
   SearchAnalyticsRow,
   SearchDimension,
 } from './gsc/types.js'
+
+export { evaluateQuickWins, QUICK_WIN_CHECKS } from './gsc/quick-wins.js'
+export type { QuickWinsInput } from './gsc/quick-wins.js'
