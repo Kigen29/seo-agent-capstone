@@ -1,5 +1,5 @@
 {
-  "name": "@seo/audit",
+  "name": "@seo/connectors",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,22 +17,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "audit:run": "node --env-file-if-exists=../../.env dist/cli.js",
-    "seed:e2e": "node --env-file-if-exists=../../.env dist/seed-cli.js"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@seo/core": "workspace:*",
-    "@seo/crawler": "workspace:*",
-    "@seo/db": "workspace:*",
-    "@seo/rules": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "@seo/connectors": "workspace:*"
+    "@seo/core": "workspace:*"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
-    "dotenv": "^17.4.2",
     "typescript": "^5.7.2",
     "vitest": "^2.0.0"
   }

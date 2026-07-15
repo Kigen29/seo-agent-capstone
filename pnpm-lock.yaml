@@ -131,6 +131,9 @@ importers:
 
   packages/audit:
     dependencies:
+      '@seo/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@seo/core':
         specifier: workspace:*
         version: link:../core
@@ -156,6 +159,25 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
+  packages/connectors:
+    dependencies:
+      '@seo/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@seo/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
