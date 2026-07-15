@@ -1,19 +1,26 @@
+import { decryptToken, signState } from '@seo/connectors'
 import {
   apiTokens,
   asOwner,
   audits,
   createDb,
+  oauthCredentials,
   sites,
   tenants,
   withTenant,
   type Database,
 } from '@seo/db'
 import type { AuditJob } from '@seo/queue'
+import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import { bearerToken, generateToken, hashToken } from '../src/auth.js'
+
+// A known encryption key, so signState / encryptToken / decryptToken agree here and in CI,
+// which has no .env. Set before any test signs a state.
+process.env.TOKEN_ENCRYPTION_KEY ??= randomBytes(32).toString('base64')
 
 /**
  * The API is the only door to the database, so it is tested against a real one. Its whole
@@ -351,6 +358,187 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(latest?.error).toMatch(/queue is not configured/i)
 
       await noQueue.close()
+    })
+  })
+
+  describe('connecting Google', () => {
+    const GOOGLE_CONFIG = {
+      clientId: 'test.apps.googleusercontent.com',
+      clientSecret: 'test-secret',
+      redirectUri: 'http://localhost:4000/auth/google/callback',
+    }
+
+    /** A token endpoint that returns a consenting user's tokens. */
+    const tokenFetch = () =>
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'access-xyz',
+          refresh_token: 'refresh-secret-xyz',
+          expires_in: 3600,
+          id_token: `x.${Buffer.from(JSON.stringify({ email: 'owner@example.com' })).toString('base64url')}.y`,
+        }),
+        text: async () => '',
+      } as Response)
+
+    it('returns a consent URL signed for this tenant', async () => {
+      const google = await buildApp({ db, google: { config: GOOGLE_CONFIG } })
+
+      const res = await google.inject({
+        method: 'POST',
+        url: '/connections/google',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const url = new URL((res.json() as { url: string }).url)
+      expect(url.host).toBe('accounts.google.com')
+      expect(url.searchParams.get('access_type')).toBe('offline')
+      expect(url.searchParams.get('state')).toBeTruthy()
+
+      await google.close()
+    })
+
+    it('reports 503 when Google is not configured, rather than a broken consent screen', async () => {
+      // The main `app` in this suite has no google option.
+      const res = await app.inject({
+        method: 'POST',
+        url: '/connections/google',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(503)
+    })
+
+    it('stores an encrypted refresh token on a valid callback, and redirects connected', async () => {
+      const google = await buildApp({
+        db,
+        webUrl: 'http://web.test',
+        google: { config: GOOGLE_CONFIG, fetch: tokenFetch() },
+      })
+
+      // The state the start route would have minted for this tenant.
+      const state = signState(tenantId)
+
+      const res = await google.inject({
+        method: 'GET',
+        url: `/auth/google/callback?code=auth-code&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toBe('http://web.test/dashboard?google=connected')
+
+      // The credential is stored, and stored ENCRYPTED: the plaintext refresh token must not
+      // appear in the row, and decrypting it must reproduce the original.
+      const [cred] = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(oauthCredentials).where(eq(oauthCredentials.provider, 'google')),
+      )
+      expect(cred?.accountEmail).toBe('owner@example.com')
+      expect(cred?.refreshTokenEncrypted).not.toContain('refresh-secret-xyz')
+      expect(decryptToken(cred!.refreshTokenEncrypted)).toBe('refresh-secret-xyz')
+
+      await google.close()
+    })
+
+    it('refuses a callback whose state is forged, and stores nothing', async () => {
+      // The property the whole signed-state design exists for: without a bearer token, the
+      // callback must not connect a Google account to a tenant the caller merely names.
+      const fetchSpy = tokenFetch()
+      const google = await buildApp({
+        db,
+        webUrl: 'http://web.test',
+        google: { config: GOOGLE_CONFIG, fetch: fetchSpy },
+      })
+
+      const forged = `${Buffer.from(JSON.stringify({ tenantId: otherTenantId, iat: Date.now() })).toString('base64url')}.forgedsig`
+
+      const res = await google.inject({
+        method: 'GET',
+        url: `/auth/google/callback?code=auth-code&state=${encodeURIComponent(forged)}`,
+      })
+
+      expect(res.headers.location).toBe('http://web.test/dashboard?google=invalid')
+      // The token endpoint was never even called, and no credential was written for the
+      // tenant the attacker named.
+      expect(fetchSpy).not.toHaveBeenCalled()
+      const creds = await withTenant(db, otherTenantId, (tx) =>
+        tx.select().from(oauthCredentials).where(eq(oauthCredentials.provider, 'google')),
+      )
+      expect(creds).toEqual([])
+
+      await google.close()
+    })
+
+    it('redirects failed and stores nothing when the token exchange errors', async () => {
+      // Google returned a valid-looking callback, but the token endpoint rejected the code
+      // (a reused or expired code, say). The credential must not be written, and the error
+      // detail must not leak into the redirect URL where it would land in browser history.
+      const badToken = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'invalid_grant' }),
+        text: async () => 'invalid_grant',
+      } as Response)
+
+      const google = await buildApp({
+        db,
+        webUrl: 'http://web.test',
+        google: { config: GOOGLE_CONFIG, fetch: badToken },
+      })
+
+      // A tenant with no existing credential, so "stored nothing" is unambiguous.
+      const freshTenant = await asOwner(db, async (tx) => {
+        const [row] = await tx
+          .insert(tenants)
+          .values({ name: `fresh-${Date.now()}` })
+          .returning()
+        return row!.id
+      })
+
+      try {
+        const res = await google.inject({
+          method: 'GET',
+          url: `/auth/google/callback?code=bad-code&state=${encodeURIComponent(signState(freshTenant))}`,
+        })
+
+        expect(res.statusCode).toBe(302)
+        expect(res.headers.location).toBe('http://web.test/dashboard?google=failed')
+        expect(res.headers.location).not.toMatch(/invalid_grant/)
+
+        const creds = await withTenant(db, freshTenant, (tx) =>
+          tx.select().from(oauthCredentials).where(eq(oauthCredentials.provider, 'google')),
+        )
+        expect(creds).toEqual([])
+      } finally {
+        await asOwner(db, (tx) => tx.delete(tenants).where(eq(tenants.id, freshTenant)))
+        await google.close()
+      }
+    })
+
+    it('sends a user who declined consent back with a note, not an error', async () => {
+      const google = await buildApp({
+        db,
+        webUrl: 'http://web.test',
+        google: { config: GOOGLE_CONFIG, fetch: tokenFetch() },
+      })
+
+      const res = await google.inject({
+        method: 'GET',
+        url: '/auth/google/callback?error=access_denied',
+      })
+
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toBe('http://web.test/dashboard?google=declined')
+
+      await google.close()
+    })
+
+    it('reports the connection on GET /connections once stored', async () => {
+      const res = await get('/connections', token)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().google).toMatchObject({ connected: true, email: 'owner@example.com' })
     })
   })
 

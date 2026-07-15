@@ -1,3 +1,4 @@
+import { googleOAuthConfigFromEnv } from '@seo/connectors'
 import { createQueue, enqueueAudit } from '@seo/queue'
 import { buildApp } from './app.js'
 import { makeDispatcher } from './dispatch.js'
@@ -20,8 +21,24 @@ const host = '0.0.0.0'
 const queue = await createQueue()
 const dispatch = makeDispatcher()
 
+/**
+ * Google OAuth is optional: if the credentials are not set, the connection routes report 503
+ * and the rest of the API runs fine. So a missing config is a skipped feature, not a boot
+ * failure, which is what lets the app deploy before the OAuth client exists.
+ */
+const google = (() => {
+  try {
+    return { config: googleOAuthConfigFromEnv() }
+  } catch {
+    console.warn('Google OAuth is not configured; the Search Console connection is disabled.')
+    return undefined
+  }
+})()
+
 const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
+  webUrl: process.env.WEB_URL,
+  google,
   enqueue: async (job) => {
     await enqueueAudit(queue, job)
     await dispatch()

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
+import { GoogleConnection } from '@/components/google-connection'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { startAudit } from './actions'
@@ -10,13 +11,20 @@ export const dynamic = 'force-dynamic'
 /** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>
+}) {
   const api = await getClient()
   if (!api) return null
 
+  const { google: googleCallback } = await searchParams
+
   let sites
+  let connections
   try {
-    sites = await api.listSites()
+    ;[sites, connections] = await Promise.all([api.listSites(), api.getConnections()])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
@@ -29,6 +37,8 @@ export default async function Dashboard() {
         Add a site and run an audit. The crawl runs on the worker and this page shows its progress
         live.
       </p>
+
+      <GoogleConnection connection={connections.google} callback={googleCallback} />
 
       <AddSite />
 

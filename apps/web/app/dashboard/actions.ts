@@ -65,3 +65,24 @@ export async function startAudit(formData: FormData): Promise<void> {
   revalidatePath('/dashboard')
   redirect(`/dashboard/audits/${auditId}`)
 }
+
+/**
+ * Start the Google Search Console consent flow. Fetches a consent URL from the API (whose
+ * state is signed for this tenant) and redirects the browser to Google. The token never
+ * touches the browser: this runs on the server, and Google redirects back to the API's
+ * callback, not here.
+ */
+export async function connectGoogle(): Promise<void> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  let url: string
+  try {
+    url = await api.connectGoogle()
+  } catch (error) {
+    handleApiError(error)
+    redirect('/dashboard?google=unavailable')
+  }
+
+  redirect(url)
+}

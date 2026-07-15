@@ -21,7 +21,8 @@
     "fastify": "^5.2.0",
     "fastify-type-provider-zod": "^4.0.2",
     "zod": "^3.23.0",
-    "@seo/queue": "workspace:*"
+    "@seo/queue": "workspace:*",
+    "@seo/connectors": "workspace:*"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

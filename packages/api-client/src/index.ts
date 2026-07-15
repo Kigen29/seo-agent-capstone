@@ -139,6 +139,14 @@ export function createApiClient(options: ApiClientOptions) {
     getFinding: async (id: string) =>
       (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))
         .finding,
+
+    /** Whether this tenant has connected Google Search Console, and as whom. */
+    getConnections: async () =>
+      request<{ google: { connected: boolean; email?: string | null } }>('/connections'),
+
+    /** Begin the Google consent flow. Returns the URL to send the browser to. */
+    connectGoogle: async () =>
+      (await request<{ url: string }>('/connections/google', { method: 'POST' })).url,
   }
 }
 

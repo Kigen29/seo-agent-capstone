@@ -35,6 +35,9 @@ importers:
       '@seo/audit':
         specifier: workspace:*
         version: link:../../packages/audit
+      '@seo/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@seo/core':
         specifier: workspace:*
         version: link:../../packages/core
