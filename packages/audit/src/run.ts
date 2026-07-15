@@ -3,6 +3,7 @@ import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/craw
 import { audits, findings as findingsTable, withTenant, type Database } from '@seo/db'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
+import { measurePerformance } from './performance.js'
 
 export interface RunAuditOptions {
   tenantId: string
@@ -13,6 +14,8 @@ export interface RunAuditOptions {
   concurrency?: number
   /** Called on every page, for a caller that wants to print progress to a terminal. */
   onProgress?: (crawled: number) => void
+  /** CrUX API key for the performance axis. Falls back to GOOGLE_CRUX_API_KEY. */
+  cruxApiKey?: string
 }
 
 export interface AuditResult {
@@ -134,7 +137,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         .where(eq(audits.id, auditId)),
     )
 
-    const found = runRules({
+    const crawlFindings = runRules({
       siteId,
       seed,
       pages: result.pages,
@@ -145,7 +148,28 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       skipped: result.skipped,
     })
 
-    const scorecard = buildScorecard({ siteId, findings: found, coverage: ruleCoverage() })
+    /**
+     * The performance axis, from CrUX field data. It is a separate vertical from the crawl
+     * rule engine on purpose: its data comes from an API rather than the crawl, and it is
+     * measured per-site rather than always. The findings are the same shape and go in the
+     * same backlog; the scorecard does not care where a finding came from.
+     */
+    const performance = await measurePerformance(
+      siteId,
+      seed,
+      options.cruxApiKey ?? process.env.GOOGLE_CRUX_API_KEY,
+    )
+
+    const found = [...crawlFindings, ...performance.findings]
+
+    const scorecard = buildScorecard({
+      siteId,
+      findings: found,
+      // ruleCoverage() reports the crawl axes. Performance is not a crawl axis: whether it was
+      // measured depends on the CrUX lookup, so the runner supplies its coverage and overrides
+      // the placeholder the rules package would otherwise leave.
+      coverage: { ...ruleCoverage(), performance: performance.coverage },
+    })
 
     await withTenant(db, tenantId, async (tx) => {
       if (found.length > 0) {
