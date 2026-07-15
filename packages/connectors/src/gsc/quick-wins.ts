@@ -84,11 +84,17 @@ export function evaluateQuickWins(input: QuickWinsInput): Finding[] {
       ...window,
     }
 
+    // The finding's stable identity is the query, not its position in the list. Search Console
+    // does not guarantee row order, so a positional id would drift between runs, and the
+    // verifier re-checks a finding by this id after a fix. Each query yields at most one quick
+    // win (the position bands do not overlap), so the query is unique within an audit.
+    const key = query.toLowerCase().trim()
+
     // Page-2 opportunity: ranking, but where nobody clicks.
     if (row.position >= PAGE_TWO.min && row.position <= PAGE_TWO.max) {
       findings.push(
         parseFinding({
-          id: `QW-STRIKING#${findings.length}`,
+          id: `QW-STRIKING#${key}`,
           siteId: input.siteId,
           ruleId: 'QW-STRIKING',
           axis: 'content',
@@ -122,7 +128,7 @@ export function evaluateQuickWins(input: QuickWinsInput): Finding[] {
 
       findings.push(
         parseFinding({
-          id: `QW-CTR#${findings.length}`,
+          id: `QW-CTR#${key}`,
           siteId: input.siteId,
           ruleId: 'QW-CTR',
           axis: 'content',

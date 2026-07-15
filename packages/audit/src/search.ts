@@ -126,12 +126,22 @@ function matchProperty(properties: GscProperty[], siteUrl: string): string | und
   const domainProperty = verified.find((p) => p.siteUrl === `sc-domain:${host}`)
   if (domainProperty) return domainProperty.siteUrl
 
-  const prefixProperty = verified.find((p) => {
-    try {
-      return new URL(p.siteUrl).host === host
-    } catch {
-      return false
-    }
-  })
-  return prefixProperty?.siteUrl
+  // A host can have more than one URL-prefix property verified (http and https, or nested
+  // path prefixes). Prefer https, then the shortest path, so we land on the canonical root
+  // rather than an arbitrary first match.
+  const prefixProperties = verified
+    .map((p) => {
+      try {
+        return { property: p.siteUrl, url: new URL(p.siteUrl) }
+      } catch {
+        return undefined
+      }
+    })
+    .filter((entry): entry is { property: string; url: URL } => entry?.url.host === host)
+    .sort((a, b) => {
+      if (a.url.protocol !== b.url.protocol) return a.url.protocol === 'https:' ? -1 : 1
+      return a.url.pathname.length - b.url.pathname.length
+    })
+
+  return prefixProperties[0]?.property
 }

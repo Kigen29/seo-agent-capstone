@@ -159,6 +159,24 @@ describe.skipIf(!shouldRun)('measureSearch', () => {
     }
   })
 
+  it('prefers the https property when a host has both http and https verified', async () => {
+    // A tenant can have both verified. We should query the canonical https root, not whichever
+    // the API happened to list first.
+    const fetch = googleFetch(
+      [{ keys: ['q'], clicks: 2, impressions: 2000, ctr: 0.001, position: 13 }],
+      [
+        { siteUrl: 'http://example.com/', permissionLevel: 'siteOwner' },
+        { siteUrl: 'https://example.com/', permissionLevel: 'siteOwner' },
+      ],
+    )
+
+    const result = await measureSearch(db, opts(), { config: CONFIG, fetch })
+
+    expect(result.measured).toBe(true)
+    const analyticsCall = fetch.mock.calls.find(([u]) => String(u).includes('searchAnalytics'))
+    expect(String(analyticsCall![0])).toContain(encodeURIComponent('https://example.com/'))
+  })
+
   it('is honestly unmeasured when no verified property matches the site host', async () => {
     const fetch = googleFetch(
       [],

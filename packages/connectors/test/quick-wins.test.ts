@@ -104,6 +104,24 @@ describe('evaluateQuickWins', () => {
     })
   })
 
+  it('gives a finding a stable id from its query, not its position in the list', () => {
+    // Search Console does not guarantee row order, so a positional id would drift between
+    // runs and the verifier could not re-check the same finding after a fix. The id is the
+    // query, so the same query yields the same id regardless of where it appears.
+    const forward = run([
+      row({ keys: ['alpha'], position: 13, impressions: 2000 }),
+      row({ keys: ['beta'], position: 13, impressions: 2000 }),
+    ])
+    const reversed = run([
+      row({ keys: ['beta'], position: 13, impressions: 2000 }),
+      row({ keys: ['alpha'], position: 13, impressions: 2000 }),
+    ])
+
+    const idOf = (fs: typeof forward, q: string) => fs.find((f) => f.title.includes(q))?.id
+    expect(idOf(forward, 'alpha')).toBe('QW-STRIKING#alpha')
+    expect(idOf(forward, 'alpha')).toBe(idOf(reversed, 'alpha'))
+  })
+
   it('warns in every falsification about the reporting lag', () => {
     const findings = run([
       row({ keys: ['a'], position: 13, impressions: 2000 }),
