@@ -8,12 +8,28 @@ import { notFound, redirect } from 'next/navigation'
  * leaves through a throw (`redirect` and `notFound` both work that way in Next), so a caller
  * cannot forget to handle one.
  */
+/**
+ * Gateway statuses that mean "the API is not up right now", not "the API said no".
+ *
+ * This is the fix for a real production 500. A full cold start takes longer than the client
+ * timeout, so it surfaces as a network abort (handled below). But Render's edge also answers
+ * a 502 or 503 while the instance is still coming up, and that is an HTTP response, so the
+ * client turns it into an ApiRequestError. Treating it like any other error rethrew it, and
+ * the dashboard crashed with a Server Components 500 instead of showing the waking page.
+ * These three statuses are infrastructure, not our API refusing the request, so they get the
+ * same graceful treatment as a dropped connection.
+ */
+const GATEWAY_UNAVAILABLE = new Set([502, 503, 504])
+
 export function handleApiError(error: unknown): void {
   if (!(error instanceof ApiRequestError)) {
     // Not an HTTP error at all: the fetch never landed. On the free tier the overwhelmingly
     // likely reason is that Render has spun the API down and is waking it.
     return
   }
+
+  // A cold-starting or briefly unavailable API. Render the waking page, do not crash the render.
+  if (GATEWAY_UNAVAILABLE.has(error.status)) return
 
   /**
    * The token is gone, revoked, or was never good.
