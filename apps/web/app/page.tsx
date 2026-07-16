@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 const AXES = [
   { name: 'Crawl health', detail: 'robots.txt, sitemaps, canonicals, indexation, AI crawlers' },
   { name: 'Performance', detail: 'Core Web Vitals from CrUX field data, at p75' },
@@ -14,9 +16,17 @@ const LOOP = ['crawl', 'diagnose', 'prioritise', 'open a PR', 'human merges', 'v
 export default function Home() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-20">
-      <p className="text-sm font-medium tracking-widest text-neutral-500 uppercase">Rankwright</p>
+      <header className="flex items-baseline justify-between">
+        <p className="text-sm font-medium tracking-widest text-neutral-500 uppercase">Rankwright</p>
+        <Link
+          href="/login"
+          className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
+        >
+          Sign in
+        </Link>
+      </header>
 
-      <h1 className="mt-6 text-4xl leading-tight font-semibold text-neutral-50 sm:text-5xl">
+      <h1 className="mt-10 text-4xl leading-tight font-semibold text-neutral-50 sm:text-5xl">
         Every other AI-SEO tool sends your marketer a list.
         <br />
         <span className="text-emerald-400">We send your repo a pull request.</span>
@@ -58,8 +68,14 @@ export default function Home() {
 
       <footer className="mt-16 border-t border-neutral-900 pt-8 text-sm text-neutral-600">
         <p>
-          Sprint 1 in progress: the audit engine. This page is the deployment target, not the
-          product. The dashboard lands with the crawler and the rule engine.
+          Sprint 1 is live: the crawler, the deterministic rule engine, the eight-axis scorecard,
+          and the findings inbox.{' '}
+          <Link
+            href="/login"
+            className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+          >
+            Sign in to run an audit.
+          </Link>
         </p>
         <p className="mt-3">
           <a
