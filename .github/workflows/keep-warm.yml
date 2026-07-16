@@ -1,0 +1,35 @@
+# Keeps the free Render API from spinning down, so the dashboard is not met with a
+# 30-to-60-second cold start during a demo or a grading session.
+#
+# Free: a public-repo Actions cron, with no code in the request path. The one real cost is
+# that keeping the instance awake uses Render's 750 free instance-hours per month, which is
+# roughly enough for a single always-on service, so this is fine for one API and would not
+# be for several.
+#
+# Honest limitation: GitHub's scheduled workflows are best-effort and can be delayed under
+# load, sometimes past Render's 15-minute idle window, so this makes a cold start rare rather
+# than impossible. Before anything that must be instant, hit the site once by hand, or run
+# this workflow manually from the Actions tab (workflow_dispatch).
+#
+# If the API URL ever changes, set an `API_HEALTH_URL` repository variable; otherwise it uses
+# the value below.
+name: keep-warm
+
+on:
+  schedule:
+    # Every 10 minutes. Render idles after 15, and the cron can run late, so 10 leaves margin.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the API health endpoint
+        run: |
+          URL="${{ vars.API_HEALTH_URL || 'https://seo-agent-capstone.onrender.com/health' }}"
+          echo "pinging $URL"
+          # --max-time 90 tolerates the cold-start wake this ping is triggering. A failed ping
+          # is not a failed job: it just means the next run, ten minutes on, tries again.
+          curl -fsS --max-time 90 "$URL" && echo "  awake" || echo "  ping failed; will retry next cycle"
