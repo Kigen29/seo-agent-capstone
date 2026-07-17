@@ -88,15 +88,27 @@ export function createApiClient(options: ApiClientOptions) {
     const timeout = AbortSignal.timeout(timeoutMs)
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
 
-    const response = await doFetch(`${base}${path}`, {
-      ...init,
-      signal,
-      headers: {
-        ...init.headers,
-        authorization: `Bearer ${options.token}`,
-        'content-type': 'application/json',
-      },
-    })
+    /**
+     * Declare a JSON content-type only when there is actually a JSON body.
+     *
+     * Setting it unconditionally was a real production bug. A POST with no body, like
+     * "start connecting Google", still announced `content-type: application/json`, and
+     * Fastify rejects an empty body under that content-type with a 400 ("Body cannot be
+     * empty..."). The server action then rethrew the 400 into a Server Components 500 that
+     * only showed as a digest. It slipped past the tests because they call the client with a
+     * mocked fetch that never parses a body, and past manual curls because curl does not send
+     * this header unless you pass data. The header belongs with the payload, so it is set with
+     * the payload.
+     */
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string> | undefined),
+      authorization: `Bearer ${options.token}`,
+    }
+    if (init.body !== undefined && init.body !== null) {
+      headers['content-type'] = 'application/json'
+    }
+
+    const response = await doFetch(`${base}${path}`, { ...init, signal, headers })
 
     if (!response.ok) {
       /**
