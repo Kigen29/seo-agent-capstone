@@ -38,8 +38,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The worker runs compiled JS (node dist/drain.js), and dist/ is gitignored, so it must
+      # be built here. turbo builds the whole graph the worker needs: worker -> audit ->
+      # crawler/rules/connectors. Without this the drain step dies on a missing module.
+      - run: pnpm build
+
+      # playwright is a dependency of @seo/crawler, not of the root, so its binary is not on
+      # the root's node_modules/.bin. Running the install from the root ("pnpm exec playwright")
+      # fails with "Command playwright not found". Run it through the package that owns it.
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @seo/crawler exec playwright install --with-deps chromium
 
       - name: Drain the queue
         env:
