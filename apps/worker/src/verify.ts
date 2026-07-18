@@ -1,4 +1,4 @@
-import { openVerificationPr } from '@seo/agent'
+import { confirmVerification, openVerificationPr } from '@seo/agent'
 import {
   createGscClient,
   createSiteVerificationClient,
@@ -7,7 +7,7 @@ import {
   refreshAccessToken,
 } from '@seo/connectors'
 import { oauthCredentials, sites, withTenant, type Database } from '@seo/db'
-import type { VerifyJob } from '@seo/queue'
+import type { ConfirmVerifyJob, VerifyJob } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv, GitHubProvider } from '@seo/vcs'
 import { eq } from 'drizzle-orm'
 
@@ -65,5 +65,55 @@ export async function runVerify(db: Database, job: VerifyJob): Promise<void> {
       .update(sites)
       .set({ gscProperty: result.property, gscVerificationPrUrl: result.prUrl })
       .where(eq(sites.id, site.id)),
+  )
+}
+
+/**
+ * Confirm a merged verification with Google, and mark the site verified if it holds.
+ *
+ * Runs after the PR is merged. Verification only succeeds once the merged tag is actually live
+ * on the deployed site, so a `false` here is not a failure, it is "not yet": the tag has not
+ * propagated. We throw in that case so the job retries later (with the queue's generous retry
+ * policy) rather than marking the site verified on Google's "no". We flip `gscVerified` only on
+ * Google's real yes.
+ */
+export async function runConfirmVerify(db: Database, job: ConfirmVerifyJob): Promise<void> {
+  const site = await withTenant(db, job.tenantId, async (tx) => {
+    const [row] = await tx
+      .select({ id: sites.id, gscProperty: sites.gscProperty })
+      .from(sites)
+      .where(eq(sites.id, job.siteId))
+      .limit(1)
+    return row
+  })
+
+  if (!site) throw new Error(`Site ${job.siteId} not found.`)
+  if (!site.gscProperty) {
+    throw new Error('This site has no Search Console property; run verification first.')
+  }
+
+  const [credential] = await withTenant(db, job.tenantId, (tx) =>
+    tx
+      .select({ token: oauthCredentials.refreshTokenEncrypted })
+      .from(oauthCredentials)
+      .where(eq(oauthCredentials.provider, 'google'))
+      .limit(1),
+  )
+  if (!credential) throw new Error('Google is not connected for this tenant.')
+
+  const config = googleOAuthConfigFromEnv()
+  const refreshToken = decryptToken(credential.token)
+  const { accessToken } = await refreshAccessToken(config, refreshToken)
+  const verification = createSiteVerificationClient({ accessToken })
+
+  const verified = await confirmVerification(site.gscProperty, verification)
+  if (!verified) {
+    throw new Error(
+      'Not verified yet: the merged tag is not live on the site. Will retry after the deploy propagates.',
+    )
+  }
+
+  await withTenant(db, job.tenantId, (tx) =>
+    tx.update(sites).set({ gscVerified: true }).where(eq(sites.id, site.id)),
   )
 }
