@@ -44,6 +44,17 @@ describe('the Search Console client', () => {
     expect(headers.authorization).toBe('Bearer secret-token')
   })
 
+  it('adds a property with a PUT to the url-encoded path, and tolerates the 204', async () => {
+    // sites.add returns 204 with no body; parsing that as JSON would throw. This pins both the
+    // request shape and that an empty success is handled.
+    const fetch = respond(204, {})
+    await createGscClient({ accessToken: 'tok', fetch }).addSite('https://example.com/')
+
+    const [url, init] = fetch.mock.calls[0]!
+    expect((init as RequestInit).method).toBe('PUT')
+    expect(url as string).toContain(encodeURIComponent('https://example.com/'))
+  })
+
   it('url-encodes the property in the path, so sc-domain and https properties both work', async () => {
     // The usual cause of a spurious 404: `sc-domain:example.com` and `https://example.com/`
     // both contain characters that break a raw path. This asserts they are encoded.

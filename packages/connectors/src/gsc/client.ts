@@ -61,6 +61,9 @@ export function createGscClient(options: GscClientOptions) {
       throw new Error(`Search Console request failed: ${response.status} ${body.slice(0, 200)}`)
     }
 
+    // A 204 (as `sites.add` returns) carries no body; parsing it as JSON would throw.
+    if (response.status === 204) return undefined as T
+
     return response.json() as Promise<T>
   }
 
@@ -69,6 +72,17 @@ export function createGscClient(options: GscClientOptions) {
     async listProperties(): Promise<GscProperty[]> {
       const data = await call<{ siteEntry?: GscProperty[] }>('/sites', { method: 'GET' })
       return data.siteEntry ?? []
+    },
+
+    /**
+     * Add a property to the tenant's Search Console (`sites.add`). This is step one of the
+     * auto-verification flow: the property has to exist before it can be verified, and it stays
+     * unverified until the meta tag is live and Site Verification confirms it. `siteUrl` is the
+     * URL-prefix form, e.g. `https://example.com/`, since META verification is a URL-prefix
+     * method. Idempotent on Google's side: re-adding a property the tenant already has is fine.
+     */
+    async addSite(siteUrl: string): Promise<void> {
+      await call<void>(`/sites/${encodeURIComponent(siteUrl)}`, { method: 'PUT' })
     },
 
     /**
