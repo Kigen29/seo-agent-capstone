@@ -43,6 +43,13 @@
       "when": 1783983887868,
       "tag": "0005_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784357126273,
+      "tag": "0006_github_installation",
+      "breakpoints": true
     }
   ]
 }

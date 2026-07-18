@@ -2,6 +2,7 @@ import type { Evidence, Framework, MetricSnapshot, Scorecard, VerificationResult
 import { frameworkSchema } from '@seo/core'
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   customType,
   index,
@@ -49,8 +50,15 @@ export const sites = pgTable(
 
     url: text('url').notNull(),
 
-    /** The connected repository. Without one we can only advise, never fix. */
+    /** The connected repository, "owner/name". Without one we can only advise, never fix. */
     repoFullName: text('repo_full_name'),
+    /**
+     * The GitHub App installation that grants write access to `repoFullName`. It is what a
+     * short-lived installation token is minted from (ADR-0002), so a fix job can open a PR
+     * weeks after the user connected, without the user present. Null until the repo is
+     * connected. A bigint because installation ids are outgrowing the int range.
+     */
+    githubInstallationId: bigint('github_installation_id', { mode: 'number' }),
     framework: frameworkEnum('framework').$type<Framework>().notNull().default('unknown'),
 
     /** Search Console property, e.g. 'sc-domain:example.com'. */
