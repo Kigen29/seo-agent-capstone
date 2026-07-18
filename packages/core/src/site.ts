@@ -13,6 +13,8 @@ export const frameworkSchema = z.enum([
   'remix',
   'gatsby',
   'react_spa',
+  'vue_spa',
+  'angular',
   'wordpress',
   'hugo',
   'jekyll',
