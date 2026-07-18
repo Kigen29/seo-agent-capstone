@@ -12,15 +12,15 @@ export const dynamic = 'force-dynamic'
 /** The banner shown after a Verify-with-a-PR click, keyed on the ?verify= status. */
 const VERIFY_MESSAGE: Record<string, { tone: string; text: string }> = {
   queued: {
-    tone: 'border-emerald-900 bg-emerald-950/40 text-emerald-300',
+    tone: 'note note-ok',
     text: 'Verification queued. The agent is opening a pull request that adds the meta tag; it will appear on the site shortly.',
   },
   precondition: {
-    tone: 'border-amber-900 bg-amber-950/40 text-amber-300',
+    tone: 'note note-warn',
     text: 'Connect a repository and Google Search Console to this site first.',
   },
   failed: {
-    tone: 'border-red-900 bg-red-950/40 text-red-300',
+    tone: 'note note-error',
     text: 'Could not queue verification. Try again shortly.',
   },
 }
@@ -53,17 +53,22 @@ export default async function Dashboard({
   }
 
   return (
-    <main className="mt-10">
-      <div className="flex items-baseline justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-neutral-50">Sites</h1>
-        <Link
-          href="/findings"
-          className="text-sm text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
-        >
-          All findings &rarr;
-        </Link>
+    <main className="wrap">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+        }}
+      >
+        <div>
+          <div className="card-kicker">Level</div>
+          <h1 style={{ fontWeight: 400, margin: 0 }}>Your sites</h1>
+        </div>
+        <Link href="/findings">All findings &rarr;</Link>
       </div>
-      <p className="mt-2 text-sm text-neutral-500">
+      <p style={{ marginTop: 'var(--space-2)', fontSize: 14, opacity: 0.75, maxWidth: '60ch' }}>
         Add a site and run an audit. The crawl runs on the worker and this page shows its progress
         live.
       </p>
@@ -73,10 +78,7 @@ export default async function Dashboard({
       <RepoCallback callback={githubCallback} />
 
       {verifyMessage && (
-        <p
-          role="status"
-          className={`mt-4 rounded-md border px-3 py-2 text-sm ${verifyMessage.tone}`}
-        >
+        <p role="status" className={verifyMessage.tone} style={{ marginTop: 'var(--space-4)' }}>
           {verifyMessage.text}
         </p>
       )}
@@ -84,35 +86,46 @@ export default async function Dashboard({
       <AddSite />
 
       {sites.length === 0 ? (
-        <p className="mt-8 text-sm leading-relaxed text-neutral-500">
+        <p style={{ marginTop: 'var(--space-8)', fontSize: 14, opacity: 0.7 }}>
           No sites yet. Add one above to run your first audit.
         </p>
       ) : (
-        <ul className="mt-8 divide-y divide-neutral-900 overflow-hidden rounded-lg border border-neutral-800">
+        <div style={{ marginTop: 'var(--space-8)', display: 'grid', gap: 'var(--space-3)' }}>
           {sites.map((site) => {
             const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
 
             return (
-              <li key={site.id} className="bg-neutral-950 p-4">
-                <div className="flex items-baseline justify-between gap-4">
-                  <p className="font-medium text-neutral-200">{site.url}</p>
+              <div key={site.id} className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: 'var(--space-4)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <p className="card-title" style={{ margin: 0 }}>
+                    {site.url}
+                  </p>
 
-                  <div className="flex items-center gap-4">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-3)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     {site.latestAudit && (
-                      <Link
-                        href={`/dashboard/audits/${site.latestAudit.id}`}
-                        className="text-sm text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
-                      >
+                      <Link href={`/dashboard/audits/${site.latestAudit.id}`}>
                         {running ? 'View progress' : 'View audit'}
                       </Link>
                     )}
 
                     <form action={connectRepo}>
                       <input type="hidden" name="siteId" value={site.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white"
-                      >
+                      <button type="submit" className="btn btn-secondary">
                         {site.repoFullName ? 'Reconnect repo' : 'Connect repo'}
                       </button>
                     </form>
@@ -122,10 +135,7 @@ export default async function Dashboard({
                       (site.gscVerificationStatus ?? 'none') === 'none' && (
                         <form action={verifySite}>
                           <input type="hidden" name="siteId" value={site.id} />
-                          <button
-                            type="submit"
-                            className="rounded-md border border-emerald-800 px-3 py-1.5 text-sm text-emerald-300 hover:border-emerald-600 hover:text-emerald-200"
-                          >
+                          <button type="submit" className="btn btn-primary">
                             Verify with a PR
                           </button>
                         </form>
@@ -136,7 +146,7 @@ export default async function Dashboard({
                       <button
                         type="submit"
                         disabled={Boolean(running)}
-                        className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        className="btn btn-secondary"
                       >
                         {running ? 'Running...' : 'Run audit'}
                       </button>
@@ -144,47 +154,54 @@ export default async function Dashboard({
                   </div>
                 </div>
 
-                {/* Status pills, so the connection and verification state is visible at a glance. */}
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {/* Status tags, so the connection and verification state is visible at a glance. */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                  }}
+                >
                   {site.repoFullName ? (
-                    <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-0.5 text-neutral-300">
-                      repo: {site.repoFullName}
-                    </span>
+                    <span className="tag tag-outline">repo: {site.repoFullName}</span>
                   ) : (
-                    <span className="rounded-full border border-neutral-800 px-2.5 py-0.5 text-neutral-500">
-                      no repo connected
-                    </span>
+                    <span className="tag tag-neutral">no repo connected</span>
                   )}
 
                   {site.gscVerificationStatus === 'verified' ? (
-                    <span className="rounded-full border border-emerald-700 bg-emerald-950/50 px-2.5 py-0.5 font-medium text-emerald-300">
+                    <span
+                      className="tag"
+                      style={{
+                        background: 'var(--color-accent-100)',
+                        color: 'var(--color-accent-800)',
+                      }}
+                    >
                       &#10003; Search Console verified
                     </span>
                   ) : site.gscVerificationStatus === 'merged' ? (
-                    <span className="rounded-full border border-amber-800 bg-amber-950/40 px-2.5 py-0.5 text-amber-300">
-                      verifying with Google&hellip;
-                    </span>
+                    <span className="tag tag-neutral">verifying with Google&hellip;</span>
                   ) : site.gscVerificationStatus === 'pr_open' && site.gscVerificationPrUrl ? (
                     <a
                       href={site.gscVerificationPrUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-full border border-sky-800 bg-sky-950/40 px-2.5 py-0.5 text-sky-300 hover:border-sky-600 hover:text-sky-200"
+                      className="tag tag-outline"
                     >
                       verification PR open: review &amp; merge &rarr;
                     </a>
                   ) : null}
                 </div>
 
-                <p className="mt-1.5 text-xs text-neutral-600">
+                <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>
                   {site.latestAudit
                     ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
                     : 'Never audited'}
                 </p>
-              </li>
+              </div>
             )
           })}
-        </ul>
+        </div>
       )}
     </main>
   )

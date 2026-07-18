@@ -25,19 +25,20 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
   const findings = [...audit.findings].sort((a, b) => priorityScore(b) - priorityScore(a))
 
   return (
-    <main className="mt-10">
-      <h1 className="text-2xl font-semibold text-neutral-50">{audit.siteUrl}</h1>
-      <p className="mt-1 text-sm text-neutral-600">
+    <main className="wrap">
+      <div className="card-kicker">Audit</div>
+      <h1 style={{ fontWeight: 400, margin: 0 }}>{audit.siteUrl}</h1>
+      <p style={{ marginTop: 'var(--space-1)', fontSize: 13, opacity: 0.6 }}>
         {audit.pagesCrawled} pages crawled &middot; {new Date(audit.startedAt).toLocaleString()}
       </p>
 
       <LiveProgress status={audit.status} pagesCrawled={audit.pagesCrawled} />
 
       {audit.status === 'failed' && (
-        <div className="mt-6 rounded-lg border border-red-900 bg-red-950/40 p-4">
-          <p className="text-sm font-medium text-red-300">This audit failed</p>
-          <p className="mt-2 text-sm leading-relaxed text-red-200/80">{audit.error}</p>
-          <p className="mt-2 text-xs leading-relaxed text-red-200/50">
+        <div className="note note-error" style={{ marginTop: 'var(--space-6)' }}>
+          <p style={{ margin: 0, fontWeight: 600 }}>This audit failed</p>
+          <p style={{ margin: 'var(--space-2) 0 0', fontSize: 14 }}>{audit.error}</p>
+          <p style={{ margin: 'var(--space-2) 0 0', fontSize: 12, opacity: 0.75 }}>
             Nothing was scored. We do not publish a scorecard for a site we could not reach: no data
             is not the same as no problems.
           </p>
@@ -46,60 +47,78 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
 
       {audit.scorecard && (
         <>
-          <section className="mt-10">
-            <h2 className="text-xs font-medium tracking-widest text-neutral-500 uppercase">
-              The eight axes
-            </h2>
-            <p className="mt-2 text-sm text-neutral-500">
+          <section style={{ marginTop: 'var(--space-8)' }}>
+            <h4 style={{ marginBottom: 'var(--space-2)' }}>Eight-axis scorecard</h4>
+            <p
+              style={{
+                marginBottom: 'var(--space-4)',
+                fontSize: 14,
+                opacity: 0.75,
+                maxWidth: '64ch',
+              }}
+            >
               Eight scores, never one. They move independently, and a single number would hide
               everything. A dash means we have not measured it, which is not the same as a pass.
             </p>
 
-            <div className="mt-6">
-              <ScorecardGrid scorecard={audit.scorecard} />
-            </div>
+            <ScorecardGrid scorecard={audit.scorecard} />
           </section>
 
-          <section className="mt-12">
-            <h2 className="text-xs font-medium tracking-widest text-neutral-500 uppercase">
-              Findings
-            </h2>
-            <p className="mt-2 text-sm text-neutral-500">
+          <section style={{ marginTop: 'var(--space-8)' }}>
+            <h4 style={{ marginBottom: 'var(--space-2)' }}>Findings</h4>
+            <p
+              style={{
+                marginBottom: 'var(--space-4)',
+                fontSize: 14,
+                opacity: 0.75,
+                maxWidth: '64ch',
+              }}
+            >
               Ordered by severity multiplied by confidence and impact, divided by effort. The useful
               question is not what is wrong, it is which three things to do on Monday.
             </p>
 
             {findings.length === 0 ? (
-              <p className="mt-6 rounded-lg border border-emerald-900 bg-emerald-950/30 p-4 text-sm text-emerald-300">
-                Nothing to report. Every check we ran passed.
-              </p>
+              <p className="note note-ok">Nothing to report. Every check we ran passed.</p>
             ) : (
-              <ul className="mt-6 divide-y divide-neutral-900 overflow-hidden rounded-lg border border-neutral-800">
-                {findings.map((finding) => (
-                  <li key={finding.rowId} className="bg-neutral-950 p-4">
-                    <Link href={`/dashboard/findings/${finding.rowId}`} className="group block">
-                      <div className="flex items-baseline gap-3">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Finding</th>
+                    <th>Severity</th>
+                    <th>Effort</th>
+                    <th>Impact</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {findings.map((finding) => (
+                    <tr key={finding.rowId}>
+                      <td>
+                        <div>{finding.title}</div>
+                        <div style={{ fontSize: 12, opacity: 0.55 }}>
+                          {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
+                          {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
+                          {finding.fixable && (
+                            <span style={{ color: 'var(--color-accent-700)' }}>
+                              {' '}
+                              &middot; we can write the fix
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
                         <SeverityBadge severity={finding.severity} />
-                        <span className="font-mono text-xs text-neutral-600">{finding.ruleId}</span>
-                      </div>
-
-                      <p className="mt-2 text-neutral-200 group-hover:text-white">
-                        {finding.title}
-                      </p>
-
-                      <p className="mt-1 text-xs text-neutral-600">
-                        {finding.affectedUrls.length}{' '}
-                        {finding.affectedUrls.length === 1 ? 'page' : 'pages'} &middot;{' '}
-                        {finding.estimatedEffort} effort &middot; impact {finding.estimatedImpact}
-                        /100
-                        {finding.fixable && (
-                          <span className="ml-2 text-emerald-600">we can write the fix</span>
-                        )}
-                      </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                      </td>
+                      <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
+                      <td className="tnum">{finding.estimatedImpact}/100</td>
+                      <td>
+                        <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </section>
         </>

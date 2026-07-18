@@ -20,20 +20,50 @@ export default async function Login({
   const { expired } = await searchParams
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <p className="text-sm font-medium tracking-widest text-neutral-500 uppercase">Rankwright</p>
-      <h1 className="mt-4 text-2xl font-semibold text-neutral-50">Sign in</h1>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'var(--space-6)',
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 460 }}>
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+          <span className="nav-brand" style={{ margin: 0 }}>
+            RankWright
+          </span>
+        </div>
 
-      <LoginForm expired={expired === '1'} />
+        <div className="card elev-md" style={{ padding: 'var(--space-8)' }}>
+          <div className="card-kicker" style={{ textAlign: 'center' }}>
+            Welcome back
+          </div>
+          <h2 style={{ fontWeight: 400, textAlign: 'center', marginBottom: 'var(--space-4)' }}>
+            Sign in
+          </h2>
 
-      <p className="mt-8 text-sm leading-relaxed text-neutral-500">
-        Mint a token with{' '}
-        <code className="rounded bg-neutral-900 px-1.5 py-0.5 font-mono text-xs text-neutral-400">
-          pnpm --filter @seo/api mint-token &lt;tenant&gt;
-        </code>
-        . Sign-in with GitHub arrives with the GitHub App in sprint 2, which we need anyway to open
-        pull requests.
-      </p>
+          <LoginForm expired={expired === '1'} />
+
+          <p style={{ marginTop: 'var(--space-6)', fontSize: 13, opacity: 0.75, lineHeight: 1.7 }}>
+            Mint a token with{' '}
+            <code
+              style={{
+                fontFamily: 'ui-monospace, Menlo, monospace',
+                fontSize: 12,
+                background: 'var(--color-surface)',
+                borderRadius: 3,
+                padding: '2px 6px',
+              }}
+            >
+              pnpm --filter @seo/api mint-token &lt;tenant&gt;
+            </code>
+            . Sign-in with GitHub arrives with the GitHub App, which we need anyway to open pull
+            requests.
+          </p>
+        </div>
+      </div>
     </main>
   )
 }

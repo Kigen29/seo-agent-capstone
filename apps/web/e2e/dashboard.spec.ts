@@ -88,9 +88,9 @@ test('leads the backlog with the critical finding, not the cheap one', async ({ 
   await signIn(page)
   await page.goto(`/dashboard/audits/${AUDIT}`)
 
-  const first = page.locator('ul li').filter({ hasText: 'TECH-' }).first()
+  const first = page.locator('table tbody tr').filter({ hasText: 'TECH-' }).first()
 
-  await expect(first).toContainText('critical')
+  await expect(first).toContainText('Critical')
   await expect(first).toContainText('OAI-SearchBot')
 })
 

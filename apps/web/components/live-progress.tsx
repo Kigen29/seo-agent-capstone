@@ -37,18 +37,26 @@ export function LiveProgress({ status, pagesCrawled }: { status: string; pagesCr
     <div
       role="status"
       aria-live="polite"
-      className="mt-6 rounded-lg border border-neutral-800 bg-neutral-950 p-4"
+      className="card elev-sm"
+      style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)' }}
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <p className="text-sm text-neutral-300">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 14 }}>
           {status === 'evaluating' ? 'Running the rules' : 'Crawling'}
         </p>
-        <p className="font-mono text-sm tabular-nums text-neutral-400">
+        <p className="tnum" style={{ margin: 0, fontSize: 14, color: 'var(--color-accent-700)' }}>
           {pagesCrawled} {pagesCrawled === 1 ? 'page' : 'pages'}
         </p>
       </div>
 
-      <p className="mt-2 text-xs text-neutral-600">
+      <p style={{ margin: '9px 0 0', fontSize: 12, opacity: 0.6 }}>
         We crawl slowly, one request at a time per host, because we are a guest on someone
         else&apos;s origin. This updates as it goes.
       </p>
