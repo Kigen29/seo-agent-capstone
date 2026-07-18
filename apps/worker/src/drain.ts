@@ -1,7 +1,7 @@
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
 import { createQueue, drainAudits, drainConfirmVerify, drainVerify } from '@seo/queue'
-import { runConfirmVerify, runVerify } from './verify.js'
+import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
 /**
  * The worker. Claims queued audits, runs each one, and exits when the queue is empty.
@@ -47,7 +47,10 @@ try {
 
   // Then confirm any merged verifications with Google. A "not yet" (the deploy has not
   // propagated) fails the job so it retries later rather than marking the site verified early.
-  console.log('worker: draining the confirm-verification queue')
+  // Re-enqueue a check for every site still awaiting confirmation first, so a site whose deploy
+  // landed after its earlier confirm gave up is picked back up rather than stranded on merged.
+  const pending = await enqueuePendingConfirmations(db, queue)
+  console.log(`worker: re-checking ${pending} site(s) awaiting confirmation`)
   const confirmed = await drainConfirmVerify(queue, (job) => runConfirmVerify(db, job))
   console.log(
     `worker: confirmation done. ${confirmed.completed} completed, ${confirmed.failed} failed.`,
