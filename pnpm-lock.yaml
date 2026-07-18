@@ -147,6 +147,31 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/agent:
+    dependencies:
+      '@seo/core':
+        specifier: workspace:*
+        version: link:../core
+      '@seo/fixers':
+        specifier: workspace:*
+        version: link:../fixers
+      '@seo/vcs':
+        specifier: workspace:*
+        version: link:../vcs
+    devDependencies:
+      '@seo/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
   packages/api-client:
     dependencies:
       '@seo/core':
