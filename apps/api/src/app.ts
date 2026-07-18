@@ -1,5 +1,5 @@
 import cors from '@fastify/cors'
-import { getAudit, getFinding, listSites } from '@seo/audit'
+import { getAudit, getFinding, listFindings, listSites } from '@seo/audit'
 import {
   buildAuthUrl,
   encryptToken,
@@ -406,6 +406,11 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
     protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/sites', async (request) => {
       return { sites: await listSites(db, request.tenantId) }
+    })
+
+    /** The findings inbox: the tenant's current findings, most important first. */
+    protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/findings', async (request) => {
+      return { findings: await listFindings(db, request.tenantId) }
     })
 
     protectedRoutes.withTypeProvider<ZodTypeProvider>().post(
