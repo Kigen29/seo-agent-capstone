@@ -35,6 +35,8 @@ export interface AuditSummary {
 export interface Site {
   id: string
   url: string
+  /** The connected repository, "owner/name", or null until a repo is connected. */
+  repoFullName?: string | null
   latestAudit?: AuditSummary
 }
 

@@ -12,6 +12,8 @@ import { desc, eq } from 'drizzle-orm'
 export interface SiteSummary {
   id: string
   url: string
+  /** The connected repository, "owner/name", or null until the GitHub App is installed on it. */
+  repoFullName: string | null
   latestAudit?: {
     id: string
     status: string
@@ -37,6 +39,7 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         return {
           id: site.id,
           url: site.url,
+          repoFullName: site.repoFullName ?? null,
           latestAudit: latest
             ? {
                 id: latest.id,

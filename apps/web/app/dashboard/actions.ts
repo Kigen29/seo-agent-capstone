@@ -86,3 +86,27 @@ export async function connectGoogle(): Promise<void> {
 
   redirect(url)
 }
+
+/**
+ * Start connecting a repository to a site. Fetches the GitHub App install URL from the API
+ * (whose state is signed for this tenant and this site) and redirects the browser to GitHub.
+ * Like the Google flow, this runs on the server, and GitHub redirects back to the API's setup
+ * callback, not here, so no token or install detail passes through the browser.
+ */
+export async function connectRepo(formData: FormData): Promise<void> {
+  const siteId = String(formData.get('siteId') ?? '')
+  if (!siteId) throw new Error('connectRepo called without a siteId; the hidden field is missing.')
+
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  let url: string
+  try {
+    url = await api.connectRepo(siteId)
+  } catch (error) {
+    handleApiError(error)
+    redirect('/dashboard?github=unavailable')
+  }
+
+  redirect(url)
+}
