@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { createGitHubApp } from '../src/github/client.js'
+import { createGitHubApp, githubAppConfigFromEnv } from '../src/github/client.js'
 
 /** Generate an RSA private key in the requested PEM format. */
 function keyPem(type: 'pkcs1' | 'pkcs8'): string {
@@ -26,5 +26,27 @@ describe('createGitHubApp private key handling', () => {
     expect(() => createGitHubApp({ appId: '1', privateKey: 'not a key' })).toThrow(
       /GH_APP_PRIVATE_KEY/,
     )
+  })
+})
+
+describe('githubAppConfigFromEnv', () => {
+  const env = (privateKey: string): NodeJS.ProcessEnv =>
+    ({ GH_APP_ID: '1', GH_APP_PRIVATE_KEY: privateKey }) as NodeJS.ProcessEnv
+
+  it('accepts a raw PEM and yields a usable key', () => {
+    const cfg = githubAppConfigFromEnv(env(keyPem('pkcs1')))
+    expect(cfg.privateKey).toContain('BEGIN')
+    expect(() => createGitHubApp(cfg)).not.toThrow()
+  })
+
+  it('accepts a base64-encoded PEM, the form that survives a hosted env field', () => {
+    const base64 = Buffer.from(keyPem('pkcs8')).toString('base64')
+    const cfg = githubAppConfigFromEnv(env(base64))
+    expect(cfg.privateKey).toContain('BEGIN')
+    expect(() => createGitHubApp(cfg)).not.toThrow()
+  })
+
+  it('throws when the credentials are missing', () => {
+    expect(() => githubAppConfigFromEnv({} as NodeJS.ProcessEnv)).toThrow(/GH_APP_ID/)
   })
 })
