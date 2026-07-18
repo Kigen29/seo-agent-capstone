@@ -89,11 +89,28 @@ describe('openVerificationPr', () => {
     expect(provider.opened?.files[0]?.content).not.toContain('&lt;')
 
     expect(result).toMatchObject({
-      prUrl: 'https://github.com/o/r/pull/9',
       property: 'https://example.com/',
       framework: 'react_spa',
       token: META_TOKEN,
+      pr: { url: 'https://github.com/o/r/pull/9' },
     })
+  })
+
+  it('opens no PR and reports pr: null when the tag is already in the repo', async () => {
+    // A merged PR, or a hand edit, means the tag is already present. Re-verifying must not error
+    // or open a duplicate; it goes straight to confirmation.
+    const provider = new FakeProvider()
+    provider.files.set('package.json', JSON.stringify({ dependencies: { react: '19.0.0' } }))
+    provider.files.set('index.html', SPA_INDEX.replace('</head>', `  ${META_TOKEN}\n  </head>`))
+    const { property, verification } = fakes()
+
+    const result = await openVerificationPr(
+      { siteId: 'site-1', siteUrl: 'https://example.com', repo },
+      { property, verification, provider },
+    )
+
+    expect(result.pr).toBeNull()
+    expect(provider.opened).toBeUndefined() // no PR was opened
   })
 
   it('opens a PR whose synthetic finding is a valid, rule-4 body', async () => {
