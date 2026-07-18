@@ -44,12 +44,31 @@ function statusOf(error: unknown): number | undefined {
     : undefined
 }
 
+/** A repository an installation can reach, resolved from the installation itself. */
+export interface InstalledRepo {
+  owner: string
+  name: string
+  fullName: string
+  defaultBranch: string
+}
+
 /**
- * Build the factory the provider uses. One App instance signs the JWTs; installation Octokit
- * clients are cached per installation so we do not mint a token on every call. The App library
- * refreshes an installation token before it expires, so the cache is safe to hold.
+ * The App, wired once. `apiFor` is the per-repo provider factory; `listInstallationRepositories`
+ * answers the one installation-scoped question the provider interface does not cover: which
+ * repos did the client actually grant, so the connect callback can resolve the repo behind an
+ * installation id.
  */
-export function createGitHubApiFactory(config: GitHubAppConfig): GitHubApiFactory {
+export interface GitHubApp {
+  apiFor: GitHubApiFactory
+  listInstallationRepositories(installationId: number): Promise<InstalledRepo[]>
+}
+
+/**
+ * Build the App. One App instance signs the JWTs; installation Octokit clients are cached per
+ * installation so we do not mint a token on every call. The App library refreshes an
+ * installation token before it expires, so the cache is safe to hold.
+ */
+export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
   const app = new App({ appId: config.appId, privateKey: config.privateKey })
   const clients = new Map<number, Awaited<ReturnType<typeof app.getInstallationOctokit>>>()
 
@@ -61,7 +80,7 @@ export function createGitHubApiFactory(config: GitHubAppConfig): GitHubApiFactor
     return client
   }
 
-  return (ctx: RepoContext): GitHubApi => {
+  const apiFor: GitHubApiFactory = (ctx: RepoContext): GitHubApi => {
     const { owner, name: repo } = ctx.repo
 
     // Calls go through octokit.request(route, params), which lives on the base Octokit that
@@ -157,4 +176,22 @@ export function createGitHubApiFactory(config: GitHubAppConfig): GitHubApiFactor
       },
     }
   }
+
+  async function listInstallationRepositories(installationId: number): Promise<InstalledRepo[]> {
+    const octokit = await octokitFor(installationId)
+    const { data } = await octokit.request('GET /installation/repositories', { per_page: 100 })
+    return data.repositories.map((r) => ({
+      owner: r.owner.login,
+      name: r.name,
+      fullName: r.full_name,
+      defaultBranch: r.default_branch,
+    }))
+  }
+
+  return { apiFor, listInstallationRepositories }
+}
+
+/** Back-compat: just the provider factory, for a caller that does not need installation listing. */
+export function createGitHubApiFactory(config: GitHubAppConfig): GitHubApiFactory {
+  return createGitHubApp(config).apiFor
 }

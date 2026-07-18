@@ -11,12 +11,24 @@ import {
   type Database,
 } from '@seo/db'
 import type { AuditJob } from '@seo/queue'
-import { randomBytes } from 'node:crypto'
+import type { InstalledRepo } from '@seo/vcs'
+import { createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import { bearerToken, generateToken, hashToken } from '../src/auth.js'
+import { signInstallState } from '../src/github-state.js'
+
+/** The fake GitHub App injected into the API: it lists one repo and signs webhooks with a
+ * known secret, so the connect, callback, and webhook routes can be exercised without GitHub. */
+const WEBHOOK_SECRET = 'test-webhook-secret'
+const INSTALLATION_ID = 4242
+const installationRepos: InstalledRepo[] = [
+  { owner: 'octo', name: 'owned', fullName: 'octo/owned', defaultBranch: 'main' },
+]
+const signWebhook = (body: string) =>
+  'sha256=' + createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')
 
 // A known encryption key, so signState / encryptToken / decryptToken agree here and in CI,
 // which has no .env. Set before any test signs a state.
@@ -68,6 +80,17 @@ describe.skipIf(!shouldRun)('the API', () => {
       db,
       enqueue: async (job) => {
         enqueued.push(job)
+      },
+      github: {
+        app: {
+          // apiFor is exercised by the fixer stories, not here; listing is what the callback uses.
+          apiFor: (() => {
+            throw new Error('apiFor is not used in these tests')
+          }) as never,
+          listInstallationRepositories: async () => installationRepos,
+        },
+        slug: 'rankwright-seo-agent',
+        webhookSecret: WEBHOOK_SECRET,
       },
     })
 
@@ -539,6 +562,115 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       expect(res.statusCode).toBe(200)
       expect(res.json().google).toMatchObject({ connected: true, email: 'owner@example.com' })
+    })
+  })
+
+  describe('connecting a repository', () => {
+    const postJson = (path: string, payload: unknown, bearer?: string) =>
+      app.inject({
+        method: 'POST',
+        url: path,
+        headers: bearer ? { authorization: `Bearer ${bearer}` } : {},
+        payload: payload as object,
+      })
+
+    const webhook = (event: string, body: string, signature: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/webhooks/github',
+        headers: {
+          'content-type': 'application/json',
+          'x-github-event': event,
+          'x-hub-signature-256': signature,
+        },
+        payload: body,
+      })
+
+    it('hands back a signed install URL for a site the caller owns', async () => {
+      const res = await postJson('/connections/github', { siteId }, token)
+
+      expect(res.statusCode).toBe(200)
+      const url = res.json().url as string
+      expect(url).toContain('github.com/apps/rankwright-seo-agent/installations/new')
+      expect(url).toContain('state=')
+    })
+
+    it('returns 404, not 403, for another tenant’s site', async () => {
+      const res = await postJson('/connections/github', { siteId }, otherToken)
+      expect(res.statusCode).toBe(404)
+    })
+
+    it('reports 503 when GitHub is not configured', async () => {
+      const bare = await buildApp({ db })
+      const res = await bare.inject({
+        method: 'POST',
+        url: '/connections/github',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { siteId },
+      })
+      expect(res.statusCode).toBe(503)
+      await bare.close()
+    })
+
+    it('rejects the callback with an invalid state, without touching the site', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/connections/github/callback?installation_id=${INSTALLATION_ID}&state=not-valid`,
+      })
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toContain('github=invalid')
+    })
+
+    it('records the installation and the resolved repo on the site (the demo path)', async () => {
+      const state = signInstallState({ tenantId, siteId })
+      const res = await app.inject({
+        method: 'GET',
+        url:
+          `/connections/github/callback?installation_id=${INSTALLATION_ID}` +
+          `&setup_action=install&state=${encodeURIComponent(state)}`,
+      })
+
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toContain('github=connected')
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, siteId)).limit(1)
+        return row
+      })
+      expect(site?.githubInstallationId).toBe(INSTALLATION_ID)
+      expect(site?.repoFullName).toBe('octo/owned')
+    })
+
+    it('reports the connected repo on GET /connections once stored', async () => {
+      const res = await get('/connections', token)
+      expect(res.statusCode).toBe(200)
+      expect(res.json().github).toMatchObject({ connected: true })
+      expect(res.json().github.repos).toContain('octo/owned')
+    })
+
+    it('turns away a webhook with a bad signature before reading it', async () => {
+      const body = JSON.stringify({ action: 'created', installation: { id: INSTALLATION_ID } })
+      const res = await webhook('installation', body, 'sha256=deadbeef')
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('accepts a webhook GitHub genuinely signed', async () => {
+      const body = JSON.stringify({ action: 'created', installation: { id: INSTALLATION_ID } })
+      const res = await webhook('installation', body, signWebhook(body))
+      expect(res.statusCode).toBe(204)
+    })
+
+    it('disconnects every site under an installation that was deleted', async () => {
+      const body = JSON.stringify({ action: 'deleted', installation: { id: INSTALLATION_ID } })
+      const res = await webhook('installation', body, signWebhook(body))
+      expect(res.statusCode).toBe(204)
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, siteId)).limit(1)
+        return row
+      })
+      expect(site?.githubInstallationId).toBeNull()
+      expect(site?.repoFullName).toBeNull()
     })
   })
 

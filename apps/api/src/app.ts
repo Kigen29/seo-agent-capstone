@@ -8,9 +8,23 @@ import {
   verifyState,
   type OAuthConfig,
 } from '@seo/connectors'
-import { audits, createDb, oauthCredentials, sites, withTenant, type Database } from '@seo/db'
+import {
+  asOwner,
+  audits,
+  createDb,
+  oauthCredentials,
+  sites,
+  withTenant,
+  type Database,
+} from '@seo/db'
 import type { AuditJob } from '@seo/queue'
-import { and, eq, sql } from 'drizzle-orm'
+import {
+  SIGNATURE_HEADER,
+  verifyWebhookSignature,
+  type GitHubApp,
+  type InstalledRepo,
+} from '@seo/vcs'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify'
 import {
   serializerCompiler,
@@ -19,6 +33,7 @@ import {
 } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { bearerToken, tenantForToken } from './auth.js'
+import { signInstallState, verifyInstallState } from './github-state.js'
 
 export interface AppOptions {
   db?: Database
@@ -36,6 +51,18 @@ export interface AppOptions {
    * 503 rather than sending users to a half-configured consent screen.
    */
   google?: { config: OAuthConfig; fetch?: typeof globalThis.fetch }
+  /**
+   * The GitHub App (ADR-0002). Injected, like Google, so the connect and webhook routes can be
+   * tested with a fake app and a known secret, and so the API never reads the App credentials
+   * from process.env directly. Absent means those routes report 503 rather than pretend.
+   */
+  github?: {
+    app: GitHubApp
+    /** The App's URL slug, for building the install link `github.com/apps/<slug>`. */
+    slug: string
+    /** The secret GitHub signs each webhook with, so we can prove a delivery is genuine. */
+    webhookSecret: string
+  }
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }
@@ -52,6 +79,8 @@ const uuidParam = z.object({ id: z.string().uuid() })
 declare module 'fastify' {
   interface FastifyRequest {
     tenantId: string
+    /** The exact bytes of a webhook body, kept so its HMAC signature can be verified. */
+    rawBody?: string
   }
 }
 
@@ -107,6 +136,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   const webUrl = options.webUrl ?? process.env.WEB_URL ?? 'http://localhost:3000'
   const backToDashboard = (status: string) =>
     `${webUrl.replace(/\/$/, '')}/dashboard?google=${status}`
+  const backToDashboardGithub = (status: string) =>
+    `${webUrl.replace(/\/$/, '')}/dashboard?github=${status}`
 
   app.withTypeProvider<ZodTypeProvider>().get(
     '/auth/google/callback',
@@ -166,6 +197,133 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       }
     },
   )
+
+  /**
+   * The GitHub App setup callback. Unauthenticated for the same reason as the Google one: it is
+   * a browser redirect back from GitHub after the user installs the App, carrying an
+   * `installation_id` and our signed `state`, but no session on this API.
+   *
+   * The state is what makes it safe. It was signed for one tenant and one site by the
+   * authenticated start route, so the installation is written onto a site the caller genuinely
+   * owns, never one an unsigned parameter named.
+   */
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/connections/github/callback',
+    {
+      schema: {
+        querystring: z.object({
+          installation_id: z.coerce.number().optional(),
+          setup_action: z.string().optional(),
+          state: z.string().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const { installation_id: installationId, state } = request.query
+
+      if (!state || !installationId) return reply.redirect(backToDashboardGithub('declined'))
+      if (!options.github) return reply.redirect(backToDashboardGithub('unavailable'))
+
+      const verified = verifyInstallState(state)
+      if (!verified) return reply.redirect(backToDashboardGithub('invalid'))
+      const { tenantId, siteId } = verified
+
+      try {
+        const site = await withTenant(db, tenantId, async (tx) => {
+          const [row] = await tx.select().from(sites).where(eq(sites.id, siteId)).limit(1)
+          return row
+        })
+        if (!site) return reply.redirect(backToDashboardGithub('invalid'))
+
+        // Which repo does this installation actually grant? Resolve it, and match it to the
+        // site the user started from, so the fixer knows exactly which repo to open a PR against.
+        const repos = await options.github.app.listInstallationRepositories(installationId)
+        if (repos.length === 0) return reply.redirect(backToDashboardGithub('norepo'))
+
+        const chosen = chooseRepoForSite(repos, site.url)
+
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .update(sites)
+            .set({ repoFullName: chosen.fullName, githubInstallationId: installationId })
+            .where(eq(sites.id, siteId)),
+        )
+
+        return reply.redirect(backToDashboardGithub('connected'))
+      } catch (err) {
+        console.error('github install callback failed', err)
+        return reply.redirect(backToDashboardGithub('failed'))
+      }
+    },
+  )
+
+  /**
+   * The webhook GitHub calls when an installation changes or a pull request moves.
+   *
+   * Registered as its own plugin so it can keep the raw request body: GitHub signs the exact
+   * bytes it sent, and re-serialising a parsed object would not reproduce them, so the HMAC
+   * would never match. The content-type parser here is scoped to this plugin; the rest of the
+   * API keeps Fastify's default JSON handling.
+   */
+  await app.register(async (webhookRoutes) => {
+    webhookRoutes.addContentTypeParser(
+      'application/json',
+      { parseAs: 'string' },
+      (req, body, done) => {
+        req.rawBody = typeof body === 'string' ? body : body.toString('utf8')
+        try {
+          done(null, req.rawBody === '' ? {} : JSON.parse(req.rawBody))
+        } catch (err) {
+          done(err as Error, undefined)
+        }
+      },
+    )
+
+    webhookRoutes.post('/webhooks/github', async (request, reply) => {
+      if (!options.github) {
+        return reply
+          .status(503)
+          .send({ error: 'Service Unavailable', message: 'GitHub is not configured.' })
+      }
+
+      const signature = request.headers[SIGNATURE_HEADER]
+      const ok = verifyWebhookSignature(
+        options.github.webhookSecret,
+        request.rawBody ?? '',
+        typeof signature === 'string' ? signature : undefined,
+      )
+      if (!ok) {
+        // Anyone can POST to a public URL; only GitHub can sign. An unverified delivery is
+        // turned away before a single field of it is read.
+        return reply.status(401).send({ error: 'Unauthorized', message: 'Bad signature.' })
+      }
+
+      const event = request.headers['x-github-event']
+      const payload = request.body as GithubWebhookPayload
+
+      if (
+        event === 'installation' &&
+        (payload.action === 'deleted' || payload.action === 'suspend')
+      ) {
+        // The App was removed or suspended: no site under this installation can be fixed any
+        // more, so clear the link. asOwner because a webhook carries no tenant context, and the
+        // installation id spans whatever sites, in whatever tenants, were connected through it.
+        const installationId = payload.installation?.id
+        if (installationId) {
+          await asOwner(db, (tx) =>
+            tx
+              .update(sites)
+              .set({ githubInstallationId: null, repoFullName: null })
+              .where(eq(sites.githubInstallationId, installationId)),
+          )
+        }
+      }
+
+      // pull_request merges drive finding status and verification, which land with the fixer
+      // (STORY-023 and STORY-025). The delivery is verified and acknowledged now.
+      return reply.status(204).send()
+    })
+  })
 
   await app.register(async (protectedRoutes) => {
     /**
@@ -323,7 +481,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         },
       )
 
-    /** Whether this tenant has connected Google, and as whom, so the UI can show it. */
+    /** What this tenant has connected, so the UI can show it: Google, and any connected repos. */
     protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/connections', async (request) => {
       const [google] = await withTenant(db, request.tenantId, (tx) =>
         tx
@@ -333,7 +491,20 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           .limit(1),
       )
 
-      return { google: google ? { connected: true, email: google.email } : { connected: false } }
+      const connectedRepos = await withTenant(db, request.tenantId, (tx) =>
+        tx
+          .select({ repoFullName: sites.repoFullName })
+          .from(sites)
+          .where(isNotNull(sites.githubInstallationId)),
+      )
+      const repos = connectedRepos
+        .map((row) => row.repoFullName)
+        .filter((name): name is string => Boolean(name))
+
+      return {
+        google: google ? { connected: true, email: google.email } : { connected: false },
+        github: { connected: repos.length > 0, repos },
+      }
     })
 
     /**
@@ -352,9 +523,80 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         const state = signState(request.tenantId)
         return { url: buildAuthUrl(options.google.config, state) }
       })
+
+    /**
+     * Begin connecting a repository to a site the caller owns. Returns the GitHub App install
+     * URL; the state in it is signed for this tenant and this site, so the setup callback can
+     * write the resulting installation onto the right site and no other.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .post(
+        '/connections/github',
+        { schema: { body: z.object({ siteId: z.string().uuid() }) } },
+        async (request, reply) => {
+          if (!options.github) {
+            return reply
+              .status(503)
+              .send({ error: 'Service Unavailable', message: 'GitHub is not configured.' })
+          }
+
+          // Confirm the site is the caller's first (404, never 403, for someone else's), then
+          // sign the state. A site that is not theirs cannot be named in a state we will honour.
+          const site = await withTenant(db, request.tenantId, async (tx) => {
+            const [row] = await tx
+              .select({ id: sites.id })
+              .from(sites)
+              .where(eq(sites.id, request.body.siteId))
+              .limit(1)
+            return row
+          })
+          if (!site) return notFound(reply)
+
+          const state = signInstallState({
+            tenantId: request.tenantId,
+            siteId: request.body.siteId,
+          })
+          const url =
+            `https://github.com/apps/${options.github.slug}/installations/new` +
+            `?state=${encodeURIComponent(state)}`
+          return { url }
+        },
+      )
   })
 
   return app
+}
+
+/**
+ * Pick which of an installation's repositories to connect to a site.
+ *
+ * A one-repo installation is unambiguous. When several were granted, prefer the repo whose name
+ * matches the site's domain stem (heartbeestsafaris.com -> a repo named "heartbeestsafaris"),
+ * then any repo whose name contains it, and fall back to the first. The user can reconnect to
+ * correct a wrong guess; the point is to not fail when the match is obvious.
+ */
+function chooseRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRepo {
+  if (repos.length === 1) return repos[0]!
+
+  let stem = ''
+  try {
+    stem = new URL(siteUrl).hostname.replace(/^www\./, '').split('.')[0] ?? ''
+  } catch {
+    // A malformed URL just means no stem to match on; fall through to the first repo.
+  }
+  const lower = stem.toLowerCase()
+
+  const exact = lower && repos.find((r) => r.name.toLowerCase() === lower)
+  const partial = lower && repos.find((r) => r.name.toLowerCase().includes(lower))
+  return exact || partial || repos[0]!
+}
+
+/** The slice of a GitHub webhook body we actually read. The rest is ignored on purpose. */
+interface GithubWebhookPayload {
+  action?: string
+  installation?: { id?: number }
+  pull_request?: { merged?: boolean; head?: { ref?: string } }
 }
 
 /**

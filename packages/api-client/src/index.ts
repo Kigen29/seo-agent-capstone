@@ -152,13 +152,28 @@ export function createApiClient(options: ApiClientOptions) {
       (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))
         .finding,
 
-    /** Whether this tenant has connected Google Search Console, and as whom. */
+    /** What this tenant has connected: Google Search Console, and any connected repositories. */
     getConnections: async () =>
-      request<{ google: { connected: boolean; email?: string | null } }>('/connections'),
+      request<{
+        google: { connected: boolean; email?: string | null }
+        github: { connected: boolean; repos: string[] }
+      }>('/connections'),
 
     /** Begin the Google consent flow. Returns the URL to send the browser to. */
     connectGoogle: async () =>
       (await request<{ url: string }>('/connections/google', { method: 'POST' })).url,
+
+    /**
+     * Begin connecting a repository to a site. Returns the GitHub App install URL to send the
+     * browser to; after the user installs the App, GitHub redirects to the API's setup callback.
+     */
+    connectRepo: async (siteId: string) =>
+      (
+        await request<{ url: string }>('/connections/github', {
+          method: 'POST',
+          body: JSON.stringify({ siteId }),
+        })
+      ).url,
   }
 }
 
