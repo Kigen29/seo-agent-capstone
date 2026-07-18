@@ -62,9 +62,15 @@ jobs:
           LLM_JUDGE: ${{ vars.LLM_JUDGE }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # Needed by googleOAuthConfigFromEnv even though the refresh call does not send it;
+          # the verify job refreshes the tenant's token before calling Search Console.
+          GOOGLE_OAUTH_REDIRECT_URI: ${{ secrets.GOOGLE_OAUTH_REDIRECT_URI }}
           GOOGLE_PSI_API_KEY: ${{ secrets.GOOGLE_PSI_API_KEY }}
           GOOGLE_CRUX_API_KEY: ${{ secrets.GOOGLE_CRUX_API_KEY }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          # The GitHub App, so the verify job can open the pull request (ADR-0002).
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
           QUEUE: ${{ github.event.inputs.queue || 'all' }}
         # Claims jobs from pg-boss, runs them, writes results back, exits when the queue is empty.
         run: pnpm --filter @seo/worker drain

@@ -15,6 +15,7 @@ import { PgBoss } from 'pg-boss'
  */
 
 export const AUDIT_QUEUE = 'audit'
+export const VERIFY_QUEUE = 'verify'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -26,6 +27,12 @@ export interface AuditJob {
   siteId: string
   seed: string
   maxPages?: number
+}
+
+/** What a worker needs to open a Search Console auto-verification PR for a site. */
+export interface VerifyJob {
+  tenantId: string
+  siteId: string
 }
 
 export type Queue = PgBoss
@@ -45,6 +52,7 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
   const boss = new PgBoss({ connectionString, schema: SCHEMA })
   await boss.start()
   await boss.createQueue(AUDIT_QUEUE)
+  await boss.createQueue(VERIFY_QUEUE)
   return boss
 }
 
@@ -66,39 +74,71 @@ export async function enqueueAudit(queue: Queue, job: AuditJob): Promise<string 
 }
 
 /**
- * Drain the audit queue: run every waiting job, then return.
+ * Put a verification-PR job on the queue.
  *
- * A drain-and-exit loop, not a long-lived subscription, because the worker is a GitHub
- * Actions runner that is spun up, does its work, and dies. The same shape runs locally to
- * empty the queue for a demo.
- *
- * A handler that throws fails the job rather than taking the drain down with it, so one bad
- * audit does not strand the others behind it. pg-boss will retry a failed job up to its
- * retryLimit on a later drain.
+ * The same small retry policy as an audit, and for the same reason: opening a PR that fails
+ * twice (a revoked token, an unreachable repo) will not succeed on a third try, and the failure
+ * is surfaced rather than retried forever.
  */
-export async function drainAudits(
+export async function enqueueVerify(queue: Queue, job: VerifyJob): Promise<string | null> {
+  return queue.send(VERIFY_QUEUE, job, {
+    retryLimit: 2,
+    retryDelay: 30,
+    expireInSeconds: 10 * 60,
+  })
+}
+
+/**
+ * Drain a queue: run every waiting job, then return.
+ *
+ * A drain-and-exit loop, not a long-lived subscription, because the worker is a GitHub Actions
+ * runner that is spun up, does its work, and dies. The same shape runs locally to empty the
+ * queue for a demo.
+ *
+ * A handler that throws fails the job rather than taking the drain down with it, so one bad job
+ * does not strand the others behind it. pg-boss retries a failed job up to its retryLimit on a
+ * later drain.
+ */
+async function drain<T extends object>(
   queue: Queue,
-  handler: (job: AuditJob) => Promise<void>,
+  name: string,
+  handler: (job: T) => Promise<void>,
 ): Promise<{ completed: number; failed: number }> {
   let completed = 0
   let failed = 0
 
   for (;;) {
-    const jobs = await queue.fetch<AuditJob>(AUDIT_QUEUE, { batchSize: 1 })
+    const jobs = await queue.fetch<T>(name, { batchSize: 1 })
     if (!jobs || jobs.length === 0) break
 
     for (const job of jobs) {
       try {
         await handler(job.data)
-        await queue.complete(AUDIT_QUEUE, job.id)
+        await queue.complete(name, job.id)
         completed += 1
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        await queue.fail(AUDIT_QUEUE, job.id, { message })
+        await queue.fail(name, job.id, { message })
         failed += 1
       }
     }
   }
 
   return { completed, failed }
+}
+
+/** Drain the audit queue. See {@link drain}. */
+export function drainAudits(
+  queue: Queue,
+  handler: (job: AuditJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, AUDIT_QUEUE, handler)
+}
+
+/** Drain the verification queue. See {@link drain}. */
+export function drainVerify(
+  queue: Queue,
+  handler: (job: VerifyJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, VERIFY_QUEUE, handler)
 }

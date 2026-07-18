@@ -17,7 +17,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob } from '@seo/queue'
+import type { AuditJob, VerifyJob } from '@seo/queue'
 import {
   SIGNATURE_HEADER,
   verifyWebhookSignature,
@@ -45,6 +45,11 @@ export interface AppOptions {
    * `POST /audits` reports 503 rather than creating a queued row that nothing will ever run.
    */
   enqueue?: (job: AuditJob) => Promise<unknown>
+  /**
+   * Puts a verification-PR job on the queue and nudges the worker. Injected like `enqueue`.
+   * Absent means `POST /sites/:id/verify` reports 503 rather than accepting work nothing runs.
+   */
+  enqueueVerify?: (job: VerifyJob) => Promise<unknown>
   /**
    * Google OAuth. Injected so the connection routes can be tested with a mocked token
    * endpoint, and so the app never reads process.env directly. Absent means the routes report
@@ -480,6 +485,59 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           return reply.status(202).send({ auditId: created.auditId })
         },
       )
+
+    /**
+     * Open a Search Console auto-verification PR for a site the caller owns. Enqueues the work;
+     * the worker creates the property, fetches the token, and opens the PR. Both preconditions
+     * are checked here with a clear 409 rather than letting the worker fail obscurely: a repo
+     * must be connected (nowhere to open a PR otherwise) and Google must be connected (no token
+     * otherwise). A site that is not the caller's is a 404, never a 403.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .post('/sites/:id/verify', { schema: { params: uuidParam } }, async (request, reply) => {
+        if (!options.enqueueVerify) {
+          return reply
+            .status(503)
+            .send({ error: 'Service Unavailable', message: 'Verification is not configured.' })
+        }
+
+        const site = await withTenant(db, request.tenantId, async (tx) => {
+          const [row] = await tx
+            .select({
+              id: sites.id,
+              repo: sites.repoFullName,
+              installation: sites.githubInstallationId,
+            })
+            .from(sites)
+            .where(eq(sites.id, request.params.id))
+            .limit(1)
+          return row
+        })
+        if (!site) return notFound(reply)
+
+        if (!site.repo || !site.installation) {
+          return reply
+            .status(409)
+            .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
+        }
+
+        const [google] = await withTenant(db, request.tenantId, (tx) =>
+          tx
+            .select({ id: oauthCredentials.id })
+            .from(oauthCredentials)
+            .where(eq(oauthCredentials.provider, 'google'))
+            .limit(1),
+        )
+        if (!google) {
+          return reply
+            .status(409)
+            .send({ error: 'Conflict', message: 'Connect Google Search Console first.' })
+        }
+
+        await options.enqueueVerify({ tenantId: request.tenantId, siteId: site.id })
+        return reply.status(202).send({ status: 'queued' })
+      })
 
     /** What this tenant has connected, so the UI can show it: Google, and any connected repos. */
     protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/connections', async (request) => {

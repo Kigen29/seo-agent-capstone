@@ -1,6 +1,7 @@
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
-import { createQueue, drainAudits } from '@seo/queue'
+import { createQueue, drainAudits, drainVerify } from '@seo/queue'
+import { runVerify } from './verify.js'
 
 /**
  * The worker. Claims queued audits, runs each one, and exits when the queue is empty.
@@ -35,6 +36,14 @@ try {
   })
 
   console.log(`worker: done. ${result.completed} completed, ${result.failed} failed.`)
+
+  // Then drain any verification-PR jobs. Same runner, same drain-and-exit shape; a failure here
+  // (a revoked token, an unreachable repo) fails only its own job.
+  console.log('worker: draining the verification queue')
+  const verified = await drainVerify(queue, (job) => runVerify(db, job))
+  console.log(
+    `worker: verification done. ${verified.completed} completed, ${verified.failed} failed.`,
+  )
 } finally {
   await queue.stop({ graceful: false })
   await pool.end()

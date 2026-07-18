@@ -4,10 +4,26 @@ import { GoogleConnection } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { connectRepo, startAudit } from './actions'
+import { connectRepo, startAudit, verifySite } from './actions'
 import { AddSite } from './add-site'
 
 export const dynamic = 'force-dynamic'
+
+/** The banner shown after a Verify-with-a-PR click, keyed on the ?verify= status. */
+const VERIFY_MESSAGE: Record<string, { tone: string; text: string }> = {
+  queued: {
+    tone: 'border-emerald-900 bg-emerald-950/40 text-emerald-300',
+    text: 'Verification queued. The agent is opening a pull request that adds the meta tag; it will appear on the site shortly.',
+  },
+  precondition: {
+    tone: 'border-amber-900 bg-amber-950/40 text-amber-300',
+    text: 'Connect a repository and Google Search Console to this site first.',
+  },
+  failed: {
+    tone: 'border-red-900 bg-red-950/40 text-red-300',
+    text: 'Could not queue verification. Try again shortly.',
+  },
+}
 
 /** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
@@ -15,12 +31,17 @@ const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string; github?: string }>
+  searchParams: Promise<{ google?: string; github?: string; verify?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { google: googleCallback, github: githubCallback } = await searchParams
+  const {
+    google: googleCallback,
+    github: githubCallback,
+    verify: verifyCallback,
+  } = await searchParams
+  const verifyMessage = verifyCallback ? VERIFY_MESSAGE[verifyCallback] : undefined
 
   let sites
   let connections
@@ -42,6 +63,15 @@ export default async function Dashboard({
       <GoogleConnection connection={connections.google} callback={googleCallback} />
 
       <RepoCallback callback={githubCallback} />
+
+      {verifyMessage && (
+        <p
+          role="status"
+          className={`mt-4 rounded-md border px-3 py-2 text-sm ${verifyMessage.tone}`}
+        >
+          {verifyMessage.text}
+        </p>
+      )}
 
       <AddSite />
 
@@ -79,6 +109,18 @@ export default async function Dashboard({
                       </button>
                     </form>
 
+                    {site.repoFullName && connections.google.connected && !site.gscVerified && (
+                      <form action={verifySite}>
+                        <input type="hidden" name="siteId" value={site.id} />
+                        <button
+                          type="submit"
+                          className="rounded-md border border-emerald-800 px-3 py-1.5 text-sm text-emerald-300 hover:border-emerald-600 hover:text-emerald-200"
+                        >
+                          Verify with a PR
+                        </button>
+                      </form>
+                    )}
+
                     <form action={startAudit}>
                       <input type="hidden" name="siteId" value={site.id} />
                       <button
@@ -103,6 +145,22 @@ export default async function Dashboard({
                     ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
                     : 'Never audited'}
                 </p>
+
+                {site.gscVerified ? (
+                  <p className="mt-1 text-xs text-emerald-500">&#10003; Search Console verified</p>
+                ) : site.gscVerificationPrUrl ? (
+                  <p className="mt-1 text-xs text-neutral-600">
+                    Verification PR open:{' '}
+                    <a
+                      href={site.gscVerificationPrUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+                    >
+                      review and merge it
+                    </a>
+                  </p>
+                ) : null}
               </li>
             )
           })}

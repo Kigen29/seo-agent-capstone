@@ -37,6 +37,10 @@ export interface Site {
   url: string
   /** The connected repository, "owner/name", or null until a repo is connected. */
   repoFullName?: string | null
+  /** Whether Search Console ownership has been verified for this site. */
+  gscVerified?: boolean
+  /** The open (or merged) pull request that adds the verification meta tag, if any. */
+  gscVerificationPrUrl?: string | null
   latestAudit?: AuditSummary
 }
 
@@ -176,6 +180,13 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ siteId }),
         })
       ).url,
+
+    /**
+     * Queue a Search Console auto-verification PR for a site. The worker creates the property,
+     * fetches the token, and opens the PR that adds the verification meta tag.
+     */
+    verifySite: async (siteId: string) =>
+      request<{ status: string }>(`/sites/${siteId}/verify`, { method: 'POST' }),
   }
 }
 
