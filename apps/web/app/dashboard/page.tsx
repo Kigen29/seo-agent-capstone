@@ -136,37 +136,43 @@ export default async function Dashboard({
                   </div>
                 </div>
 
-                <p className="mt-1 text-xs text-neutral-600">
+                {/* Status pills, so the connection and verification state is visible at a glance. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   {site.repoFullName ? (
-                    <span className="text-neutral-400">repo: {site.repoFullName}</span>
+                    <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-0.5 text-neutral-300">
+                      repo: {site.repoFullName}
+                    </span>
                   ) : (
-                    <span>No repo connected, so findings can be shown but not fixed by a PR.</span>
+                    <span className="rounded-full border border-neutral-800 px-2.5 py-0.5 text-neutral-500">
+                      no repo connected
+                    </span>
                   )}
-                  {' · '}
-                  {site.latestAudit
-                    ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
-                    : 'Never audited'}
-                </p>
 
-                {site.gscVerificationStatus === 'verified' ? (
-                  <p className="mt-1 text-xs text-emerald-500">&#10003; Search Console verified</p>
-                ) : site.gscVerificationStatus === 'pr_open' && site.gscVerificationPrUrl ? (
-                  <p className="mt-1 text-xs text-neutral-600">
-                    Verification PR open:{' '}
+                  {site.gscVerificationStatus === 'verified' ? (
+                    <span className="rounded-full border border-emerald-700 bg-emerald-950/50 px-2.5 py-0.5 font-medium text-emerald-300">
+                      &#10003; Search Console verified
+                    </span>
+                  ) : site.gscVerificationStatus === 'merged' ? (
+                    <span className="rounded-full border border-amber-800 bg-amber-950/40 px-2.5 py-0.5 text-amber-300">
+                      verifying with Google&hellip;
+                    </span>
+                  ) : site.gscVerificationStatus === 'pr_open' && site.gscVerificationPrUrl ? (
                     <a
                       href={site.gscVerificationPrUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+                      className="rounded-full border border-sky-800 bg-sky-950/40 px-2.5 py-0.5 text-sky-300 hover:border-sky-600 hover:text-sky-200"
                     >
-                      review and merge it
+                      verification PR open: review &amp; merge &rarr;
                     </a>
-                  </p>
-                ) : site.gscVerificationStatus === 'merged' ? (
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Verification PR merged. Waiting for Google to confirm once your site deploys.
-                  </p>
-                ) : null}
+                  ) : null}
+                </div>
+
+                <p className="mt-1.5 text-xs text-neutral-600">
+                  {site.latestAudit
+                    ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
+                    : 'Never audited'}
+                </p>
               </li>
             )
           })}
