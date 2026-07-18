@@ -36,3 +36,10 @@ export type {
 
 export { evaluateQuickWins, QUICK_WIN_CHECKS } from './gsc/quick-wins.js'
 export type { QuickWinsInput } from './gsc/quick-wins.js'
+
+export {
+  createSiteVerificationClient,
+  SiteVerificationAuthError,
+  META_TAG_NAME,
+} from './siteverification/client.js'
+export type { SiteVerificationClientOptions } from './siteverification/client.js'
