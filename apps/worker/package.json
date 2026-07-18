@@ -9,9 +9,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@seo/agent": "workspace:*",
     "@seo/audit": "workspace:*",
+    "@seo/connectors": "workspace:*",
     "@seo/db": "workspace:*",
-    "@seo/queue": "workspace:*"
+    "@seo/queue": "workspace:*",
+    "@seo/vcs": "workspace:*",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

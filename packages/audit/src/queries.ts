@@ -14,6 +14,10 @@ export interface SiteSummary {
   url: string
   /** The connected repository, "owner/name", or null until the GitHub App is installed on it. */
   repoFullName: string | null
+  /** Whether Search Console ownership has been verified. */
+  gscVerified: boolean
+  /** The open or merged verification PR, if one has been opened. */
+  gscVerificationPrUrl: string | null
   latestAudit?: {
     id: string
     status: string
@@ -40,6 +44,8 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
           id: site.id,
           url: site.url,
           repoFullName: site.repoFullName ?? null,
+          gscVerified: site.gscVerified,
+          gscVerificationPrUrl: site.gscVerificationPrUrl ?? null,
           latestAudit: latest
             ? {
                 id: latest.id,

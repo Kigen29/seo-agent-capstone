@@ -127,15 +127,27 @@ importers:
 
   apps/worker:
     dependencies:
+      '@seo/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@seo/audit':
         specifier: workspace:*
         version: link:../../packages/audit
+      '@seo/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@seo/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@seo/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@seo/vcs':
+        specifier: workspace:*
+        version: link:../../packages/vcs
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(pg@8.22.0)
     devDependencies:
       '@seo/tsconfig':
         specifier: workspace:*

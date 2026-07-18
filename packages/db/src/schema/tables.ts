@@ -61,8 +61,12 @@ export const sites = pgTable(
     githubInstallationId: bigint('github_installation_id', { mode: 'number' }),
     framework: frameworkEnum('framework').$type<Framework>().notNull().default('unknown'),
 
-    /** Search Console property, e.g. 'sc-domain:example.com'. */
+    /** Search Console property, e.g. 'https://example.com/', set when auto-verification runs. */
     gscProperty: text('gsc_property'),
+    /** Whether Site Verification has confirmed ownership of `gscProperty`. */
+    gscVerified: boolean('gsc_verified').notNull().default(false),
+    /** The pull request that adds the verification meta tag, while it is open or after merge. */
+    gscVerificationPrUrl: text('gsc_verification_pr_url'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

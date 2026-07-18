@@ -57,6 +57,13 @@
       "when": 1784376000000,
       "tag": "0007_framework_angular_vue",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784377000000,
+      "tag": "0008_gsc_verification",
+      "breakpoints": true
     }
   ]
 }

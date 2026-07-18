@@ -110,3 +110,29 @@ export async function connectRepo(formData: FormData): Promise<void> {
 
   redirect(url)
 }
+
+/**
+ * Queue the Search Console auto-verification PR for a site. The worker creates the property,
+ * fetches the token, and opens a PR that adds the verification meta tag. A 409 means a
+ * precondition is missing (no repo, or Google not connected), which is the user's to fix.
+ */
+export async function verifySite(formData: FormData): Promise<void> {
+  const siteId = String(formData.get('siteId') ?? '')
+  if (!siteId) throw new Error('verifySite called without a siteId; the hidden field is missing.')
+
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  try {
+    await api.verifySite(siteId)
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 409) {
+      redirect('/dashboard?verify=precondition')
+    }
+    handleApiError(error)
+    redirect('/dashboard?verify=failed')
+  }
+
+  revalidatePath('/dashboard')
+  redirect('/dashboard?verify=queued')
+}

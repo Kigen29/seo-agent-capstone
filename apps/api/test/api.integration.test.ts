@@ -10,7 +10,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob } from '@seo/queue'
+import type { AuditJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
 import { createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -59,6 +59,7 @@ describe.skipIf(!shouldRun)('the API', () => {
 
   /** Every job the injected enqueue was handed, so a test can prove what was queued. */
   const enqueued: AuditJob[] = []
+  const verifyEnqueued: VerifyJob[] = []
 
   const mint = (tenant: string) => {
     const plain = generateToken()
@@ -80,6 +81,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       db,
       enqueue: async (job) => {
         enqueued.push(job)
+      },
+      enqueueVerify: async (job) => {
+        verifyEnqueued.push(job)
       },
       github: {
         app: {
@@ -671,6 +675,59 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
       expect(site?.githubInstallationId).toBeNull()
       expect(site?.repoFullName).toBeNull()
+    })
+  })
+
+  describe('verifying a site', () => {
+    const verify = (siteId: string, bearer?: string) =>
+      app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/verify`,
+        headers: bearer ? { authorization: `Bearer ${bearer}` } : {},
+      })
+
+    it('returns 404 for a site that is not the caller’s', async () => {
+      const res = await verify('00000000-0000-0000-0000-000000000000', token)
+      expect(res.statusCode).toBe(404)
+    })
+
+    it('returns 409 when the site has no connected repository', async () => {
+      const bareId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://norepo.example.com' })
+          .returning()
+        return row!.id
+      })
+      const res = await verify(bareId, token)
+      expect(res.statusCode).toBe(409)
+    })
+
+    it('queues the job when a repo and Google are both connected', async () => {
+      // A site with a connected repo, and a Google credential for the tenant.
+      const readyId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://ready.example.com',
+            repoFullName: 'octo/ready',
+            githubInstallationId: 77,
+          })
+          .returning()
+        return row!.id
+      })
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .insert(oauthCredentials)
+          .values({ tenantId, provider: 'google', refreshTokenEncrypted: 'ciphertext' })
+          .onConflictDoNothing(),
+      )
+
+      const res = await verify(readyId, token)
+
+      expect(res.statusCode).toBe(202)
+      expect(verifyEnqueued.at(-1)).toMatchObject({ tenantId, siteId: readyId })
     })
   })
 
