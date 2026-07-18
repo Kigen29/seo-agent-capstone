@@ -557,8 +557,12 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
             tenantId: request.tenantId,
             siteId: request.body.siteId,
           })
+          // `select_target`, not `new`. GitHub drops the query string when it 302s `new` to
+          // `select_target`, so a state passed to `new` never reaches our setup URL and the
+          // callback has no tenant or site to bind to. Linking straight to `select_target`
+          // preserves the state through to the redirect. This is a known GitHub behaviour.
           const url =
-            `https://github.com/apps/${options.github.slug}/installations/new` +
+            `https://github.com/apps/${options.github.slug}/installations/select_target` +
             `?state=${encodeURIComponent(state)}`
           return { url }
         },
