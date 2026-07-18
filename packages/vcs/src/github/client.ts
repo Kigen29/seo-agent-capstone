@@ -1,3 +1,4 @@
+import { createPrivateKey } from 'node:crypto'
 import { App } from 'octokit'
 import type { RepoContext, RepoFile } from '../provider.js'
 import type { GitHubApi, GitHubApiFactory } from './provider.js'
@@ -44,6 +45,27 @@ function statusOf(error: unknown): number | undefined {
     : undefined
 }
 
+/**
+ * Normalise the private key to PKCS#8, the only format the JWT signer accepts.
+ *
+ * GitHub issues App private keys in PKCS#1 ("BEGIN RSA PRIVATE KEY"), but universal-github-app-jwt
+ * v2 (under @octokit/auth-app v7) requires PKCS#8 ("BEGIN PRIVATE KEY"), so a freshly downloaded
+ * key fails to sign with an opaque ASN.1 error deep inside the signer. Node's createPrivateKey
+ * parses both and re-exports as PKCS#8, so either form works with no manual `openssl` step, and
+ * a genuinely malformed key throws here, at load, with a message that says what to fix.
+ */
+function toPkcs8Pem(privateKey: string): string {
+  try {
+    return createPrivateKey(privateKey).export({ type: 'pkcs8', format: 'pem' }).toString()
+  } catch (error) {
+    throw new Error(
+      'GH_APP_PRIVATE_KEY could not be parsed as a private key. Paste the whole PEM, including ' +
+        'the BEGIN and END lines, with its line breaks intact. Underlying error: ' +
+        (error instanceof Error ? error.message : String(error)),
+    )
+  }
+}
+
 /** A repository an installation can reach, resolved from the installation itself. */
 export interface InstalledRepo {
   owner: string
@@ -69,7 +91,7 @@ export interface GitHubApp {
  * installation token before it expires, so the cache is safe to hold.
  */
 export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
-  const app = new App({ appId: config.appId, privateKey: config.privateKey })
+  const app = new App({ appId: config.appId, privateKey: toPkcs8Pem(config.privateKey) })
   const clients = new Map<number, Awaited<ReturnType<typeof app.getInstallationOctokit>>>()
 
   async function octokitFor(installationId: number) {
