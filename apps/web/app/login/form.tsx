@@ -9,18 +9,13 @@ export function LoginForm({ expired }: { expired: boolean }) {
   return (
     <>
       {expired && (
-        <p
-          role="alert"
-          className="mt-4 rounded-md border border-amber-900 bg-amber-950/40 px-3 py-2 text-sm text-amber-300"
-        >
+        <p role="alert" className="note note-warn" style={{ marginBottom: 'var(--space-4)' }}>
           Your token is no longer valid. It may have been revoked. Sign in again.
         </p>
       )}
 
-      <form action={action} className="mt-8">
-        <label htmlFor="token" className="block text-sm text-neutral-400">
-          API token
-        </label>
+      <form action={action} className="field">
+        <label htmlFor="token">API token</label>
 
         <input
           id="token"
@@ -28,20 +23,20 @@ export function LoginForm({ expired }: { expired: boolean }) {
           type="password"
           autoComplete="off"
           placeholder="seo_..."
-          className="mt-2 w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+          className="input"
+          style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}
         />
 
         {state.error && (
-          <p role="alert" className="mt-3 text-sm text-red-400">
+          <p
+            role="alert"
+            style={{ marginTop: 'var(--space-2)', fontSize: 13, color: 'var(--color-neutral-800)' }}
+          >
             {state.error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="mt-5 w-full rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block">
           {pending ? 'Checking...' : 'Sign in'}
         </button>
       </form>

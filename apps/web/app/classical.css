@@ -1,10 +1,10 @@
 /*
  * Classical: the editorial, book-like design system, ported from the Claude Design handoff.
  *
- * Scoped under `.classical` so it can be adopted page by page without disturbing the pages
- * still on the dark Tailwind theme. Everything reads from the tokens; a page opts in by putting
- * `className="classical"` on its outermost element (and the next/font variables from the layout,
- * so the serif faces resolve).
+ * This is the whole app's theme. The `classical` class sits on <body> (with the next/font
+ * variables), so every page reads from the tokens below. It stays scoped under `.classical`
+ * rather than `:root` so the token names cannot collide with Tailwind's own resets and so the
+ * design can be lifted wholesale into another shell if it ever needs to be.
  */
 
 .classical {
@@ -348,4 +348,84 @@
 }
 .classical .table tbody tr:hover {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/* page containers */
+.classical .wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+.classical .wrap-narrow {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+/* a monospace evidence / diff block */
+.classical .mono {
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  padding: var(--space-3);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* status banners: three tones that must read differently */
+.classical .note {
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: 14px;
+}
+.classical .note-ok {
+  border-color: var(--color-accent);
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.classical .note-warn {
+  border-color: var(--color-accent-400);
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.classical .note-error {
+  border-color: var(--color-neutral-500);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
+}
+
+/* one row of the eight-axis scorecard: name | hairline with a dot | score */
+.classical .score-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-divider);
+}
+.classical .score-track {
+  position: relative;
+  height: 1px;
+  background: var(--color-divider);
+}
+.classical .score-dot {
+  position: absolute;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+.classical .score-val {
+  font-size: 15px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.classical .tnum {
+  font-variant-numeric: tabular-nums;
 }

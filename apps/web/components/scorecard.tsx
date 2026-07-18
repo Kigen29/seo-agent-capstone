@@ -20,11 +20,12 @@ const AXIS_LABEL: Record<Axis, string> = {
   agent_readiness: 'Agent readiness',
 }
 
-const STATUS_STYLE: Record<AxisStatus, string> = {
-  good: 'text-emerald-400',
-  needs_work: 'text-amber-400',
-  poor: 'text-red-400',
-  not_measured: 'text-neutral-600',
+/** The dot on the hairline track, coloured by band. Not measured shows no dot at all. */
+const DOT_COLOR: Record<AxisStatus, string> = {
+  good: 'var(--color-accent-700)',
+  needs_work: 'var(--color-accent-500)',
+  poor: 'var(--color-neutral-500)',
+  not_measured: 'transparent',
 }
 
 const STATUS_LABEL: Record<AxisStatus, string> = {
@@ -39,8 +40,8 @@ const STATUS_LABEL: Record<AxisStatus, string> = {
  *
  * The unmeasured axes render a dash, not a zero and not a hundred. Zero would read as
  * failure and a hundred as a clean bill of health, and both would be lies about something we
- * never looked at. A wall of eight green circles is the artefact this product exists to
- * replace, and it would be trivially easy to render one by accident right here.
+ * never looked at. A wall of eight full bars is the artefact this product exists to replace,
+ * and it would be trivially easy to render one by accident right here.
  *
  * There is deliberately no total. The axes move independently, and a site can have immaculate
  * crawl health while being invisible to every AI engine on the web. Averaging those into a 72
@@ -48,25 +49,55 @@ const STATUS_LABEL: Record<AxisStatus, string> = {
  */
 export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
   return (
-    <ul className="grid gap-px overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800 sm:grid-cols-2">
+    <div className="card elev-sm" style={{ padding: 'var(--space-6)' }}>
       {scorecard.axes.map((axis) => {
         const measured = axis.score !== null
+        const pct = measured ? Math.round(axis.score!) : 0
+        const good = axis.status === 'good'
 
         return (
-          <li key={axis.axis} className="bg-neutral-950 p-4">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="font-medium text-neutral-200">{AXIS_LABEL[axis.axis]}</p>
+          <div key={axis.axis}>
+            <div className="score-row">
+              <div style={{ fontSize: 13 }}>{AXIS_LABEL[axis.axis]}</div>
 
-              <p className={`font-mono text-2xl tabular-nums ${STATUS_STYLE[axis.status]}`}>
-                {measured ? Math.round(axis.score!) : '--'}
-              </p>
-            </div>
+              <div className="score-track">
+                {measured && (
+                  <span
+                    className="score-dot"
+                    style={{ left: `${pct}%`, background: DOT_COLOR[axis.status] }}
+                  />
+                )}
+              </div>
 
-            <div className="mt-1 flex items-baseline justify-between gap-4">
-              <p className="text-xs text-neutral-600">
-                {axis.coverage.checksRun} {axis.coverage.checksRun === 1 ? 'check' : 'checks'}
-              </p>
-              <p className={`text-xs ${STATUS_STYLE[axis.status]}`}>{STATUS_LABEL[axis.status]}</p>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'flex-end',
+                  gap: 'var(--space-3)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'color-mix(in srgb, var(--color-text) 55%, transparent)',
+                  }}
+                >
+                  {STATUS_LABEL[axis.status]}
+                </span>
+                <span
+                  className="tnum"
+                  style={{
+                    fontSize: 15,
+                    minWidth: 28,
+                    textAlign: 'right',
+                    color: good ? 'var(--color-accent-700)' : 'var(--color-text)',
+                  }}
+                >
+                  {measured ? pct : '--'}
+                </span>
+              </div>
             </div>
 
             {/*
@@ -77,13 +108,21 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
               it would buy.
             */}
             {axis.coverage.note && (
-              <p className="mt-3 border-t border-neutral-900 pt-3 text-xs leading-relaxed text-neutral-500">
+              <p
+                style={{
+                  margin: '0 0 var(--space-2)',
+                  paddingLeft: 'calc(150px + var(--space-4))',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: 'color-mix(in srgb, var(--color-text) 55%, transparent)',
+                }}
+              >
                 {axis.coverage.note}
               </p>
             )}
-          </li>
+          </div>
         )
       })}
-    </ul>
+    </div>
   )
 }

@@ -37,9 +37,9 @@ const CALLBACK_MESSAGE: Record<
 const isCallbackStatus = (value: string): value is RepoCallbackStatus => value in CALLBACK_MESSAGE
 
 const TONE: Record<'ok' | 'warn' | 'error', string> = {
-  ok: 'border-emerald-900 bg-emerald-950/40 text-emerald-300',
-  warn: 'border-amber-900 bg-amber-950/40 text-amber-300',
-  error: 'border-red-900 bg-red-950/40 text-red-300',
+  ok: 'note note-ok',
+  warn: 'note note-warn',
+  error: 'note note-error',
 }
 
 export function RepoCallback({ callback }: { callback?: string }) {
@@ -47,7 +47,7 @@ export function RepoCallback({ callback }: { callback?: string }) {
   if (!message) return null
 
   return (
-    <p role="status" className={`mt-4 rounded-md border px-3 py-2 text-sm ${TONE[message.tone]}`}>
+    <p role="status" className={TONE[message.tone]} style={{ marginTop: 'var(--space-4)' }}>
       {message.text}
     </p>
   )

@@ -1,5 +1,6 @@
 import type { FindingListItem } from '@seo/api-client'
 import Link from 'next/link'
+import { AppNav } from '@/components/app-nav'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -89,19 +90,9 @@ export default async function FindingsPage({
 
   return (
     <>
-      <nav className="nav">
-        <span className="nav-brand">RankWright</span>
-        <Link href="/dashboard">Dashboard</Link>
-        <Link href="/findings" aria-current="page">
-          Findings
-        </Link>
-        <Link href="#">Soundboard</Link>
-        <Link href="#">Backstop</Link>
-      </nav>
+      <AppNav active="findings" />
 
-      <div
-        style={{ maxWidth: '1120px', margin: '0 auto', padding: 'var(--space-8) var(--space-4)' }}
-      >
+      <div className="wrap">
         <div className="card-kicker">Findings</div>
         <h1 style={{ fontWeight: 400, marginBottom: 'var(--space-4)' }}>
           Everything out of true, in one list.

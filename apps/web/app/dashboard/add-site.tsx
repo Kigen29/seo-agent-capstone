@@ -7,25 +7,30 @@ export function AddSite() {
   const [state, action, pending] = useActionState(addSite, {})
 
   return (
-    <form action={action} className="mt-6 flex flex-col gap-2 sm:flex-row">
+    <form
+      action={action}
+      style={{
+        marginTop: 'var(--space-6)',
+        display: 'flex',
+        gap: 'var(--space-2)',
+        flexWrap: 'wrap',
+      }}
+    >
       <input
         name="url"
         type="text"
         inputMode="url"
         autoComplete="off"
         placeholder="example.com"
-        className="flex-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+        className="input"
+        style={{ flex: 1, minWidth: 220 }}
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? 'Adding...' : 'Add site'}
       </button>
 
       {state.error && (
-        <p role="alert" className="w-full text-sm text-red-400 sm:mt-1">
+        <p role="alert" className="note note-error" style={{ width: '100%' }}>
           {state.error}
         </p>
       )}
