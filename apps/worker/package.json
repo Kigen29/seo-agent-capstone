@@ -13,6 +13,7 @@
     "@seo/audit": "workspace:*",
     "@seo/connectors": "workspace:*",
     "@seo/db": "workspace:*",
+    "@seo/fixers": "workspace:*",
     "@seo/queue": "workspace:*",
     "@seo/vcs": "workspace:*",
     "drizzle-orm": "^0.45.2"

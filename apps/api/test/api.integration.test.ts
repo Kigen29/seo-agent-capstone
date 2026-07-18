@@ -11,7 +11,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, ConfirmVerifyJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
 import { createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -62,6 +62,7 @@ describe.skipIf(!shouldRun)('the API', () => {
   const enqueued: AuditJob[] = []
   const verifyEnqueued: VerifyJob[] = []
   const confirmEnqueued: ConfirmVerifyJob[] = []
+  const fixEnqueued: FixJob[] = []
 
   const mint = (tenant: string) => {
     const plain = generateToken()
@@ -89,6 +90,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       },
       enqueueConfirmVerify: async (job) => {
         confirmEnqueued.push(job)
+      },
+      enqueueFix: async (job) => {
+        fixEnqueued.push(job)
       },
       github: {
         app: {
@@ -818,6 +822,151 @@ describe.skipIf(!shouldRun)('the API', () => {
       // The cheap critical outranks the expensive low-impact one.
       expect(mine[0]).toMatchObject({ ruleId: 'TECH-002', fixable: true })
       expect(mine.find((f) => f.ruleId === 'CONT-004')).toMatchObject({ fixable: false })
+    })
+  })
+
+  describe('opening a fix pull request', () => {
+    let repoSiteId: string
+    let noRepoSiteId: string
+    let fixableFindingId: string
+    let unfixableFindingId: string
+    let noRepoFindingId: string
+
+    const evidence = {
+      kind: 'http' as const,
+      url: 'https://www.example.com/',
+      status: 200,
+      redirectChain: ['https://example.com/'],
+      observedAt: '2026-07-17T00:00:00.000Z',
+      source: 'crawler' as const,
+    }
+
+    beforeAll(async () => {
+      repoSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [s] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://fixable.example.com',
+            repoFullName: 'octo/owned',
+            githubInstallationId: INSTALLATION_ID,
+          })
+          .returning()
+        return s!.id
+      })
+      noRepoSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [s] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://norepofix.example.com' })
+          .returning()
+        return s!.id
+      })
+
+      const auditFor = (siteId: string) =>
+        withTenant(db, tenantId, async (tx) => {
+          const [a] = await tx
+            .insert(audits)
+            .values({ tenantId, siteId, status: 'complete' })
+            .returning()
+          return a!.id
+        })
+      const repoAudit = await auditFor(repoSiteId)
+      const noRepoAudit = await auditFor(noRepoSiteId)
+
+      const insertFinding = (
+        siteId: string,
+        auditId: string,
+        key: string,
+        over: { fixable?: boolean } = {},
+      ) =>
+        withTenant(db, tenantId, async (tx) => {
+          const [f] = await tx
+            .insert(findings)
+            .values({
+              tenantId,
+              siteId,
+              auditId,
+              ruleId: 'TECH-007',
+              key,
+              axis: 'crawl_health',
+              severity: 'high',
+              confidence: 1,
+              title: 'a canonical that redirects',
+              evidence,
+              affectedUrls: ['https://example.com/about', 'https://example.com/'],
+              estimatedEffort: 'trivial',
+              estimatedImpact: 70,
+              falsification: 'still redirects after merge',
+              fixable: over.fixable ?? true,
+              status: 'open',
+            })
+            .returning()
+          return f!.id
+        })
+
+      fixableFindingId = await insertFinding(repoSiteId, repoAudit, 'TECH-007#0')
+      unfixableFindingId = await insertFinding(repoSiteId, repoAudit, 'TECH-007#1', {
+        fixable: false,
+      })
+      noRepoFindingId = await insertFinding(noRepoSiteId, noRepoAudit, 'TECH-007#0')
+    })
+
+    it('queues a fix for a fixable finding on a repo-connected site', async () => {
+      const before = fixEnqueued.length
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${fixableFindingId}/fix`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(202)
+      expect(res.json()).toEqual({ status: 'queued' })
+      expect(fixEnqueued.length).toBe(before + 1)
+      expect(fixEnqueued.at(-1)).toMatchObject({
+        tenantId,
+        siteId: repoSiteId,
+        findingRowId: fixableFindingId,
+      })
+    })
+
+    it('refuses a finding that cannot be fixed in code', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${unfixableFindingId}/fix`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(res.statusCode).toBe(409)
+    })
+
+    it('refuses a finding whose site has no repository connected', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${noRepoFindingId}/fix`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(res.statusCode).toBe(409)
+    })
+
+    it('gives another tenant a 404, not a 403, for a finding that is not theirs', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${fixableFindingId}/fix`,
+        headers: { authorization: `Bearer ${otherToken}` },
+      })
+      expect(res.statusCode).toBe(404)
+    })
+
+    it('refuses a second fix once one is already open', async () => {
+      // Keep this last: it moves the finding out of `open`.
+      await withTenant(db, tenantId, (tx) =>
+        tx.update(findings).set({ status: 'pr_open' }).where(eq(findings.id, fixableFindingId)),
+      )
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${fixableFindingId}/fix`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(res.statusCode).toBe(409)
     })
   })
 

@@ -4,6 +4,7 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { SeverityBadge } from '@/components/severity'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { openFixPr } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,18 +15,40 @@ const EFFORT_LABEL: Record<string, string> = {
   large: 'Large',
 }
 
-export default async function FindingPage({ params }: { params: Promise<{ id: string }> }) {
+/** The banner shown after an Open-a-pull-request click, keyed on the ?fix= status. */
+const FIX_MESSAGE: Record<string, { tone: string; text: string }> = {
+  queued: {
+    tone: 'note note-ok',
+    text: 'The agent is opening a pull request that fixes this. It will appear here as an open PR shortly.',
+  },
+  failed: {
+    tone: 'note note-error',
+    text: 'Could not open a pull request. Connect a repository to this site, or check that no PR is already open, then try again.',
+  },
+}
+
+export default async function FindingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ fix?: string }>
+}) {
   const { id } = await params
+  const { fix } = await searchParams
   const api = await getClient()
   if (!api) return null
 
   let finding
+  let connections
   try {
-    finding = await api.getFinding(id)
+    ;[finding, connections] = await Promise.all([api.getFinding(id), api.getConnections()])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
   }
+
+  const fixMessage = fix ? FIX_MESSAGE[fix] : undefined
 
   return (
     <main className="wrap-narrow">
@@ -46,6 +69,48 @@ export default async function FindingPage({ params }: { params: Promise<{ id: st
       </div>
 
       <h1 style={{ fontWeight: 400, marginBottom: 'var(--space-4)' }}>{finding.title}</h1>
+
+      {/* The action that closes the loop: turn this finding into a pull request. */}
+      {finding.status === 'pr_open' && finding.prUrl ? (
+        <a
+          href={finding.prUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="note note-ok"
+          style={{ display: 'block', marginBottom: 'var(--space-6)' }}
+        >
+          A pull request that fixes this is open. Review and merge it &rarr;
+        </a>
+      ) : finding.status === 'merged' ? (
+        <p className="note note-ok" style={{ marginBottom: 'var(--space-6)' }}>
+          The fix has been merged. It verifies once the change is deployed and re-crawled.
+        </p>
+      ) : finding.status === 'verified' ? (
+        <p className="note note-ok" style={{ marginBottom: 'var(--space-6)' }}>
+          Verified fixed.
+        </p>
+      ) : (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          {fixMessage && (
+            <p role="status" className={fixMessage.tone} style={{ marginBottom: 'var(--space-3)' }}>
+              {fixMessage.text}
+            </p>
+          )}
+          {finding.fixable &&
+            (connections.github.connected ? (
+              <form action={openFixPr}>
+                <input type="hidden" name="findingId" value={finding.rowId} />
+                <button type="submit" className="btn btn-primary">
+                  Open a pull request
+                </button>
+              </form>
+            ) : (
+              <p style={{ fontSize: 13, opacity: 0.7, margin: 0 }}>
+                Connect a repository to this site to open a fix pull request.
+              </p>
+            ))}
+        </div>
+      )}
 
       <div
         style={{
