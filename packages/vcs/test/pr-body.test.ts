@@ -38,7 +38,9 @@ describe('the pull-request body', () => {
   })
 
   it('refuses to render without an expected effect', () => {
-    expect(() => buildPrBody({ ...complete, expectedEffect: '' })).toThrow(IncompletePullRequestError)
+    expect(() => buildPrBody({ ...complete, expectedEffect: '' })).toThrow(
+      IncompletePullRequestError,
+    )
   })
 
   it('refuses to render without a rollback note', () => {
@@ -46,6 +48,8 @@ describe('the pull-request body', () => {
   })
 
   it('prefixes the title so a maintainer can spot agent PRs', () => {
-    expect(buildPrTitle(makeFinding())).toBe('[seo-agent] Missing canonical tag on the pricing page')
+    expect(buildPrTitle(makeFinding())).toBe(
+      '[seo-agent] Missing canonical tag on the pricing page',
+    )
   })
 })

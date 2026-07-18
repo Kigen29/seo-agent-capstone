@@ -75,7 +75,11 @@ describe('GitHubProvider.openPullRequest', () => {
     expect(api.createdBranch?.fromSha).toBe('base-sha')
     expect(api.prInput?.base).toBe('main')
     expect(api.prInput?.head).toBe(api.createdBranch?.branch)
-    expect(pr).toEqual({ url: 'https://github.com/o/r/pull/7', number: 7, branch: api.createdBranch?.branch })
+    expect(pr).toEqual({
+      url: 'https://github.com/o/r/pull/7',
+      number: 7,
+      branch: api.createdBranch?.branch,
+    })
   })
 
   it('never writes to the base branch', async () => {
@@ -100,7 +104,11 @@ describe('GitHubProvider.openPullRequest', () => {
 
   it('is idempotent: returns the existing PR and creates nothing when one is already open', async () => {
     const api = new FakeGitHubApi()
-    api.existingPr = { url: 'https://github.com/o/r/pull/3', number: 3, branch: 'seo-agent/TECH-006-abc123-old' }
+    api.existingPr = {
+      url: 'https://github.com/o/r/pull/3',
+      number: 3,
+      branch: 'seo-agent/TECH-006-abc123-old',
+    }
     const pr = await providerWith(api).openPullRequest(ctx, fix)
 
     expect(pr.number).toBe(3)

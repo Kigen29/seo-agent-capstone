@@ -8,12 +8,7 @@ export type {
   PullRequest,
 } from './provider.js'
 
-export {
-  BRANCH_NAMESPACE,
-  slugify,
-  branchPrefixFor,
-  branchNameFor,
-} from './branch.js'
+export { BRANCH_NAMESPACE, slugify, branchPrefixFor, branchNameFor } from './branch.js'
 
 export { buildPrTitle, buildPrBody, IncompletePullRequestError } from './pr-body.js'
 export type { PullRequestContent } from './pr-body.js'

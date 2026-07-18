@@ -4,7 +4,9 @@ import { makeFinding } from './fixtures.js'
 
 describe('branch naming', () => {
   it('names a fix branch seo-agent/<id>-<slug>', () => {
-    const branch = branchNameFor(makeFinding({ id: 'TECH-006-abc', title: 'Missing canonical tag' }))
+    const branch = branchNameFor(
+      makeFinding({ id: 'TECH-006-abc', title: 'Missing canonical tag' }),
+    )
     expect(branch).toBe('seo-agent/TECH-006-abc-missing-canonical-tag')
   })
 
