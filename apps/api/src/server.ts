@@ -51,8 +51,13 @@ const github = (() => {
       throw new Error('GH_APP_SLUG and GH_APP_WEBHOOK_SECRET are required.')
     }
     return { app: createGitHubApp(githubAppConfigFromEnv()), slug, webhookSecret }
-  } catch {
-    console.warn('The GitHub App is not configured; connecting a repository is disabled.')
+  } catch (error) {
+    // Log the actual reason, not just that it is off. A swallowed error here means an operator
+    // sees "not configured" with no clue whether a variable is missing or the key is malformed.
+    console.warn(
+      'The GitHub App is not configured; connecting a repository is disabled. Reason:',
+      error instanceof Error ? error.message : error,
+    )
     return undefined
   }
 })()

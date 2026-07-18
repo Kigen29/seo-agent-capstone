@@ -27,16 +27,24 @@ export function githubAppConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Gi
   // name beginning with it. The same names have to work in Actions (the worker) and in Render
   // (the API), so GH_APP_* is used in both places.
   const appId = env.GH_APP_ID
-  const privateKey = env.GH_APP_PRIVATE_KEY
+  const rawKey = env.GH_APP_PRIVATE_KEY
 
-  if (!appId || !privateKey) {
+  if (!appId || !rawKey) {
     throw new Error(
       'GH_APP_ID and GH_APP_PRIVATE_KEY must be set to open pull requests. They are the GitHub ' +
         'App credentials from ADR-0002, and they live in the secret stores, never in the repo.',
     )
   }
 
-  return { appId, privateKey: privateKey.replace(/\\n/g, '\n') }
+  // Accept the key two ways. A raw PEM (with real or "\n"-escaped newlines) is the obvious
+  // form, but pasting a multi-line PEM into an env field is where newlines get stripped and the
+  // key silently corrupts. A base64-encoded PEM is a single line with nothing to mangle, so it
+  // is the reliable form for a hosted env var, and it is detected by the absence of "BEGIN".
+  const privateKey = rawKey.includes('BEGIN')
+    ? rawKey.replace(/\\n/g, '\n')
+    : Buffer.from(rawKey, 'base64').toString('utf8')
+
+  return { appId, privateKey }
 }
 
 function statusOf(error: unknown): number | undefined {
