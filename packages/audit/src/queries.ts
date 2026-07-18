@@ -1,6 +1,15 @@
-import type { Finding, Scorecard, VerificationStatus } from '@seo/core'
+import {
+  priorityScore,
+  type Axis,
+  type Effort,
+  type Finding,
+  type FindingStatus,
+  type Scorecard,
+  type Severity,
+  type VerificationStatus,
+} from '@seo/core'
 import { audits, findings, sites, withTenant, type Database } from '@seo/db'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, inArray } from 'drizzle-orm'
 
 /**
  * The read side. Everything the dashboard needs, and nothing that writes.
@@ -58,6 +67,70 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         }
       }),
     )
+  })
+}
+
+/** One row of the findings inbox: enough to list and prioritise, not the full evidence. */
+export interface FindingListItem {
+  rowId: string
+  siteUrl: string
+  ruleId: string
+  axis: Axis
+  severity: Severity
+  title: string
+  fixable: boolean
+  status: FindingStatus
+  estimatedImpact: number
+  estimatedEffort: Effort
+  affectedUrls: string[]
+}
+
+/**
+ * The findings inbox: every current finding for the tenant, most important first.
+ *
+ * "Current" means the latest audit per site, not every audit ever, so re-running an audit
+ * replaces a site's findings in the list rather than stacking a second copy beside the first.
+ * Ordered by the priority score (severity_weight * confidence * impact / effort_cost), which is
+ * the one number that answers "what do I do on Monday" and is most of the product.
+ */
+export async function listFindings(db: Database, tenantId: string): Promise<FindingListItem[]> {
+  return withTenant(db, tenantId, async (tx) => {
+    // Latest audit per site. The rows come back newest first, so the first id seen for a site
+    // is its latest, and later ones are skipped.
+    const auditRows = await tx
+      .select({ siteId: audits.siteId, id: audits.id })
+      .from(audits)
+      .orderBy(desc(audits.startedAt))
+
+    const latestBySite = new Map<string, string>()
+    for (const row of auditRows)
+      if (!latestBySite.has(row.siteId)) latestBySite.set(row.siteId, row.id)
+
+    const auditIds = [...latestBySite.values()]
+    if (auditIds.length === 0) return []
+
+    const rows = await tx
+      .select({
+        rowId: findings.id,
+        siteUrl: sites.url,
+        ruleId: findings.ruleId,
+        axis: findings.axis,
+        severity: findings.severity,
+        confidence: findings.confidence,
+        title: findings.title,
+        fixable: findings.fixable,
+        status: findings.status,
+        estimatedImpact: findings.estimatedImpact,
+        estimatedEffort: findings.estimatedEffort,
+        affectedUrls: findings.affectedUrls,
+      })
+      .from(findings)
+      .innerJoin(sites, eq(findings.siteId, sites.id))
+      .where(inArray(findings.auditId, auditIds))
+
+    return [...rows]
+      .sort((a, b) => priorityScore(b) - priorityScore(a))
+      .map(({ confidence: _confidence, ...item }) => item)
   })
 }
 

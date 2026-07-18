@@ -54,7 +54,15 @@ export default async function Dashboard({
 
   return (
     <main className="mt-10">
-      <h1 className="text-2xl font-semibold text-neutral-50">Sites</h1>
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-neutral-50">Sites</h1>
+        <Link
+          href="/findings"
+          className="text-sm text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+        >
+          All findings &rarr;
+        </Link>
+      </div>
       <p className="mt-2 text-sm text-neutral-500">
         Add a site and run an audit. The crawl runs on the worker and this page shows its progress
         live.

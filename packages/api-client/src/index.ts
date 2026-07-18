@@ -1,4 +1,4 @@
-import type { Finding, Scorecard } from '@seo/core'
+import type { Axis, Effort, Finding, FindingStatus, Scorecard, Severity } from '@seo/core'
 
 /**
  * The typed client. The web app talks to the API through this and never through a raw
@@ -42,6 +42,21 @@ export interface Site {
   /** The open (or merged) pull request that adds the verification meta tag, if any. */
   gscVerificationPrUrl?: string | null
   latestAudit?: AuditSummary
+}
+
+/** One row of the findings inbox. Matches the API's list-findings shape. */
+export interface FindingListItem {
+  rowId: string
+  siteUrl: string
+  ruleId: string
+  axis: Axis
+  severity: Severity
+  title: string
+  fixable: boolean
+  status: FindingStatus
+  estimatedImpact: number
+  estimatedEffort: Effort
+  affectedUrls: string[]
 }
 
 export interface Audit {
@@ -142,6 +157,10 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ url }),
         })
       ).site,
+
+    /** The findings inbox: the tenant's current findings, most important first. */
+    listFindings: async () =>
+      (await request<{ findings: FindingListItem[] }>('/findings')).findings,
 
     getAudit: async (id: string) => (await request<{ audit: Audit }>(`/audits/${id}`)).audit,
 

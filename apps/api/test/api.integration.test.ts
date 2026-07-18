@@ -4,6 +4,7 @@ import {
   asOwner,
   audits,
   createDb,
+  findings,
   oauthCredentials,
   sites,
   tenants,
@@ -740,6 +741,83 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
       expect(site?.gscVerificationStatus).toBe('none')
       expect(site?.gscVerificationPrUrl).toBeNull()
+    })
+  })
+
+  describe('the findings inbox', () => {
+    it('lists the tenant findings from the latest audit, most important first', async () => {
+      const fsiteId = await withTenant(db, tenantId, async (tx) => {
+        const [s] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://findings.example.com' })
+          .returning()
+        return s!.id
+      })
+      const auditId = await withTenant(db, tenantId, async (tx) => {
+        const [a] = await tx
+          .insert(audits)
+          .values({ tenantId, siteId: fsiteId, status: 'complete' })
+          .returning()
+        return a!.id
+      })
+
+      const evidence = {
+        kind: 'markup' as const,
+        url: 'https://findings.example.com/',
+        locator: 'head',
+        snippet: '',
+        observedAt: '2026-07-17T00:00:00.000Z',
+        source: 'crawler' as const,
+      }
+      await withTenant(db, tenantId, (tx) =>
+        tx.insert(findings).values([
+          {
+            tenantId,
+            siteId: fsiteId,
+            auditId,
+            ruleId: 'TECH-002',
+            key: 'TECH-002#0',
+            axis: 'crawl_health',
+            severity: 'critical',
+            confidence: 1,
+            title: 'AI crawler blocked',
+            evidence,
+            affectedUrls: ['https://findings.example.com/'],
+            estimatedEffort: 'trivial',
+            estimatedImpact: 88,
+            falsification: 'still blocked after merge',
+            fixable: true,
+            status: 'open',
+          },
+          {
+            tenantId,
+            siteId: fsiteId,
+            auditId,
+            ruleId: 'CONT-004',
+            key: 'CONT-004#0',
+            axis: 'content',
+            severity: 'low',
+            confidence: 0.5,
+            title: 'Thin content on a page',
+            evidence,
+            affectedUrls: [],
+            estimatedEffort: 'large',
+            estimatedImpact: 20,
+            falsification: 'still thin after merge',
+            fixable: false,
+            status: 'open',
+          },
+        ]),
+      )
+
+      const res = await get('/findings', token)
+      expect(res.statusCode).toBe(200)
+
+      const list = res.json().findings as { ruleId: string; fixable: boolean; siteUrl: string }[]
+      const mine = list.filter((f) => f.siteUrl === 'https://findings.example.com')
+      // The cheap critical outranks the expensive low-impact one.
+      expect(mine[0]).toMatchObject({ ruleId: 'TECH-002', fixable: true })
+      expect(mine.find((f) => f.ruleId === 'CONT-004')).toMatchObject({ fixable: false })
     })
   })
 

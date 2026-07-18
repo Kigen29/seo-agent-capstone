@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './classical.css';
 
 :root {
   color-scheme: dark;
