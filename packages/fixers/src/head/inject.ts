@@ -32,11 +32,6 @@ export function renderTag(tag: HeadTag): string {
   return `<${tag.tag} ${attrs} />`
 }
 
-/** The Search Console verification meta tag for a token. */
-export function googleVerificationTag(token: string): HeadTag {
-  return { tag: 'meta', attributes: { name: 'google-site-verification', content: token } }
-}
-
 /**
  * Where a `</head>` is likely to live, per strategy family. No globs, because the reader can
  * fetch a known path but not list a directory; a repo whose head is somewhere unlisted falls
@@ -67,21 +62,24 @@ const HEAD_FILES: Record<HeadStrategy, string[]> = {
 }
 
 /**
- * Inject the given tags into the first candidate file that has a `</head>`.
+ * Inject raw HTML snippets into the first candidate file that has a `</head>`.
+ *
+ * The snippets are inserted verbatim, exactly as given. This matters for anything a third party
+ * generated: Google's Site Verification `getToken` returns a complete
+ * `<meta name="google-site-verification" ...>` tag, and it must go in unchanged, not wrapped in
+ * another tag and not HTML-escaped, or Google will not recognise it.
  *
  * Returns the single file change, or null when no candidate file has a head (the caller cannot
- * auto-fix, and says so) or when every tag is already present (nothing to do). Only tags not
- * already in the file are inserted, so re-running is safe and never duplicates. The closing
+ * auto-fix, and says so) or when every snippet is already present (nothing to do). Only snippets
+ * not already in the file are inserted, so re-running is safe and never duplicates. The closing
  * tag's indentation is matched, so the diff reads as a hand edit.
  */
-export async function injectHeadTags(
+export async function injectHeadHtml(
   framework: Framework,
   read: ReadRepoFile,
-  tags: HeadTag[],
+  snippets: string[],
 ): Promise<FileChange | null> {
-  if (tags.length === 0) return null
-
-  const rendered = tags.map(renderTag)
+  if (snippets.length === 0) return null
 
   for (const path of HEAD_FILES[headStrategyFor(framework)]) {
     const content = await read(path)
@@ -90,18 +88,31 @@ export async function injectHeadTags(
     const closing = content.match(/([ \t]*)<\/head>/i)
     if (!closing) continue
 
-    const missing = rendered.filter((tag) => !content.includes(tag))
+    const missing = snippets.filter((snippet) => !content.includes(snippet))
     if (missing.length === 0) return null // already there; nothing to change
 
-    // Indent the new tags one level deeper than `</head>`, so they line up with the head's
+    // Indent the new lines one level deeper than `</head>`, so they line up with the head's
     // existing children rather than with the closing tag itself, and the diff reads as a hand edit.
     const indent = closing[1] ?? ''
     const childIndent = `${indent}  `
-    const block = missing.map((tag) => `${childIndent}${tag}`).join('\n')
+    const block = missing.map((snippet) => `${childIndent}${snippet}`).join('\n')
     const newContent = content.replace(/[ \t]*<\/head>/i, `${block}\n${indent}</head>`)
 
     return { path, content: newContent }
   }
 
   return null
+}
+
+/**
+ * Inject structured tags into the head. A convenience over {@link injectHeadHtml} for tags we
+ * build ourselves (a canonical link, a robots meta), where rendering and escaping our own
+ * attribute values is correct. Do not use it for a value a third party already rendered.
+ */
+export async function injectHeadTags(
+  framework: Framework,
+  read: ReadRepoFile,
+  tags: HeadTag[],
+): Promise<FileChange | null> {
+  return injectHeadHtml(framework, read, tags.map(renderTag))
 }
