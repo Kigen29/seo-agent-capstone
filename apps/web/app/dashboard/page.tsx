@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleConnection } from '@/components/google-connection'
+import { RepoCallback } from '@/components/repo-callback'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { startAudit } from './actions'
+import { connectRepo, startAudit } from './actions'
 import { AddSite } from './add-site'
 
 export const dynamic = 'force-dynamic'
@@ -14,12 +15,12 @@ const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string }>
+  searchParams: Promise<{ google?: string; github?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { google: googleCallback } = await searchParams
+  const { google: googleCallback, github: githubCallback } = await searchParams
 
   let sites
   let connections
@@ -39,6 +40,8 @@ export default async function Dashboard({
       </p>
 
       <GoogleConnection connection={connections.google} callback={googleCallback} />
+
+      <RepoCallback callback={githubCallback} />
 
       <AddSite />
 
@@ -66,6 +69,16 @@ export default async function Dashboard({
                       </Link>
                     )}
 
+                    <form action={connectRepo}>
+                      <input type="hidden" name="siteId" value={site.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white"
+                      >
+                        {site.repoFullName ? 'Reconnect repo' : 'Connect repo'}
+                      </button>
+                    </form>
+
                     <form action={startAudit}>
                       <input type="hidden" name="siteId" value={site.id} />
                       <button
@@ -79,14 +92,17 @@ export default async function Dashboard({
                   </div>
                 </div>
 
-                {site.latestAudit ? (
-                  <p className="mt-1 text-xs text-neutral-600">
-                    {site.latestAudit.status} &middot; {site.latestAudit.pagesCrawled} pages
-                    &middot; {new Date(site.latestAudit.startedAt).toLocaleString()}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-neutral-600">Never audited</p>
-                )}
+                <p className="mt-1 text-xs text-neutral-600">
+                  {site.repoFullName ? (
+                    <span className="text-neutral-400">repo: {site.repoFullName}</span>
+                  ) : (
+                    <span>No repo connected, so findings can be shown but not fixed by a PR.</span>
+                  )}
+                  {' · '}
+                  {site.latestAudit
+                    ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
+                    : 'Never audited'}
+                </p>
               </li>
             )
           })}
