@@ -1,7 +1,7 @@
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
-import { createQueue, drainAudits, drainVerify } from '@seo/queue'
-import { runVerify } from './verify.js'
+import { createQueue, drainAudits, drainConfirmVerify, drainVerify } from '@seo/queue'
+import { runConfirmVerify, runVerify } from './verify.js'
 
 /**
  * The worker. Claims queued audits, runs each one, and exits when the queue is empty.
@@ -43,6 +43,14 @@ try {
   const verified = await drainVerify(queue, (job) => runVerify(db, job))
   console.log(
     `worker: verification done. ${verified.completed} completed, ${verified.failed} failed.`,
+  )
+
+  // Then confirm any merged verifications with Google. A "not yet" (the deploy has not
+  // propagated) fails the job so it retries later rather than marking the site verified early.
+  console.log('worker: draining the confirm-verification queue')
+  const confirmed = await drainConfirmVerify(queue, (job) => runConfirmVerify(db, job))
+  console.log(
+    `worker: confirmation done. ${confirmed.completed} completed, ${confirmed.failed} failed.`,
   )
 } finally {
   await queue.stop({ graceful: false })

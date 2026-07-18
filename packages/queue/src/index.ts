@@ -16,6 +16,7 @@ import { PgBoss } from 'pg-boss'
 
 export const AUDIT_QUEUE = 'audit'
 export const VERIFY_QUEUE = 'verify'
+export const CONFIRM_VERIFY_QUEUE = 'confirm-verify'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -31,6 +32,16 @@ export interface AuditJob {
 
 /** What a worker needs to open a Search Console auto-verification PR for a site. */
 export interface VerifyJob {
+  tenantId: string
+  siteId: string
+}
+
+/**
+ * What a worker needs to confirm a merged verification with Google. Same shape as a VerifyJob,
+ * but a distinct type because it is a distinct step: it runs after the PR is merged and the tag
+ * is live, and it only reads Google, it does not open anything.
+ */
+export interface ConfirmVerifyJob {
   tenantId: string
   siteId: string
 }
@@ -53,6 +64,7 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
   await boss.start()
   await boss.createQueue(AUDIT_QUEUE)
   await boss.createQueue(VERIFY_QUEUE)
+  await boss.createQueue(CONFIRM_VERIFY_QUEUE)
   return boss
 }
 
@@ -85,6 +97,25 @@ export async function enqueueVerify(queue: Queue, job: VerifyJob): Promise<strin
     retryLimit: 2,
     retryDelay: 30,
     expireInSeconds: 10 * 60,
+  })
+}
+
+/**
+ * Put a confirm-verification job on the queue, after the PR is merged.
+ *
+ * A more forgiving retry policy than the others on purpose: verification can only succeed once
+ * the merged tag is actually deployed and live, and a site's deploy may lag the merge by
+ * minutes. So it retries several times with a minute between, which, combined with the worker's
+ * schedule, gives a deploy plenty of time to propagate before the job gives up.
+ */
+export async function enqueueConfirmVerify(
+  queue: Queue,
+  job: ConfirmVerifyJob,
+): Promise<string | null> {
+  return queue.send(CONFIRM_VERIFY_QUEUE, job, {
+    retryLimit: 5,
+    retryDelay: 60,
+    expireInSeconds: 30 * 60,
   })
 }
 
@@ -141,4 +172,12 @@ export function drainVerify(
   handler: (job: VerifyJob) => Promise<void>,
 ): Promise<{ completed: number; failed: number }> {
   return drain(queue, VERIFY_QUEUE, handler)
+}
+
+/** Drain the confirm-verification queue. See {@link drain}. */
+export function drainConfirmVerify(
+  queue: Queue,
+  handler: (job: ConfirmVerifyJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, CONFIRM_VERIFY_QUEUE, handler)
 }

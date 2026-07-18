@@ -10,7 +10,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
 import { createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -60,6 +60,7 @@ describe.skipIf(!shouldRun)('the API', () => {
   /** Every job the injected enqueue was handed, so a test can prove what was queued. */
   const enqueued: AuditJob[] = []
   const verifyEnqueued: VerifyJob[] = []
+  const confirmEnqueued: ConfirmVerifyJob[] = []
 
   const mint = (tenant: string) => {
     const plain = generateToken()
@@ -84,6 +85,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       },
       enqueueVerify: async (job) => {
         verifyEnqueued.push(job)
+      },
+      enqueueConfirmVerify: async (job) => {
+        confirmEnqueued.push(job)
       },
       github: {
         app: {
@@ -675,6 +679,29 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
       expect(site?.githubInstallationId).toBeNull()
       expect(site?.repoFullName).toBeNull()
+    })
+
+    it('enqueues a confirm job when a verification PR is merged', async () => {
+      const vsiteId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://vmerge.example.com',
+            gscProperty: 'https://vmerge.example.com/',
+          })
+          .returning()
+        return row!.id
+      })
+
+      const body = JSON.stringify({
+        action: 'closed',
+        pull_request: { merged: true, head: { ref: `seo-agent/AGENT-VERIFY-${vsiteId}-verify` } },
+      })
+      const res = await webhook('pull_request', body, signWebhook(body))
+
+      expect(res.statusCode).toBe(204)
+      expect(confirmEnqueued.at(-1)).toMatchObject({ tenantId, siteId: vsiteId })
     })
   })
 

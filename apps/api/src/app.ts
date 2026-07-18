@@ -17,7 +17,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, VerifyJob } from '@seo/queue'
 import {
   SIGNATURE_HEADER,
   verifyWebhookSignature,
@@ -50,6 +50,11 @@ export interface AppOptions {
    * Absent means `POST /sites/:id/verify` reports 503 rather than accepting work nothing runs.
    */
   enqueueVerify?: (job: VerifyJob) => Promise<unknown>
+  /**
+   * Puts a confirm-verification job on the queue when a verification PR is merged. Injected like
+   * the others; absent means the webhook still acknowledges the merge but does not auto-confirm.
+   */
+  enqueueConfirmVerify?: (job: ConfirmVerifyJob) => Promise<unknown>
   /**
    * Google OAuth. Injected so the connection routes can be tested with a mocked token
    * endpoint, and so the app never reads process.env directly. Absent means the routes report
@@ -324,8 +329,33 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         }
       }
 
-      // pull_request merges drive finding status and verification, which land with the fixer
-      // (STORY-023 and STORY-025). The delivery is verified and acknowledged now.
+      // A merged verification PR: the tag is now in the repo, and once deployed it will be live.
+      // Enqueue a confirm job, which asks Google to check (and retries while the deploy lands).
+      // The webhook has no tenant context, so the tenant is looked up from the site the branch
+      // names. asOwner because there is no request tenant to scope by here.
+      if (
+        event === 'pull_request' &&
+        payload.action === 'closed' &&
+        payload.pull_request?.merged &&
+        options.enqueueConfirmVerify
+      ) {
+        const ref = payload.pull_request.head?.ref ?? ''
+        const match = ref.match(
+          /^seo-agent\/AGENT-VERIFY-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-/i,
+        )
+        if (match) {
+          const siteId = match[1]!
+          const [site] = await asOwner(db, (tx) =>
+            tx
+              .select({ tenantId: sites.tenantId })
+              .from(sites)
+              .where(eq(sites.id, siteId))
+              .limit(1),
+          )
+          if (site) await options.enqueueConfirmVerify({ tenantId: site.tenantId, siteId })
+        }
+      }
+
       return reply.status(204).send()
     })
   })
