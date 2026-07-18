@@ -1,5 +1,5 @@
 import type { Finding } from '@seo/core'
-import { detectFramework, injectHeadHtml } from '@seo/fixers'
+import { detectFramework, headContainsHtml, injectHeadHtml } from '@seo/fixers'
 import type { ReadRepoFile } from '@seo/fixers'
 import type { RepoContext, VersionControlProvider } from '@seo/vcs'
 
@@ -44,12 +44,15 @@ export interface VerificationCollaborators {
 }
 
 export interface VerificationPrResult {
-  prUrl: string
-  branch: string
   /** The URL-prefix property the tag verifies, e.g. `https://example.com/`. */
   property: string
   framework: string
   token: string
+  /**
+   * The pull request opened, or null when the tag was already in the repo and none was needed.
+   * A null pr means the site can go straight to confirmation rather than waiting on a merge.
+   */
+  pr: { url: string; branch: string } | null
 }
 
 /** Thrown when the tag cannot be placed: no `<head>` was found in the repo, or it is already there. */
@@ -136,7 +139,16 @@ export async function openVerificationPr(
   // tag, so it is inserted verbatim. Wrapping it in another tag, or escaping it, is exactly the
   // bug that stopped Google recognising it: insert what Google gave us, unchanged.
   const change = await injectHeadHtml(framework, read, [token])
-  if (!change) throw new VerificationInjectionError()
+
+  if (!change) {
+    // Null is ambiguous: the tag is already in the repo, or there is no head to put it in. If it
+    // is already present (a merged PR, or a hand edit), no PR is needed and we go straight to
+    // confirming. Otherwise this repo genuinely cannot be auto-verified.
+    if (await headContainsHtml(framework, read, token)) {
+      return { property, framework, token, pr: null }
+    }
+    throw new VerificationInjectionError()
+  }
 
   const pr = await deps.provider.openPullRequest(input.repo, {
     finding: verificationFinding(input.siteId, property),
@@ -149,7 +161,7 @@ export async function openVerificationPr(
       'Revert the merge commit; the verification meta tag is removed and nothing else changes.',
   })
 
-  return { prUrl: pr.url, branch: pr.branch, property, framework, token }
+  return { property, framework, token, pr: { url: pr.url, branch: pr.branch } }
 }
 
 /**

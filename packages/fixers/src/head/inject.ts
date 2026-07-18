@@ -105,6 +105,26 @@ export async function injectHeadHtml(
 }
 
 /**
+ * Whether a head-bearing candidate file already contains the given snippet.
+ *
+ * This is how a caller tells the two null results of {@link injectHeadHtml} apart: "already
+ * there" (true here) versus "no head to inject into" (false). Auto-verification uses it to skip
+ * straight to confirming when the tag is already in the repo, rather than erroring or opening a
+ * duplicate PR.
+ */
+export async function headContainsHtml(
+  framework: Framework,
+  read: ReadRepoFile,
+  snippet: string,
+): Promise<boolean> {
+  for (const path of HEAD_FILES[headStrategyFor(framework)]) {
+    const content = await read(path)
+    if (content !== null && content.includes(snippet)) return true
+  }
+  return false
+}
+
+/**
  * Inject structured tags into the head. A convenience over {@link injectHeadHtml} for tags we
  * build ourselves (a canonical link, a robots meta), where rendering and escaping our own
  * attribute values is correct. Do not use it for a value a third party already rendered.

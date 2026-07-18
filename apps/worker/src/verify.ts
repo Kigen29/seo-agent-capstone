@@ -60,15 +60,18 @@ export async function runVerify(db: Database, job: VerifyJob): Promise<void> {
     { property: gsc, verification, provider },
   )
 
-  await withTenant(db, job.tenantId, (tx) =>
-    tx
-      .update(sites)
-      .set({
+  // A PR was opened -> wait for a human to merge it. The tag was already in the repo (a merged
+  // PR, or a hand edit) -> skip straight to merged, and the confirmation sweep will verify it.
+  const update = result.pr
+    ? {
         gscProperty: result.property,
-        gscVerificationPrUrl: result.prUrl,
-        gscVerificationStatus: 'pr_open',
-      })
-      .where(eq(sites.id, site.id)),
+        gscVerificationPrUrl: result.pr.url,
+        gscVerificationStatus: 'pr_open' as const,
+      }
+    : { gscProperty: result.property, gscVerificationStatus: 'merged' as const }
+
+  await withTenant(db, job.tenantId, (tx) =>
+    tx.update(sites).set(update).where(eq(sites.id, site.id)),
   )
 }
 
