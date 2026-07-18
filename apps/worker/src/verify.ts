@@ -140,9 +140,31 @@ export async function enqueuePendingConfirmations(db: Database, queue: Queue): P
       .where(eq(sites.gscVerificationStatus, 'merged')),
   )
 
-  for (const site of merged) {
-    await enqueueConfirmVerify(queue, { tenantId: site.tenantId, siteId: site.id })
+  // Enqueue in bounded-concurrency batches: parallel enough that a large backlog does not stall
+  // the drain, capped so it does not flood the connection pool. Each enqueue is isolated, so one
+  // broken site is logged and skipped rather than aborting the sweep for every site behind it.
+  const BATCH = 10
+  let enqueued = 0
+
+  for (let i = 0; i < merged.length; i += BATCH) {
+    const batch = merged.slice(i, i + BATCH)
+    const results = await Promise.allSettled(
+      batch.map((site) =>
+        enqueueConfirmVerify(queue, { tenantId: site.tenantId, siteId: site.id }),
+      ),
+    )
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        enqueued += 1
+      } else {
+        console.warn(
+          `worker: could not enqueue confirmation for site ${batch[index]!.id}:`,
+          result.reason,
+        )
+      }
+    })
   }
 
-  return merged.length
+  return enqueued
 }
