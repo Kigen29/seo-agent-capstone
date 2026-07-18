@@ -116,6 +116,20 @@ describe('GitHubProvider.openPullRequest', () => {
     expect(api.calls).not.toContain('createPullRequest')
   })
 
+  it('dedupes on dedupeKey when the branch is deliberately unique per attempt', async () => {
+    // A verification flow uses a unique finding id (so the branch never collides) but a stable
+    // dedupeKey, so "is one already open?" still finds the prior attempt.
+    const api = new FakeGitHubApi()
+    const finding = makeFinding({ id: 'AGENT-VERIFY-site1-abc123-99' })
+    await providerWith(api).openPullRequest(ctx, {
+      ...fix,
+      finding,
+      dedupeKey: 'AGENT-VERIFY-site1',
+    })
+
+    expect(api.calls).toContain('find:seo-agent/AGENT-VERIFY-site1-')
+  })
+
   it('refuses (rule 4) and creates nothing when the finding has no falsification', async () => {
     const api = new FakeGitHubApi()
     const finding = makeFinding({ falsification: '  ' })

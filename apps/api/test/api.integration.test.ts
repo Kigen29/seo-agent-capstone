@@ -696,12 +696,50 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       const body = JSON.stringify({
         action: 'closed',
-        pull_request: { merged: true, head: { ref: `seo-agent/AGENT-VERIFY-${vsiteId}-verify` } },
+        pull_request: {
+          merged: true,
+          head: { ref: `seo-agent/AGENT-VERIFY-${vsiteId}-t1-verify` },
+        },
       })
       const res = await webhook('pull_request', body, signWebhook(body))
 
       expect(res.statusCode).toBe(204)
       expect(confirmEnqueued.at(-1)).toMatchObject({ tenantId, siteId: vsiteId })
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, vsiteId)).limit(1)
+        return row
+      })
+      expect(site?.gscVerificationStatus).toBe('merged')
+    })
+
+    it('resets a site to none when its verification PR is closed unmerged', async () => {
+      const closedId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://vclosed.example.com',
+            gscVerificationStatus: 'pr_open',
+            gscVerificationPrUrl: 'https://github.com/o/r/pull/1',
+          })
+          .returning()
+        return row!.id
+      })
+
+      const body = JSON.stringify({
+        action: 'closed',
+        pull_request: { merged: false, head: { ref: `seo-agent/AGENT-VERIFY-${closedId}-t1-x` } },
+      })
+      const res = await webhook('pull_request', body, signWebhook(body))
+      expect(res.statusCode).toBe(204)
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, closedId)).limit(1)
+        return row
+      })
+      expect(site?.gscVerificationStatus).toBe('none')
+      expect(site?.gscVerificationPrUrl).toBeNull()
     })
   })
 
@@ -716,6 +754,28 @@ describe.skipIf(!shouldRun)('the API', () => {
     it('returns 404 for a site that is not the caller’s', async () => {
       const res = await verify('00000000-0000-0000-0000-000000000000', token)
       expect(res.statusCode).toBe(404)
+    })
+
+    it('returns 409 when a verification PR is already open, without a second job', async () => {
+      const openId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://vopen.example.com',
+            repoFullName: 'octo/open',
+            githubInstallationId: 55,
+            gscVerificationStatus: 'pr_open',
+          })
+          .returning()
+        return row!.id
+      })
+
+      const before = verifyEnqueued.length
+      const res = await verify(openId, token)
+
+      expect(res.statusCode).toBe(409)
+      expect(verifyEnqueued.length).toBe(before)
     })
 
     it('returns 409 when the site has no connected repository', async () => {

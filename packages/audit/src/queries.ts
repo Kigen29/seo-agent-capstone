@@ -1,4 +1,4 @@
-import type { Finding, Scorecard } from '@seo/core'
+import type { Finding, Scorecard, VerificationStatus } from '@seo/core'
 import { audits, findings, sites, withTenant, type Database } from '@seo/db'
 import { desc, eq } from 'drizzle-orm'
 
@@ -14,8 +14,8 @@ export interface SiteSummary {
   url: string
   /** The connected repository, "owner/name", or null until the GitHub App is installed on it. */
   repoFullName: string | null
-  /** Whether Search Console ownership has been verified. */
-  gscVerified: boolean
+  /** Where the site is in the Search Console verification lifecycle. */
+  gscVerificationStatus: VerificationStatus
   /** The open or merged verification PR, if one has been opened. */
   gscVerificationPrUrl: string | null
   latestAudit?: {
@@ -44,7 +44,7 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
           id: site.id,
           url: site.url,
           repoFullName: site.repoFullName ?? null,
-          gscVerified: site.gscVerified,
+          gscVerificationStatus: site.gscVerificationStatus,
           gscVerificationPrUrl: site.gscVerificationPrUrl ?? null,
           latestAudit: latest
             ? {

@@ -329,17 +329,15 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         }
       }
 
-      // A merged verification PR: the tag is now in the repo, and once deployed it will be live.
-      // Enqueue a confirm job, which asks Google to check (and retries while the deploy lands).
-      // The webhook has no tenant context, so the tenant is looked up from the site the branch
-      // names. asOwner because there is no request tenant to scope by here.
-      if (
-        event === 'pull_request' &&
-        payload.action === 'closed' &&
-        payload.pull_request?.merged &&
-        options.enqueueConfirmVerify
-      ) {
-        const ref = payload.pull_request.head?.ref ?? ''
+      // A verification PR closing drives the site's status. The webhook has no tenant context,
+      // so the site (and its tenant) is looked up from the branch name; asOwner because there is
+      // no request tenant to scope by here.
+      //
+      //   merged -> mark merged, and enqueue a confirm job that asks Google to check (retrying
+      //             while the deploy lands).
+      //   closed -> if a PR was open, reset to none so the dashboard offers Verify again.
+      if (event === 'pull_request' && payload.action === 'closed') {
+        const ref = payload.pull_request?.head?.ref ?? ''
         const match = ref.match(
           /^seo-agent\/AGENT-VERIFY-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-/i,
         )
@@ -347,12 +345,28 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           const siteId = match[1]!
           const [site] = await asOwner(db, (tx) =>
             tx
-              .select({ tenantId: sites.tenantId })
+              .select({ tenantId: sites.tenantId, status: sites.gscVerificationStatus })
               .from(sites)
               .where(eq(sites.id, siteId))
               .limit(1),
           )
-          if (site) await options.enqueueConfirmVerify({ tenantId: site.tenantId, siteId })
+
+          if (site && payload.pull_request?.merged) {
+            await asOwner(db, (tx) =>
+              tx.update(sites).set({ gscVerificationStatus: 'merged' }).where(eq(sites.id, siteId)),
+            )
+            if (options.enqueueConfirmVerify) {
+              await options.enqueueConfirmVerify({ tenantId: site.tenantId, siteId })
+            }
+          } else if (site && site.status === 'pr_open') {
+            // Closed without merging: undo, so a fresh Verify can start cleanly.
+            await asOwner(db, (tx) =>
+              tx
+                .update(sites)
+                .set({ gscVerificationStatus: 'none', gscVerificationPrUrl: null })
+                .where(eq(sites.id, siteId)),
+            )
+          }
         }
       }
 
@@ -538,6 +552,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
               id: sites.id,
               repo: sites.repoFullName,
               installation: sites.githubInstallationId,
+              status: sites.gscVerificationStatus,
             })
             .from(sites)
             .where(eq(sites.id, request.params.id))
@@ -550,6 +565,26 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           return reply
             .status(409)
             .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
+        }
+
+        // One verification at a time. A repeat click while a PR is open, merged, or the site is
+        // already verified is a 409 with the reason, not a second PR.
+        if (site.status === 'verified') {
+          return reply
+            .status(409)
+            .send({ error: 'Conflict', message: 'This site is already verified.' })
+        }
+        if (site.status === 'pr_open') {
+          return reply.status(409).send({
+            error: 'Conflict',
+            message: 'A verification PR is already open. Review and merge it.',
+          })
+        }
+        if (site.status === 'merged') {
+          return reply.status(409).send({
+            error: 'Conflict',
+            message: 'The verification PR is merged; waiting for Google to confirm.',
+          })
         }
 
         const [google] = await withTenant(db, request.tenantId, (tx) =>

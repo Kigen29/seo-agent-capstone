@@ -37,8 +37,8 @@ export interface Site {
   url: string
   /** The connected repository, "owner/name", or null until a repo is connected. */
   repoFullName?: string | null
-  /** Whether Search Console ownership has been verified for this site. */
-  gscVerified?: boolean
+  /** Where the site is in the Search Console verification lifecycle. */
+  gscVerificationStatus?: 'none' | 'pr_open' | 'merged' | 'verified'
   /** The open (or merged) pull request that adds the verification meta tag, if any. */
   gscVerificationPrUrl?: string | null
   latestAudit?: AuditSummary

@@ -64,6 +64,13 @@
       "when": 1784377000000,
       "tag": "0008_gsc_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784378000000,
+      "tag": "0009_verification_status",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,11 @@
-import type { Evidence, Framework, MetricSnapshot, Scorecard, VerificationResult } from '@seo/core'
+import type {
+  Evidence,
+  Framework,
+  MetricSnapshot,
+  Scorecard,
+  VerificationResult,
+  VerificationStatus,
+} from '@seo/core'
 import { frameworkSchema } from '@seo/core'
 import { sql } from 'drizzle-orm'
 import {
@@ -63,8 +70,11 @@ export const sites = pgTable(
 
     /** Search Console property, e.g. 'https://example.com/', set when auto-verification runs. */
     gscProperty: text('gsc_property'),
-    /** Whether Site Verification has confirmed ownership of `gscProperty`. */
-    gscVerified: boolean('gsc_verified').notNull().default(false),
+    /** Where the site is in the auto-verification lifecycle. See VerificationStatus. */
+    gscVerificationStatus: text('gsc_verification_status')
+      .$type<VerificationStatus>()
+      .notNull()
+      .default('none'),
     /** The pull request that adds the verification meta tag, while it is open or after merge. */
     gscVerificationPrUrl: text('gsc_verification_pr_url'),
 

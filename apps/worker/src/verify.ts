@@ -63,7 +63,11 @@ export async function runVerify(db: Database, job: VerifyJob): Promise<void> {
   await withTenant(db, job.tenantId, (tx) =>
     tx
       .update(sites)
-      .set({ gscProperty: result.property, gscVerificationPrUrl: result.prUrl })
+      .set({
+        gscProperty: result.property,
+        gscVerificationPrUrl: result.prUrl,
+        gscVerificationStatus: 'pr_open',
+      })
       .where(eq(sites.id, site.id)),
   )
 }
@@ -114,6 +118,6 @@ export async function runConfirmVerify(db: Database, job: ConfirmVerifyJob): Pro
   }
 
   await withTenant(db, job.tenantId, (tx) =>
-    tx.update(sites).set({ gscVerified: true }).where(eq(sites.id, site.id)),
+    tx.update(sites).set({ gscVerificationStatus: 'verified' }).where(eq(sites.id, site.id)),
   )
 }

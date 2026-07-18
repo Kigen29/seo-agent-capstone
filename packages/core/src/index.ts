@@ -40,8 +40,8 @@ export type { Finding, FindingStatus } from './finding.js'
 export { auditSchema, auditStatusSchema } from './audit.js'
 export type { Audit, AuditStatus } from './audit.js'
 
-export { frameworkSchema, siteSchema } from './site.js'
-export type { Framework, Site } from './site.js'
+export { frameworkSchema, siteSchema, verificationStatusSchema } from './site.js'
+export type { Framework, Site, VerificationStatus } from './site.js'
 
 export { tenantSchema } from './tenant.js'
 export type { Tenant } from './tenant.js'
