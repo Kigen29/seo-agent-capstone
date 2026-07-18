@@ -6,8 +6,8 @@ import {
   googleOAuthConfigFromEnv,
   refreshAccessToken,
 } from '@seo/connectors'
-import { oauthCredentials, sites, withTenant, type Database } from '@seo/db'
-import type { ConfirmVerifyJob, VerifyJob } from '@seo/queue'
+import { asOwner, oauthCredentials, sites, withTenant, type Database } from '@seo/db'
+import { enqueueConfirmVerify, type ConfirmVerifyJob, type Queue, type VerifyJob } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv, GitHubProvider } from '@seo/vcs'
 import { eq } from 'drizzle-orm'
 
@@ -120,4 +120,29 @@ export async function runConfirmVerify(db: Database, job: ConfirmVerifyJob): Pro
   await withTenant(db, job.tenantId, (tx) =>
     tx.update(sites).set({ gscVerificationStatus: 'verified' }).where(eq(sites.id, site.id)),
   )
+}
+
+/**
+ * Re-enqueue a confirmation for every site still awaiting one.
+ *
+ * A site sits in `merged` until Google confirms the tag is live, which only happens once the
+ * merged change is deployed, and a deploy can lag the merge by longer than the confirm job's own
+ * retries last. So on every drain the worker re-checks the merged sites; the confirm job's
+ * singleton key keeps that from piling up duplicates. A site that never deploys the tag simply
+ * stays merged and gets a cheap re-check each run; a verified one drops out of the query.
+ * asOwner because this is a system sweep across tenants, not a request.
+ */
+export async function enqueuePendingConfirmations(db: Database, queue: Queue): Promise<number> {
+  const merged = await asOwner(db, (tx) =>
+    tx
+      .select({ id: sites.id, tenantId: sites.tenantId })
+      .from(sites)
+      .where(eq(sites.gscVerificationStatus, 'merged')),
+  )
+
+  for (const site of merged) {
+    await enqueueConfirmVerify(queue, { tenantId: site.tenantId, siteId: site.id })
+  }
+
+  return merged.length
 }

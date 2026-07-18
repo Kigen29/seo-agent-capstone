@@ -116,6 +116,9 @@ export async function enqueueConfirmVerify(
     retryLimit: 5,
     retryDelay: 60,
     expireInSeconds: 30 * 60,
+    // One pending confirmation per site. The scheduled worker re-enqueues confirmations for
+    // every site still awaiting one, so without this a slow deploy would pile up duplicate jobs.
+    singletonKey: job.siteId,
   })
 }
 
