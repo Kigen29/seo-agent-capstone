@@ -36,7 +36,10 @@ class FakeProvider implements VersionControlProvider {
 
 const repo: RepoContext = { repo: { owner: 'o', name: 'r' }, installationId: 1 }
 
-function fakes(token = 'TOKEN-123', verified = false) {
+// getMetaToken returns a complete <meta> tag, not just the value. The fix inserts it verbatim.
+const META_TOKEN = '<meta name="google-site-verification" content="37PYOdaE9rgB1p7yc77" />'
+
+function fakes(token = META_TOKEN, verified = false) {
   const calls: string[] = []
   const property: PropertyClient = {
     addSite: async (siteUrl) => {
@@ -68,7 +71,7 @@ describe('openVerificationPr', () => {
     const provider = new FakeProvider()
     provider.files.set('package.json', JSON.stringify({ dependencies: { react: '19.0.0' } }))
     provider.files.set('index.html', SPA_INDEX)
-    const { property, verification, calls } = fakes('TOKEN-123')
+    const { property, verification, calls } = fakes()
 
     const result = await openVerificationPr(
       { siteId: 'site-1', siteUrl: 'https://example.com', repo },
@@ -79,17 +82,17 @@ describe('openVerificationPr', () => {
     expect(calls).toContain('addSite:https://example.com/')
     expect(calls).toContain('getMetaToken:https://example.com/')
 
-    // The PR writes the real token into index.html (react_spa -> spa-index).
+    // The PR writes Google's tag into index.html (react_spa -> spa-index), byte for byte, not
+    // wrapped in another tag and not HTML-escaped.
     expect(provider.opened?.files[0]?.path).toBe('index.html')
-    expect(provider.opened?.files[0]?.content).toContain(
-      '<meta name="google-site-verification" content="TOKEN-123" />',
-    )
+    expect(provider.opened?.files[0]?.content).toContain(META_TOKEN)
+    expect(provider.opened?.files[0]?.content).not.toContain('&lt;')
 
     expect(result).toMatchObject({
       prUrl: 'https://github.com/o/r/pull/9',
       property: 'https://example.com/',
       framework: 'react_spa',
-      token: 'TOKEN-123',
+      token: META_TOKEN,
     })
   })
 

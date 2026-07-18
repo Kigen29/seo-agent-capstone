@@ -1,5 +1,5 @@
 import type { Finding } from '@seo/core'
-import { detectFramework, googleVerificationTag, injectHeadTags } from '@seo/fixers'
+import { detectFramework, injectHeadHtml } from '@seo/fixers'
 import type { ReadRepoFile } from '@seo/fixers'
 import type { RepoContext, VersionControlProvider } from '@seo/vcs'
 
@@ -125,7 +125,10 @@ export async function openVerificationPr(
 
   const framework = await detectFramework(read)
 
-  const change = await injectHeadTags(framework, read, [googleVerificationTag(token)])
+  // The token from getMetaToken is already the complete `<meta name="google-site-verification">`
+  // tag, so it is inserted verbatim. Wrapping it in another tag, or escaping it, is exactly the
+  // bug that stopped Google recognising it: insert what Google gave us, unchanged.
+  const change = await injectHeadHtml(framework, read, [token])
   if (!change) throw new VerificationInjectionError()
 
   const pr = await deps.provider.openPullRequest(input.repo, {
