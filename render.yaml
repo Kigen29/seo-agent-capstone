@@ -42,3 +42,17 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false
+      # GitHub App, for connecting a repo and opening pull requests (ADR-0002). Set in the
+      # dashboard, never here. GH_APP_*, not GITHUB_*, because GitHub Actions reserves that
+      # prefix and the worker reads the same names from its secrets. Without all four, the
+      # connect and webhook routes report 503 and the rest of the API runs fine.
+      - key: GH_APP_ID
+        sync: false
+      - key: GH_APP_PRIVATE_KEY
+        sync: false
+      - key: GH_APP_WEBHOOK_SECRET
+        sync: false
+      # The App's public URL slug (github.com/apps/<slug>). Not a secret, but set here too so
+      # the install URL can be built.
+      - key: GH_APP_SLUG
+        sync: false

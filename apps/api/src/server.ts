@@ -1,5 +1,6 @@
 import { googleOAuthConfigFromEnv } from '@seo/connectors'
 import { createQueue, enqueueAudit } from '@seo/queue'
+import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
 import { makeDispatcher } from './dispatch.js'
 
@@ -35,10 +36,32 @@ const google = (() => {
   }
 })()
 
+/**
+ * The GitHub App is optional in exactly the same way: without its credentials the connect and
+ * webhook routes report 503 and the rest of the API runs, so the app can deploy before the App
+ * is registered. It needs the App id and private key (GH_APP_ID, GH_APP_PRIVATE_KEY), the
+ * webhook secret, and the public slug for building the install URL. GH_APP_*, not GITHUB_*,
+ * because GitHub Actions reserves that prefix and the worker reads the same names from there.
+ */
+const github = (() => {
+  try {
+    const slug = process.env.GH_APP_SLUG
+    const webhookSecret = process.env.GH_APP_WEBHOOK_SECRET
+    if (!slug || !webhookSecret) {
+      throw new Error('GH_APP_SLUG and GH_APP_WEBHOOK_SECRET are required.')
+    }
+    return { app: createGitHubApp(githubAppConfigFromEnv()), slug, webhookSecret }
+  } catch {
+    console.warn('The GitHub App is not configured; connecting a repository is disabled.')
+    return undefined
+  }
+})()
+
 const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   google,
+  github,
   enqueue: async (job) => {
     await enqueueAudit(queue, job)
     await dispatch()
