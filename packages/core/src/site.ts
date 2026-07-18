@@ -25,6 +25,17 @@ export const frameworkSchema = z.enum([
 
 export type Framework = z.infer<typeof frameworkSchema>
 
+/**
+ * Where a site is in the Search Console auto-verification lifecycle.
+ *
+ * `none` is the actionable state: nothing opened yet, so the dashboard offers the button.
+ * `pr_open` means a verification PR is out for a human to merge; `merged` means it is merged and
+ * we are waiting for Google to confirm once the site deploys; `verified` is done. Closing a PR
+ * returns the site to `none`, so regenerating is one clean click.
+ */
+export const verificationStatusSchema = z.enum(['none', 'pr_open', 'merged', 'verified'])
+export type VerificationStatus = z.infer<typeof verificationStatusSchema>
+
 export const siteSchema = z.object({
   id: z.string().min(1),
   tenantId: z.string().min(1),

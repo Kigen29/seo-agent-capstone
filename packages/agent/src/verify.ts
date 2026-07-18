@@ -76,9 +76,16 @@ export function toUrlPrefixProperty(siteUrl: string): string {
  * fixable finding with real evidence (the missing tag) and a real falsification (Google still
  * reports it unverified after merge).
  */
+/** The stable key that dedupes verification PRs for a site, independent of the attempt. */
+export function verificationDedupeKey(siteId: string): string {
+  return `AGENT-VERIFY-${siteId}`
+}
+
 function verificationFinding(siteId: string, property: string): Finding {
   return {
-    id: `AGENT-VERIFY-${siteId}`,
+    // Unique per attempt, so a fresh branch is cut every time and a closed PR's leftover branch
+    // never collides. Deduplication uses the stable key below, not this id.
+    id: `${verificationDedupeKey(siteId)}-${Date.now().toString(36)}`,
     siteId,
     ruleId: 'AGENT-VERIFY',
     axis: 'crawl_health',
@@ -133,6 +140,7 @@ export async function openVerificationPr(
 
   const pr = await deps.provider.openPullRequest(input.repo, {
     finding: verificationFinding(input.siteId, property),
+    dedupeKey: verificationDedupeKey(input.siteId),
     files: [change],
     expectedEffect:
       `Google can confirm you own ${property}, which unlocks Search Console data for this ` +

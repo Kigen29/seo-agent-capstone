@@ -109,17 +109,19 @@ export default async function Dashboard({
                       </button>
                     </form>
 
-                    {site.repoFullName && connections.google.connected && !site.gscVerified && (
-                      <form action={verifySite}>
-                        <input type="hidden" name="siteId" value={site.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-emerald-800 px-3 py-1.5 text-sm text-emerald-300 hover:border-emerald-600 hover:text-emerald-200"
-                        >
-                          Verify with a PR
-                        </button>
-                      </form>
-                    )}
+                    {site.repoFullName &&
+                      connections.google.connected &&
+                      (site.gscVerificationStatus ?? 'none') === 'none' && (
+                        <form action={verifySite}>
+                          <input type="hidden" name="siteId" value={site.id} />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-emerald-800 px-3 py-1.5 text-sm text-emerald-300 hover:border-emerald-600 hover:text-emerald-200"
+                          >
+                            Verify with a PR
+                          </button>
+                        </form>
+                      )}
 
                     <form action={startAudit}>
                       <input type="hidden" name="siteId" value={site.id} />
@@ -146,9 +148,9 @@ export default async function Dashboard({
                     : 'Never audited'}
                 </p>
 
-                {site.gscVerified ? (
+                {site.gscVerificationStatus === 'verified' ? (
                   <p className="mt-1 text-xs text-emerald-500">&#10003; Search Console verified</p>
-                ) : site.gscVerificationPrUrl ? (
+                ) : site.gscVerificationStatus === 'pr_open' && site.gscVerificationPrUrl ? (
                   <p className="mt-1 text-xs text-neutral-600">
                     Verification PR open:{' '}
                     <a
@@ -159,6 +161,10 @@ export default async function Dashboard({
                     >
                       review and merge it
                     </a>
+                  </p>
+                ) : site.gscVerificationStatus === 'merged' ? (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Verification PR merged. Waiting for Google to confirm once your site deploys.
                   </p>
                 ) : null}
               </li>

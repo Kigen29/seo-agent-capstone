@@ -84,8 +84,11 @@ export class GitHubProvider implements VersionControlProvider {
       throw new Error('Refusing to open a pull request with no file changes.')
     }
 
-    // One PR per finding. A retried fix job, or a second click, must not open a duplicate.
-    const existing = await api.findOpenPullRequestByHeadPrefix(branchPrefixFor(input.finding.id))
+    // One PR per thing. A retried fix job, or a second click, must not open a duplicate. Keyed
+    // on dedupeKey when the branch is deliberately unique per attempt, else on the finding id.
+    const existing = await api.findOpenPullRequestByHeadPrefix(
+      branchPrefixFor(input.dedupeKey ?? input.finding.id),
+    )
     if (existing) return existing
 
     const base = input.baseBranch ?? (await api.getDefaultBranch())

@@ -59,6 +59,15 @@ export interface FixPullRequest {
   rollback: string
   /** The branch to open against. Defaults to the repository's default branch. */
   baseBranch?: string
+  /**
+   * A stable key for one-PR-per-thing deduplication, when it must differ from the finding id.
+   *
+   * Idempotency normally keys on the finding id, which is also the branch. But a flow that wants
+   * a fresh branch on every attempt (so a closed PR's leftover branch never collides) sets a
+   * unique finding id per attempt and a stable dedupeKey here. The branch stays unique; the
+   * "is one already open?" check keys on the stable prefix. Defaults to the finding id.
+   */
+  dedupeKey?: string
 }
 
 /** A pull request the agent opened. */
