@@ -591,7 +591,7 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       expect(res.statusCode).toBe(200)
       const url = res.json().url as string
-      expect(url).toContain('github.com/apps/rankwright-seo-agent/installations/new')
+      expect(url).toContain('github.com/apps/rankwright-seo-agent/installations/select_target')
       expect(url).toContain('state=')
     })
 
