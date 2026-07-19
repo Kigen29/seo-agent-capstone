@@ -786,20 +786,15 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           if (!site) return notFound(reply)
 
           /**
-           * Reuse an existing installation for a second site, rather than sending the user back
-           * through an install they have already done.
+           * Two ways to begin, because the App is installed once per tenant, not once per site.
            *
-           * GitHub's setup callback only carries our signed `state` for a FRESH install. Once the
-           * App is installed, connecting another site goes through a "configure" flow that drops
-           * the query string, so the callback sees no state and the whole thing looks like a
-           * cancelled install ("The install was cancelled. Nothing was connected."). So when the
-           * tenant already has an installation, bind straight from it: if the App can already see a
-           * repo that matches this site, connect it here and now; if not, send the user to grant
-           * that one repo to the existing installation, then come back and click Connect again.
-           *
-           * A tenant can have more than one installation (repos across two GitHub accounts), so we
-           * try each one for a matching repo, and only fall back to asking the user to grant access
-           * when none of them can already see one.
+           * The FIRST repo is a fresh install: GitHub carries our signed `state` through it, and the
+           * setup callback binds the repo. Every repo AFTER that must not re-install, because once
+           * the App is installed GitHub runs a "configure" flow that drops the query string, so the
+           * callback sees no state and the whole thing looks like a cancelled install ("The install
+           * was cancelled. Nothing was connected."). So when the tenant already has an installation,
+           * we do not guess a repo from the site's name (a repo can be named anything); we hand back
+           * the repositories the App can see and let the user pick.
            */
           const installedRows = await withTenant(db, request.tenantId, (tx) =>
             tx
@@ -814,22 +809,23 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
             .filter((id): id is number => id !== null)
 
           if (installationIds.length > 0) {
+            const seen = new Set<string>()
+            const repos: { fullName: string; installationId: number }[] = []
             for (const installationId of installationIds) {
-              const repos = await options.github.app.listInstallationRepositories(installationId)
-              const match = matchRepoForSite(repos, site.url)
-              if (!match) continue
-
-              await withTenant(db, request.tenantId, (tx) =>
-                tx
-                  .update(sites)
-                  .set({ repoFullName: match.fullName, githubInstallationId: installationId })
-                  .where(eq(sites.id, request.body.siteId)),
-              )
-              return { url: `${webUrl.replace(/\/$/, '')}/dashboard?github=connected` }
+              for (const repo of await options.github.app.listInstallationRepositories(
+                installationId,
+              )) {
+                if (seen.has(repo.fullName)) continue
+                seen.add(repo.fullName)
+                repos.push({ fullName: repo.fullName, installationId })
+              }
             }
-
-            // Installed, but no installation can see a repo for this site yet. Send them to add it.
-            return { url: `https://github.com/settings/installations/${installationIds[0]}` }
+            return {
+              mode: 'pick' as const,
+              repos,
+              // Where the user grants access to a repo the App cannot see yet.
+              manageUrl: `https://github.com/settings/installations/${installationIds[0]}`,
+            }
           }
 
           const state = signInstallState({
@@ -843,9 +839,70 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           const url =
             `https://github.com/apps/${options.github.slug}/installations/select_target` +
             `?state=${encodeURIComponent(state)}`
-          return { url }
+          return { mode: 'install' as const, url }
         },
       )
+
+    /**
+     * Bind a repository the App can already see to a site the caller owns. The picker sends the
+     * chosen repo here. We re-list the tenant's installations and confirm the App genuinely has
+     * access to that repo before binding, so a caller cannot name a repository the App cannot
+     * touch. A site that is not the caller's is a 404, never a 403.
+     */
+    protectedRoutes.withTypeProvider<ZodTypeProvider>().post(
+      '/sites/:id/repo',
+      {
+        schema: {
+          params: uuidParam,
+          body: z.object({ repoFullName: z.string().min(1) }),
+        },
+      },
+      async (request, reply) => {
+        if (!options.github) {
+          return reply
+            .status(503)
+            .send({ error: 'Service Unavailable', message: 'GitHub is not configured.' })
+        }
+
+        const [site] = await withTenant(db, request.tenantId, (tx) =>
+          tx.select({ id: sites.id }).from(sites).where(eq(sites.id, request.params.id)).limit(1),
+        )
+        if (!site) return notFound(reply)
+
+        const installedRows = await withTenant(db, request.tenantId, (tx) =>
+          tx
+            .selectDistinct({ installationId: sites.githubInstallationId })
+            .from(sites)
+            .where(
+              and(eq(sites.tenantId, request.tenantId), isNotNull(sites.githubInstallationId)),
+            ),
+        )
+        const installationIds = installedRows
+          .map((row) => row.installationId)
+          .filter((id): id is number => id !== null)
+
+        for (const installationId of installationIds) {
+          const repos = await options.github.app.listInstallationRepositories(installationId)
+          if (repos.some((repo) => repo.fullName === request.body.repoFullName)) {
+            await withTenant(db, request.tenantId, (tx) =>
+              tx
+                .update(sites)
+                .set({
+                  repoFullName: request.body.repoFullName,
+                  githubInstallationId: installationId,
+                })
+                .where(eq(sites.id, request.params.id)),
+            )
+            return { repoFullName: request.body.repoFullName }
+          }
+        }
+
+        return reply.status(409).send({
+          error: 'Conflict',
+          message: 'The app cannot access that repository. Grant it access on GitHub, then retry.',
+        })
+      },
+    )
   })
 
   return app

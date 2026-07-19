@@ -666,14 +666,14 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
 
     // From here the tenant already has an installation (set by the demo-path test above), so a
-    // second site must reuse it rather than send the user back through an install that would drop
-    // our state and look cancelled.
+    // second site must not re-install (which would drop our state and look cancelled): it offers
+    // the repositories the app can see, and the user picks one.
 
-    it('binds a second site straight from the existing installation when a repo matches', async () => {
+    it('offers a repo picker for a second site once the app is installed', async () => {
       const secondSiteId = await withTenant(db, tenantId, async (tx) => {
         const [row] = await tx
           .insert(sites)
-          .values({ tenantId, url: 'https://owned.example.org' })
+          .values({ tenantId, url: 'https://second.example.com' })
           .returning()
         return row!.id
       })
@@ -681,37 +681,57 @@ describe.skipIf(!shouldRun)('the API', () => {
       const res = await postJson('/connections/github', { siteId: secondSiteId }, token)
 
       expect(res.statusCode).toBe(200)
-      // No install round trip: it connects here and sends the browser back to the dashboard.
-      expect(res.json().url).toContain('/dashboard?github=connected')
+      const body = res.json()
+      expect(body.mode).toBe('pick')
+      expect(body.repos).toContainEqual({ fullName: 'octo/owned', installationId: INSTALLATION_ID })
+      expect(body.manageUrl).toContain(`installations/${INSTALLATION_ID}`)
 
+      // The picker does not bind anything on its own; a repo is bound by the choose step below.
       const site = await withTenant(db, tenantId, async (tx) => {
         const [row] = await tx.select().from(sites).where(eq(sites.id, secondSiteId)).limit(1)
         return row
       })
-      expect(site?.githubInstallationId).toBe(INSTALLATION_ID)
-      expect(site?.repoFullName).toBe('octo/owned')
+      expect(site?.repoFullName).toBeNull()
     })
 
-    it('sends the user to grant the repo when the installation cannot see one for the site', async () => {
-      const unmatchedSiteId = await withTenant(db, tenantId, async (tx) => {
+    it('binds a repo the user picked via POST /sites/:id/repo', async () => {
+      const pickSiteId = await withTenant(db, tenantId, async (tx) => {
         const [row] = await tx
           .insert(sites)
-          .values({ tenantId, url: 'https://nomatch.example.com' })
+          .values({ tenantId, url: 'https://pick.example.com' })
           .returning()
         return row!.id
       })
 
-      const res = await postJson('/connections/github', { siteId: unmatchedSiteId }, token)
+      const res = await postJson(`/sites/${pickSiteId}/repo`, { repoFullName: 'octo/owned' }, token)
 
       expect(res.statusCode).toBe(200)
-      expect(res.json().url).toBe(`https://github.com/settings/installations/${INSTALLATION_ID}`)
+      expect(res.json()).toEqual({ repoFullName: 'octo/owned' })
 
-      // Nothing is bound: we never guess a repo onto a site.
       const site = await withTenant(db, tenantId, async (tx) => {
-        const [row] = await tx.select().from(sites).where(eq(sites.id, unmatchedSiteId)).limit(1)
+        const [row] = await tx.select().from(sites).where(eq(sites.id, pickSiteId)).limit(1)
         return row
       })
-      expect(site?.repoFullName).toBeNull()
+      expect(site?.repoFullName).toBe('octo/owned')
+      expect(site?.githubInstallationId).toBe(INSTALLATION_ID)
+    })
+
+    it('refuses to bind a repo the app cannot access, with a 409', async () => {
+      const res = await postJson(
+        `/sites/${siteId}/repo`,
+        { repoFullName: 'octo/not-granted' },
+        token,
+      )
+      expect(res.statusCode).toBe(409)
+    })
+
+    it('gives another tenant a 404 when binding a repo to a site that is not theirs', async () => {
+      const res = await postJson(
+        `/sites/${siteId}/repo`,
+        { repoFullName: 'octo/owned' },
+        otherToken,
+      )
+      expect(res.statusCode).toBe(404)
     })
 
     it('turns away a webhook with a bad signature before reading it', async () => {

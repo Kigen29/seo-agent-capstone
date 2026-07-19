@@ -72,6 +72,16 @@ export interface Audit {
   findings: (Finding & { rowId: string })[]
 }
 
+/** A repository the connected GitHub App can see, for the picker. */
+export interface PickableRepo {
+  fullName: string
+  installationId: number
+}
+
+/** The two ways connecting a repo can begin: a fresh install, or a pick from an existing one. */
+export type ConnectRepoResult =
+  { mode: 'install'; url: string } | { mode: 'pick'; repos: PickableRepo[]; manageUrl: string }
+
 export interface ApiClientOptions {
   baseUrl: string
   token: string
@@ -197,16 +207,25 @@ export function createApiClient(options: ApiClientOptions) {
       (await request<{ url: string }>('/connections/google', { method: 'POST' })).url,
 
     /**
-     * Begin connecting a repository to a site. Returns the GitHub App install URL to send the
-     * browser to; after the user installs the App, GitHub redirects to the API's setup callback.
+     * Begin connecting a repository to a site.
+     *
+     * Two outcomes. When the App is not installed for this tenant yet, `install` carries the
+     * GitHub App install URL to send the browser to. When it is already installed, `pick` carries
+     * the repositories the App can see, so the user chooses one rather than re-installing (a
+     * second install would drop our signed state and look cancelled).
      */
     connectRepo: async (siteId: string) =>
-      (
-        await request<{ url: string }>('/connections/github', {
-          method: 'POST',
-          body: JSON.stringify({ siteId }),
-        })
-      ).url,
+      request<ConnectRepoResult>('/connections/github', {
+        method: 'POST',
+        body: JSON.stringify({ siteId }),
+      }),
+
+    /** Bind a repository the App can already see to a site. Used by the picker. */
+    setSiteRepo: async (siteId: string, repoFullName: string) =>
+      request<{ repoFullName: string }>(`/sites/${siteId}/repo`, {
+        method: 'POST',
+        body: JSON.stringify({ repoFullName }),
+      }),
 
     /**
      * Queue a Search Console auto-verification PR for a site. The worker creates the property,

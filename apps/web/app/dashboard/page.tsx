@@ -4,8 +4,9 @@ import { GoogleConnection } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { connectRepo, startAudit, verifySite } from './actions'
+import { startAudit, verifySite } from './actions'
 import { AddSite } from './add-site'
+import { ConnectRepo } from './connect-repo'
 
 export const dynamic = 'force-dynamic'
 
@@ -123,12 +124,7 @@ export default async function Dashboard({
                       </Link>
                     )}
 
-                    <form action={connectRepo}>
-                      <input type="hidden" name="siteId" value={site.id} />
-                      <button type="submit" className="btn btn-secondary">
-                        {site.repoFullName ? 'Reconnect repo' : 'Connect repo'}
-                      </button>
-                    </form>
+                    <ConnectRepo siteId={site.id} repoFullName={site.repoFullName ?? null} />
 
                     {site.repoFullName &&
                       connections.google.connected &&
