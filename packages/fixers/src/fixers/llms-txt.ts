@@ -2,6 +2,7 @@ import type { Finding, Framework } from '@seo/core'
 import type { FixContext, Fixer, FixResult } from '../engine.js'
 import { headStrategyFor, type ReadRepoFile } from '../framework/detect.js'
 import { HEAD_FILES } from '../head/inject.js'
+import { ROBOTS_FILES } from '../root-files.js'
 
 /**
  * AGENT-001: the site has no llms.txt.
@@ -55,7 +56,7 @@ function staticDirFor(framework: Framework): string {
 
 /** The path to write llms.txt to: beside an existing robots.txt, else the framework's static dir. */
 async function targetPath(framework: Framework, read: ReadRepoFile): Promise<string> {
-  for (const robots of ['public/robots.txt', 'static/robots.txt', 'robots.txt']) {
+  for (const robots of ROBOTS_FILES) {
     if ((await read(robots)) !== null) return robots.replace(/robots\.txt$/, 'llms.txt')
   }
   return `${staticDirFor(framework)}llms.txt`
