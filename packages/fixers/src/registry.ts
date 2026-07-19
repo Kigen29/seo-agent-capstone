@@ -1,5 +1,7 @@
 import { FixerRegistry } from './engine.js'
+import { UnblockAiCrawlersFixer } from './fixers/ai-crawlers.js'
 import { CanonicalRedirectFixer } from './fixers/canonical.js'
+import { RemoveNoindexFixer } from './fixers/noindex.js'
 
 /**
  * The built-in fixers, assembled.
@@ -9,5 +11,9 @@ import { CanonicalRedirectFixer } from './fixers/canonical.js'
  * registered against its rule; the registry picks the one whose `canFix` accepts a given finding.
  */
 export function createFixerRegistry(): FixerRegistry {
-  return new FixerRegistry().register(new CanonicalRedirectFixer())
+  return new FixerRegistry().register(
+    new UnblockAiCrawlersFixer(),
+    new CanonicalRedirectFixer(),
+    new RemoveNoindexFixer(),
+  )
 }
