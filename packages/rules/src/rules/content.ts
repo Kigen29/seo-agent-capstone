@@ -232,6 +232,48 @@ export const TECH_019: Rule = {
       }),
 }
 
+/**
+ * TECH-021: the homepage has no meta description.
+ *
+ * Scoped to the homepage on purpose. A description missing on one deep page is minor and flagging
+ * every one buries the user; the homepage is the page most often shown in results and the one whose
+ * snippet Google is most likely to write for you when you leave it blank. It is also the case a
+ * fixer can resolve with a single, reviewable head edit, which keeps the finding honest about being
+ * fixable. Content, not a ranking factor: a good description lifts clickthrough, not position, and
+ * the impact says so.
+ */
+export const TECH_021: Rule = {
+  id: 'TECH-021',
+  axis: 'content',
+  severity: 'low',
+  estimatedEffort: 'trivial',
+  fixable: true,
+  description: 'The homepage has no meta description, so Google writes the search snippet for you.',
+
+  evaluate: (context) => {
+    const seed = normaliseUrl(context.seed) ?? context.seed
+    const home = indexableHtmlPages(context.pages).find(
+      (page) => (normaliseUrl(page.finalUrl) ?? page.finalUrl) === seed,
+    )
+    if (!home || home.extract.metaDescription !== null) return []
+
+    return [
+      {
+        title: `${home.finalUrl} has no meta description`,
+        evidence: markupEvidence(home, 'meta[name="description"]', ''),
+        affectedUrls: [home.finalUrl],
+        confidence: 1,
+        estimatedImpact: 30,
+        falsification:
+          `Re-crawl ${home.finalUrl} and read meta[name="description"]. If it carries a non-empty ` +
+          'description, this was wrong. After the fix, the head has a description and Search Console ' +
+          'may use it as the result snippet, though Google still rewrites snippets per query, so ' +
+          'expect a clickthrough change at most, never a ranking one.',
+      },
+    ]
+  },
+}
+
 /** TECH-020: the heading hierarchy skips a level, e.g. h2 straight to h4. */
 export const TECH_020: Rule = {
   id: 'TECH-020',

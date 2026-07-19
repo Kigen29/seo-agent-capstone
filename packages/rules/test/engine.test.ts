@@ -4,8 +4,8 @@ import { ALL_RULES } from '../src/registry.js'
 import { context, html, page, u } from './context.js'
 
 describe('the rule registry', () => {
-  it('ships the twenty TECH rules the sprint asked for', () => {
-    expect(ALL_RULES).toHaveLength(20)
+  it('ships the twenty-one TECH rules the sprint asked for', () => {
+    expect(ALL_RULES).toHaveLength(21)
   })
 
   it('has no duplicate rule ids', () => {
@@ -78,7 +78,7 @@ describe('runRules', () => {
           path: '/',
           html: html.doc(
             '<h1>Home</h1><h2>About</h2><p>Real words on a real page, enough of them to be a page.</p><a href="/a">A</a>',
-            `<title>Home</title><link rel="canonical" href="${u('/')}">`,
+            `<title>Home</title><meta name="description" content="A clean homepage with a real description."><link rel="canonical" href="${u('/')}">`,
           ),
         }),
         page({

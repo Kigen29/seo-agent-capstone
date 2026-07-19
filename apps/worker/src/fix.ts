@@ -1,9 +1,11 @@
+import { generateContentFix } from '@seo/agent'
 import { getFinding } from '@seo/audit'
 import { findings, sites, withTenant, type Database } from '@seo/db'
 import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
 import type { FixJob } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv, GitHubProvider } from '@seo/vcs'
 import { eq } from 'drizzle-orm'
+import { createWorkerLlm } from './llm.js'
 
 /**
  * Open a pull request that fixes one finding.
@@ -19,6 +21,7 @@ import { eq } from 'drizzle-orm'
  * can act on rather than a stack trace.
  */
 const registry = createFixerRegistry()
+const llm = createWorkerLlm()
 
 export async function runFix(db: Database, job: FixJob): Promise<void> {
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
@@ -42,7 +45,17 @@ export async function runFix(db: Database, job: FixJob): Promise<void> {
   const read: ReadRepoFile = async (path) => (await provider.getFile(repo, path))?.content ?? null
 
   const framework = await detectFramework(read)
-  const fix = await registry.generate({ finding, framework, read })
+
+  // Deterministic first (ADR-0001): a registered fixer transforms structure it parsed. Only when
+  // none applies does the LLM content fixer get a turn, and it makes exactly one schema-validated
+  // call for text and nothing more. If the LLM chain is unconfigured it returns null, and this
+  // falls through to the honest "no fix" error rather than opening an empty PR.
+  const fix =
+    (await registry.generate({ finding, framework, read })) ??
+    (await generateContentFix(
+      { finding, framework, read, siteUrl: site.url },
+      { llm, tenantId: job.tenantId },
+    ))
   if (!fix) {
     throw new Error(
       'No safe automatic fix could be generated for this finding. The code that produces the ' +

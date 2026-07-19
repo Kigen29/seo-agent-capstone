@@ -665,3 +665,38 @@ describe('TECH-019 and TECH-020: headings', () => {
     ).toEqual([])
   })
 })
+
+describe('TECH-021: the homepage has no meta description', () => {
+  const withDescription = html.doc(
+    '<h1>Home</h1><p>Body.</p>',
+    '<title>Home</title><meta name="description" content="A safari company in Nairobi.">',
+  )
+
+  it('fires when the homepage has no meta description', () => {
+    const findings = fire('TECH-021', context({ pages: [page({ path: '/' })] }))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/')])
+    expect(findings[0]?.fixable).toBe(true)
+  })
+
+  it('stays silent when the homepage already has one', () => {
+    expect(
+      fire('TECH-021', context({ pages: [page({ path: '/', html: withDescription })] })),
+    ).toEqual([])
+  })
+
+  it('only looks at the homepage, not a deep page missing a description', () => {
+    // A deep page with no description is not this rule's business; scoping to the seed keeps the
+    // finding focused and the fixer's single head edit honest.
+    expect(
+      fire(
+        'TECH-021',
+        context({
+          seed: u('/'),
+          pages: [page({ path: '/', html: withDescription }), page({ path: '/deep' })],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
