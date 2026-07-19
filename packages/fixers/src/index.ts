@@ -6,6 +6,8 @@ export type { Fixer, FixContext, FixResult, FileChange } from './engine.js'
 
 export { createFixerRegistry } from './registry.js'
 export { CanonicalRedirectFixer } from './fixers/canonical.js'
+export { RemoveNoindexFixer } from './fixers/noindex.js'
+export { UnblockAiCrawlersFixer } from './fixers/ai-crawlers.js'
 
 export {
   injectHeadHtml,
