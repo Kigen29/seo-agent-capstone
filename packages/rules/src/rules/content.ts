@@ -255,7 +255,13 @@ export const TECH_021: Rule = {
     const home = indexableHtmlPages(context.pages).find(
       (page) => (normaliseUrl(page.finalUrl) ?? page.finalUrl) === seed,
     )
-    if (!home || home.extract.metaDescription !== null) return []
+    if (!home) return []
+
+    // An empty or whitespace-only description is as good as absent: Google has nothing to show and
+    // writes the snippet itself. Treat `content=""` the same as a missing tag, which is what the
+    // "non-empty" wording in the falsification already promises.
+    const description = home.extract.metaDescription
+    if (description !== null && description.trim().length > 0) return []
 
     return [
       {

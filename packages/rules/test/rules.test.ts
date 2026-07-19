@@ -686,6 +686,18 @@ describe('TECH-021: the homepage has no meta description', () => {
     ).toEqual([])
   })
 
+  it('fires when the description is present but empty or whitespace', () => {
+    // content="" gives Google nothing to show, so it is no better than a missing tag.
+    const blank = html.doc(
+      '<h1>Home</h1>',
+      '<title>Home</title><meta name="description" content="   ">',
+    )
+    const findings = fire('TECH-021', context({ pages: [page({ path: '/', html: blank })] }))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/')])
+  })
+
   it('only looks at the homepage, not a deep page missing a description', () => {
     // A deep page with no description is not this rule's business; scoping to the seed keeps the
     // finding focused and the fixer's single head edit honest.
