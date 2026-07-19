@@ -37,7 +37,8 @@ export class LocalBusinessFixer implements Fixer {
     }
     if (url) block['url'] = url
     if (contact.telephone) block['telephone'] = contact.telephone
-    if (contact.address !== undefined) block['address'] = contact.address
+    // `!= null` guards both null and undefined, so a stray null address never lands in the block.
+    if (contact.address != null) block['address'] = contact.address
 
     const script = `<script type="application/ld+json">\n${JSON.stringify(block, null, 2)}\n</script>`
     const change = await injectHeadHtml(ctx.framework, ctx.read, [script])

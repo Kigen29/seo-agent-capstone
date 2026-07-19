@@ -137,7 +137,8 @@ function isLocalBusiness(node: JsonObject): boolean {
 
 /** The contact details on a node, or null when it carries neither an address nor a phone. */
 function contactOf(node: JsonObject): Contact | null {
-  const hasAddress = node['address'] !== undefined && typeof node['address'] === 'object'
+  // `typeof null === 'object'`, so a node with `address: null` must not read as having an address.
+  const hasAddress = node['address'] !== null && typeof node['address'] === 'object'
   const telephone = typeof node['telephone'] === 'string' ? node['telephone'] : undefined
   if (!hasAddress && telephone === undefined) return null
 

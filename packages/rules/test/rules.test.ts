@@ -817,6 +817,17 @@ describe('LOCAL-001: contact details but no LocalBusiness schema', () => {
     expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: saas })] }))).toEqual([])
   })
 
+  it('does not treat a null address as contact data', () => {
+    // typeof null === 'object', so a node with address: null must not read as evidently local.
+    const nullAddress = html.doc(
+      '<h1>SaaS</h1>',
+      ldScript({ '@type': 'Organization', address: null }),
+    )
+    expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: nullAddress })] }))).toEqual(
+      [],
+    )
+  })
+
   it('reads a LocalBusiness inside an @graph container', () => {
     const graph = html.doc(
       '<h1>Acme</h1>',
