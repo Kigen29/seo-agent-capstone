@@ -1,6 +1,6 @@
 'use server'
 
-import { ApiRequestError } from '@seo/api-client'
+import { ApiRequestError, type ConnectRepoResult } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { handleApiError } from '@/lib/api-error'
@@ -88,27 +88,53 @@ export async function connectGoogle(): Promise<void> {
 }
 
 /**
- * Start connecting a repository to a site. Fetches the GitHub App install URL from the API
- * (whose state is signed for this tenant and this site) and redirects the browser to GitHub.
- * Like the Google flow, this runs on the server, and GitHub redirects back to the API's setup
- * callback, not here, so no token or install detail passes through the browser.
+ * What the picker component gets back when it begins connecting a repo: the API's own result
+ * (install or pick), reused so the shape cannot drift, plus an error branch for a failed call.
  */
-export async function connectRepo(formData: FormData): Promise<void> {
-  const siteId = String(formData.get('siteId') ?? '')
-  if (!siteId) throw new Error('connectRepo called without a siteId; the hidden field is missing.')
+export type BeginConnectRepo = ConnectRepoResult | { mode: 'error'; message: string }
 
+/**
+ * Begin connecting a repository to a site.
+ *
+ * Returns rather than redirects, because the outcome is a fork the client has to handle: a fresh
+ * install (send the browser to GitHub) or a pick (show the accessible repos). The token stays in
+ * the httpOnly cookie; only the install URL or the repo names cross to the browser.
+ */
+export async function beginConnectRepo(siteId: string): Promise<BeginConnectRepo> {
   const api = await getClient()
   if (!api) redirect('/login')
 
-  let url: string
   try {
-    url = await api.connectRepo(siteId)
+    return await api.connectRepo(siteId)
   } catch (error) {
     handleApiError(error)
-    redirect('/dashboard?github=unavailable')
+    return {
+      mode: 'error',
+      message: 'Could not reach GitHub. It may be waking up; try again shortly.',
+    }
+  }
+}
+
+/** Bind a repository the user picked to a site. */
+export async function chooseRepo(
+  siteId: string,
+  repoFullName: string,
+): Promise<{ ok: true } | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  try {
+    await api.setSiteRepo(siteId, repoFullName)
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 409) {
+      return { error: 'The app cannot access that repository. Grant it on GitHub, then retry.' }
+    }
+    handleApiError(error)
+    return { error: 'Could not connect the repository. Try again shortly.' }
   }
 
-  redirect(url)
+  revalidatePath('/dashboard')
+  return { ok: true }
 }
 
 /**
