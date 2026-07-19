@@ -18,9 +18,6 @@ const NOT_MEASURED: Partial<Record<Axis, string>> = {
     'Not measured. Referring domains and branded mentions need a backlink source. Mentions ' +
     'correlate far more strongly with AI visibility than links do, so both get measured, ' +
     'not just links.',
-  local:
-    'Not measured. Needs the Google Business Profile connector. Only meaningful for sites ' +
-    'with a physical presence.',
 }
 
 /**
@@ -39,6 +36,10 @@ const THIN_COVERAGE: Partial<Record<Axis, string>> = {
     'Partially measured. We check for llms.txt, the file that helps AI agents navigate the site ' +
     '(and which Google Search ignores). The accessibility tree and Lighthouse Agentic Browsing ' +
     'checks are not built yet.',
+  local:
+    'Partially measured. We check the homepage for LocalBusiness structured data when the site ' +
+    'shows contact details. Google Business Profile, NAP consistency across external directories, ' +
+    'and the geo-grid are not built yet, and this axis only matters for a physical presence.',
 }
 
 /**

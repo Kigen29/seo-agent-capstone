@@ -767,3 +767,78 @@ describe('AGENT-001: the site has no llms.txt', () => {
     expect(urls.indexOf(u('/popular'))).toBeLessThan(urls.indexOf(u('/quiet')))
   })
 })
+
+describe('LOCAL-001: contact details but no LocalBusiness schema', () => {
+  const ldScript = (data: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify(data)}</script>`
+
+  const orgWithAddress = html.doc(
+    '<h1>Acme Cafe</h1>',
+    ldScript({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Acme Cafe',
+      address: { '@type': 'PostalAddress', streetAddress: '1 Main St', addressLocality: 'Nairobi' },
+      telephone: '+254700000000',
+    }),
+  )
+
+  it('fires when the homepage shows an address but no LocalBusiness type', () => {
+    const findings = fire(
+      'LOCAL-001',
+      context({ pages: [page({ path: '/', html: orgWithAddress })] }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.axis).toBe('local')
+    expect(findings[0]?.fixable).toBe(true)
+    // The evidence carries the contact data the fixer will re-type as a LocalBusiness.
+    const contact = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(contact.name).toBe('Acme Cafe')
+    expect(contact.telephone).toBe('+254700000000')
+  })
+
+  it('stays silent when a LocalBusiness subtype is already present', () => {
+    const restaurant = html.doc(
+      '<h1>Acme</h1>',
+      ldScript({
+        '@type': 'Restaurant',
+        name: 'Acme',
+        address: { '@type': 'PostalAddress', streetAddress: '1 Main St' },
+      }),
+    )
+    expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: restaurant })] }))).toEqual(
+      [],
+    )
+  })
+
+  it('stays silent when the site shows no contact data, so it is not evidently local', () => {
+    const saas = html.doc('<h1>SaaS</h1>', ldScript({ '@type': 'WebSite', name: 'SaaS' }))
+    expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: saas })] }))).toEqual([])
+  })
+
+  it('does not treat a null address as contact data', () => {
+    // typeof null === 'object', so a node with address: null must not read as evidently local.
+    const nullAddress = html.doc(
+      '<h1>SaaS</h1>',
+      ldScript({ '@type': 'Organization', address: null }),
+    )
+    expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: nullAddress })] }))).toEqual(
+      [],
+    )
+  })
+
+  it('reads a LocalBusiness inside an @graph container', () => {
+    const graph = html.doc(
+      '<h1>Acme</h1>',
+      ldScript({
+        '@context': 'https://schema.org',
+        '@graph': [
+          { '@type': 'WebSite' },
+          { '@type': 'LocalBusiness', name: 'Acme', telephone: '1' },
+        ],
+      }),
+    )
+    expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: graph })] }))).toEqual([])
+  })
+})
