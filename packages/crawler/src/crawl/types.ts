@@ -62,6 +62,9 @@ export interface CrawlResult {
   /** Which AI crawlers this robots.txt lets in. Derived from `robots`; TECH-002 reads it. */
   posture: AiCrawlerPosture
 
+  /** The site's llms.txt, the root file that helps AI agents navigate it, or null if absent. */
+  llmsTxt: string | null
+
   /** Every URL the sitemap declared, whether or not we reached it. */
   sitemapUrls: string[]
 

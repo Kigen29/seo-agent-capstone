@@ -712,3 +712,35 @@ describe('TECH-021: the homepage has no meta description', () => {
     ).toEqual([])
   })
 })
+
+describe('AGENT-001: the site has no llms.txt', () => {
+  it('fires when there is no llms.txt', () => {
+    const findings = fire('AGENT-001', context({ pages: [page({ path: '/' })], llmsTxt: null }))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.axis).toBe('agent_readiness')
+    expect(findings[0]?.fixable).toBe(true)
+    expect(findings[0]?.affectedUrls[0]).toBe(u('/'))
+  })
+
+  it('states honestly that llms.txt is not a Google ranking factor (rule 8)', () => {
+    const findings = fire('AGENT-001', context({ pages: [page({ path: '/' })], llmsTxt: null }))
+    // The disclaimer must live in the finding itself, so the UI cannot drop it.
+    expect(findings[0]?.falsification).toMatch(/Google Search ignores it/i)
+  })
+
+  it('stays silent when a non-empty llms.txt is present', () => {
+    expect(
+      fire(
+        'AGENT-001',
+        context({ pages: [page({ path: '/' })], llmsTxt: '# Site\n\n> A site.\n\n- [Home](/)' }),
+      ),
+    ).toEqual([])
+  })
+
+  it('treats an empty or whitespace-only llms.txt as missing', () => {
+    expect(
+      fire('AGENT-001', context({ pages: [page({ path: '/' })], llmsTxt: '   ' })),
+    ).toHaveLength(1)
+  })
+})

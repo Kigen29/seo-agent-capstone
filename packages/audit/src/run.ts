@@ -178,6 +178,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       pages: result.pages,
       robots: result.robots,
       posture: result.posture,
+      llmsTxt: result.llmsTxt,
       sitemapUrls: result.sitemapUrls,
       graph: buildLinkGraph(toGraphPages(result.pages), { seed }),
       skipped: result.skipped,

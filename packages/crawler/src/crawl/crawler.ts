@@ -95,6 +95,24 @@ async function fetchRobots(context: BrowserContext, seed: string): Promise<Robot
   }
 }
 
+/**
+ * Fetch a root file (llms.txt) as text, or null when it is absent. The same request path as
+ * robots.txt: it is a well-known root file, so it is fetched once up front rather than discovered
+ * by crawling. A non-2xx or an error is a plain "not there", which is exactly what the
+ * agent-readiness rule needs to know.
+ */
+async function fetchLlmsTxt(context: BrowserContext, seed: string): Promise<string | null> {
+  try {
+    const response = await context.request.get(new URL('/llms.txt', seed).toString(), {
+      timeout: 15_000,
+    })
+    if (!response.ok()) return null
+    return await response.text()
+  } catch {
+    return null
+  }
+}
+
 async function crawlOne(
   page: Page,
   url: string,
@@ -195,6 +213,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
     const context = await browser.newContext({ userAgent })
 
     const robots = respectRobots ? await fetchRobots(context, options.seed) : ALLOW_ALL
+    const llmsTxt = await fetchLlmsTxt(context, options.seed)
 
     /**
      * Crawl-delay is the site telling us how fast it can stand to be crawled. Honour it
@@ -299,6 +318,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
       skipped,
       robots,
       posture: evaluateAiCrawlerPosture(robots),
+      llmsTxt,
       sitemapUrls: [...fromSitemap],
       sitemapOnlyUrls: [...fromSitemap].filter((url) => !linkedTo.has(url) && url !== seedUrl),
       state: frontier.toState(),

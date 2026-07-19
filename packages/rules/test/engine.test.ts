@@ -4,8 +4,8 @@ import { ALL_RULES } from '../src/registry.js'
 import { context, html, page, u } from './context.js'
 
 describe('the rule registry', () => {
-  it('ships the twenty-one TECH rules the sprint asked for', () => {
-    expect(ALL_RULES).toHaveLength(21)
+  it('ships the twenty-two rules the sprint asked for', () => {
+    expect(ALL_RULES).toHaveLength(22)
   })
 
   it('has no duplicate rule ids', () => {
@@ -43,7 +43,7 @@ describe('runRules', () => {
     for (const finding of findings) {
       expect(finding.falsification.length).toBeGreaterThan(0)
       expect(finding.evidence).toBeTruthy()
-      expect(finding.id).toMatch(/^TECH-\d{3}#\d+$/)
+      expect(finding.id).toMatch(/^[A-Z]+-\d{3}#\d+$/)
       expect(finding.siteId).toBe('site_1')
       expect(finding.status).toBe('open')
     }
@@ -91,6 +91,7 @@ describe('runRules', () => {
       ],
       robotsTxt: `User-agent: *\nAllow: /\nSitemap: ${u('/sitemap.xml')}`,
       sitemapUrls: [u('/'), u('/a')],
+      llmsTxt: `# Clean site\n\n> A clean site.\n\n## Pages\n\n- [Home](${u('/')})`,
     })
 
     expect(runRules(clean)).toEqual([])

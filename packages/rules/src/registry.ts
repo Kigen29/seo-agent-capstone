@@ -1,3 +1,4 @@
+import { AGENT_001 } from './rules/agent.js'
 import {
   TECH_015,
   TECH_016,
@@ -45,6 +46,7 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_019,
   TECH_020,
   TECH_021,
+  AGENT_001,
 ]
 
 export const ruleById = (id: string): Rule | undefined => ALL_RULES.find((rule) => rule.id === id)

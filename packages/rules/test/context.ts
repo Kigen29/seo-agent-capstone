@@ -57,6 +57,8 @@ export interface ContextSpec {
   robotsTxt?: string
   sitemapUrls?: string[]
   seed?: string
+  /** The site's llms.txt, or null (the default) when it has none. */
+  llmsTxt?: string | null
 }
 
 /**
@@ -74,6 +76,7 @@ export const context = (spec: ContextSpec): RuleContext => {
     pages: spec.pages,
     robots,
     posture: evaluateAiCrawlerPosture(robots),
+    llmsTxt: spec.llmsTxt ?? null,
     sitemapUrls: spec.sitemapUrls ?? [],
     graph: buildLinkGraph(toGraphPages(spec.pages), { seed }),
     skipped: [],
