@@ -1,7 +1,15 @@
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
-import { createQueue, drainAudits, drainConfirmVerify, drainFix, drainVerify } from '@seo/queue'
+import {
+  createQueue,
+  drainAudits,
+  drainConfirmVerify,
+  drainFix,
+  drainVerify,
+  drainVerifyFix,
+} from '@seo/queue'
 import { runFix } from './fix.js'
+import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
 /**
@@ -44,6 +52,14 @@ try {
   console.log('worker: draining the fix queue')
   const fixed = await drainFix(queue, (job) => runFix(db, job))
   console.log(`worker: fixes done. ${fixed.completed} completed, ${fixed.failed} failed.`)
+
+  // Then verify any merged fixes: a re-audit per site, reconciling every finding awaiting
+  // verification against the fresh crawl. A crawl failure here fails only its own job.
+  console.log('worker: draining the verify-fix queue')
+  const verifiedFixes = await drainVerifyFix(queue, (job) => runVerifyFix(db, job))
+  console.log(
+    `worker: fix verification done. ${verifiedFixes.completed} completed, ${verifiedFixes.failed} failed.`,
+  )
 
   // Then drain any verification-PR jobs. Same runner, same drain-and-exit shape; a failure here
   // (a revoked token, an unreachable repo) fails only its own job.

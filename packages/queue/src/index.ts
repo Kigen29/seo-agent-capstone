@@ -18,6 +18,7 @@ export const AUDIT_QUEUE = 'audit'
 export const VERIFY_QUEUE = 'verify'
 export const CONFIRM_VERIFY_QUEUE = 'confirm-verify'
 export const FIX_QUEUE = 'fix'
+export const VERIFY_FIX_QUEUE = 'verify-fix'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -60,6 +61,16 @@ export interface FixJob {
   findingRowId: string
 }
 
+/**
+ * What a worker needs to verify a site's merged fixes: just the site. The job re-audits the
+ * site and reconciles every finding awaiting verification against the fresh crawl, so one job
+ * verifies all of a site's merged fixes at once rather than one per finding.
+ */
+export interface VerifyFixJob {
+  tenantId: string
+  siteId: string
+}
+
 export type Queue = PgBoss
 
 /**
@@ -80,6 +91,7 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
   await boss.createQueue(VERIFY_QUEUE)
   await boss.createQueue(CONFIRM_VERIFY_QUEUE)
   await boss.createQueue(FIX_QUEUE)
+  await boss.createQueue(VERIFY_FIX_QUEUE)
   return boss
 }
 
@@ -156,6 +168,23 @@ export async function enqueueFix(queue: Queue, job: FixJob): Promise<string | nu
 }
 
 /**
+ * Put a verify-fix job on the queue, after a fix PR is merged.
+ *
+ * A re-audit is the heaviest thing the worker does, so the retry policy is generous but the
+ * expiry is long enough for a full crawl: verification only means something once the merged
+ * change is deployed, and a deploy can lag the merge. `singletonKey` on the site collapses a
+ * burst of merges into one re-audit that reconciles every one of the site's merged findings.
+ */
+export async function enqueueVerifyFix(queue: Queue, job: VerifyFixJob): Promise<string | null> {
+  return queue.send(VERIFY_FIX_QUEUE, job, {
+    retryLimit: 3,
+    retryDelay: 60,
+    expireInSeconds: 30 * 60,
+    singletonKey: job.siteId,
+  })
+}
+
+/**
  * Drain a queue: run every waiting job, then return.
  *
  * A drain-and-exit loop, not a long-lived subscription, because the worker is a GitHub Actions
@@ -224,4 +253,12 @@ export function drainFix(
   handler: (job: FixJob) => Promise<void>,
 ): Promise<{ completed: number; failed: number }> {
   return drain(queue, FIX_QUEUE, handler)
+}
+
+/** Drain the verify-fix queue. See {@link drain}. */
+export function drainVerifyFix(
+  queue: Queue,
+  handler: (job: VerifyFixJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, VERIFY_FIX_QUEUE, handler)
 }

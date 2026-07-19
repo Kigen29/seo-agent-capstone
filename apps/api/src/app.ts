@@ -12,12 +12,13 @@ import {
   asOwner,
   audits,
   createDb,
+  findings,
   oauthCredentials,
   sites,
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import {
   SIGNATURE_HEADER,
   verifyWebhookSignature,
@@ -60,6 +61,11 @@ export interface AppOptions {
    * `POST /findings/:id/fix` reports 503 rather than accepting work nothing will run.
    */
   enqueueFix?: (job: FixJob) => Promise<unknown>
+  /**
+   * Puts a verify-fix job on the queue when a fix PR is merged. Injected like the others; absent
+   * means the webhook still marks the finding merged but does not auto-verify it.
+   */
+  enqueueVerifyFix?: (job: VerifyFixJob) => Promise<unknown>
   /**
    * Google OAuth. Injected so the connection routes can be tested with a mocked token
    * endpoint, and so the app never reads process.env directly. Absent means the routes report
@@ -370,6 +376,45 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
                 .update(sites)
                 .set({ gscVerificationStatus: 'none', gscVerificationPrUrl: null })
                 .where(eq(sites.id, siteId)),
+            )
+          }
+        }
+
+        // A fix PR closing drives its finding's status. The finding is matched by the PR URL we
+        // stored when we opened it, which is exact where a branch name is not (a rule key is only
+        // unique within an audit). asOwner because a webhook carries no tenant context.
+        //
+        //   merged -> mark merged, and enqueue a re-audit that verifies whether the fix held.
+        //   closed -> if a PR was open, reset to open so the finding can be fixed again.
+        const prUrl = payload.pull_request?.html_url
+        if (prUrl) {
+          const [finding] = await asOwner(db, (tx) =>
+            tx
+              .select({
+                id: findings.id,
+                tenantId: findings.tenantId,
+                siteId: findings.siteId,
+                status: findings.status,
+              })
+              .from(findings)
+              .where(eq(findings.prUrl, prUrl))
+              .limit(1),
+          )
+
+          if (finding && payload.pull_request?.merged) {
+            await asOwner(db, (tx) =>
+              tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id)),
+            )
+            if (options.enqueueVerifyFix) {
+              await options.enqueueVerifyFix({ tenantId: finding.tenantId, siteId: finding.siteId })
+            }
+          } else if (finding && finding.status === 'pr_open') {
+            // Closed without merging: undo, so the finding can be fixed again cleanly.
+            await asOwner(db, (tx) =>
+              tx
+                .update(findings)
+                .set({ status: 'open', prUrl: null })
+                .where(eq(findings.id, finding.id)),
             )
           }
         }
@@ -787,7 +832,7 @@ function chooseRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRe
 interface GithubWebhookPayload {
   action?: string
   installation?: { id?: number }
-  pull_request?: { merged?: boolean; head?: { ref?: string } }
+  pull_request?: { merged?: boolean; head?: { ref?: string }; html_url?: string }
 }
 
 /**

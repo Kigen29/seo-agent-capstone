@@ -5,6 +5,7 @@ import {
   enqueueConfirmVerify,
   enqueueFix,
   enqueueVerify,
+  enqueueVerifyFix,
 } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
@@ -87,6 +88,10 @@ const app = await buildApp({
   },
   enqueueFix: async (job) => {
     await enqueueFix(queue, job)
+    await dispatch()
+  },
+  enqueueVerifyFix: async (job) => {
+    await enqueueVerifyFix(queue, job)
     await dispatch()
   },
 })

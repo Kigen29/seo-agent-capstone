@@ -4,4 +4,7 @@ export type { AuditResult, RunAuditOptions } from './run.js'
 export { getAudit, getFinding, listSites, listFindings } from './queries.js'
 export type { AuditDetail, SiteSummary, FindingListItem } from './queries.js'
 
+export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'
+export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
+
 export { E2E, seedE2E } from './seed.js'
