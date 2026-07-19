@@ -142,6 +142,9 @@ importers:
       '@seo/fixers':
         specifier: workspace:*
         version: link:../../packages/fixers
+      '@seo/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@seo/queue':
         specifier: workspace:*
         version: link:../../packages/queue
@@ -173,6 +176,9 @@ importers:
       '@seo/vcs':
         specifier: workspace:*
         version: link:../vcs
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@seo/tsconfig':
         specifier: workspace:*

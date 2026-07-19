@@ -22,7 +22,8 @@
   "dependencies": {
     "@seo/core": "workspace:*",
     "@seo/fixers": "workspace:*",
-    "@seo/vcs": "workspace:*"
+    "@seo/vcs": "workspace:*",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

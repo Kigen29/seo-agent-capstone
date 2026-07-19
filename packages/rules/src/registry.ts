@@ -1,4 +1,12 @@
-import { TECH_015, TECH_016, TECH_017, TECH_018, TECH_019, TECH_020 } from './rules/content.js'
+import {
+  TECH_015,
+  TECH_016,
+  TECH_017,
+  TECH_018,
+  TECH_019,
+  TECH_020,
+  TECH_021,
+} from './rules/content.js'
 import { TECH_011, TECH_012 } from './rules/duplication.js'
 import { TECH_005, TECH_006, TECH_007 } from './rules/indexation.js'
 import { TECH_008, TECH_009, TECH_010 } from './rules/redirects.js'
@@ -36,6 +44,7 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_018,
   TECH_019,
   TECH_020,
+  TECH_021,
 ]
 
 export const ruleById = (id: string): Rule | undefined => ALL_RULES.find((rule) => rule.id === id)
