@@ -9,6 +9,7 @@ export { CanonicalRedirectFixer } from './fixers/canonical.js'
 export { RemoveNoindexFixer } from './fixers/noindex.js'
 export { UnblockAiCrawlersFixer } from './fixers/ai-crawlers.js'
 export { LlmsTxtFixer } from './fixers/llms-txt.js'
+export { LocalBusinessFixer } from './fixers/local-business.js'
 
 export {
   injectHeadHtml,

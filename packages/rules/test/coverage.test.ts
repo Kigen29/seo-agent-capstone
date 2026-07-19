@@ -23,12 +23,12 @@ describe('ruleCoverage', () => {
   it('reports zero checks on the axes with no data source connected', () => {
     const coverage = ruleCoverage()
 
-    // These are honest blanks, not failures. Performance needs CrUX field data, authority
-    // needs a backlink source, and local needs Google Business Profile. When any of those land,
-    // the axis stops being blank here with no change to this module, and this expectation is
-    // what will fail to tell us so. Agent readiness was one of these until AGENT-001 (llms.txt)
-    // landed, which is exactly the transition this test is here to catch.
-    for (const axis of ['performance', 'authority', 'local'] as const) {
+    // These are honest blanks, not failures. Performance needs CrUX field data and authority
+    // needs a backlink source. When either lands, the axis stops being blank here with no change
+    // to this module, and this expectation is what will fail to tell us so. Agent readiness and
+    // local were both in this list until their first rules (llms.txt, LocalBusiness) landed, which
+    // is exactly the transition this test is here to catch.
+    for (const axis of ['performance', 'authority'] as const) {
       expect(coverage[axis].checksRun).toBe(0)
     }
   })
@@ -39,6 +39,14 @@ describe('ruleCoverage', () => {
     const coverage = ruleCoverage()
     expect(coverage.agent_readiness.checksRun).toBeGreaterThanOrEqual(1)
     expect(coverage.agent_readiness.note).toMatch(/ignores it|Google Search/i)
+  })
+
+  it('now measures local, and is honest that it only matters for a physical presence', () => {
+    // The LocalBusiness rule flipped local from blank to partially measured. The note must keep
+    // the honesty: it is only meaningful for a business with a physical presence.
+    const coverage = ruleCoverage()
+    expect(coverage.local.checksRun).toBeGreaterThanOrEqual(1)
+    expect(coverage.local.note).toMatch(/physical presence/i)
   })
 
   it('says which missing data source is behind every unmeasured axis', () => {

@@ -116,10 +116,10 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
 
     // The unmeasured axes must survive the round trip as nulls. If jsonb or the schema ever
     // coerced them to 0 or 100, the dashboard would start lying about what we checked, and it
-    // would do it silently. Three, not four, since agent readiness is now measured by the
-    // llms.txt check (AGENT-001); performance, authority, and local remain unconnected.
+    // would do it silently. Two, not four: agent readiness (llms.txt) and local (LocalBusiness)
+    // are now measured, so only performance and authority remain unconnected.
     const unmeasured = audit?.scorecard?.axes.filter((a) => a.status === 'not_measured') ?? []
-    expect(unmeasured).toHaveLength(3)
+    expect(unmeasured).toHaveLength(2)
     for (const axis of unmeasured) expect(axis.score).toBeNull()
   })
 
