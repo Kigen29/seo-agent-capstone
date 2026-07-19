@@ -55,8 +55,8 @@ test('shows the eight axes, and leaves the four we did not measure blank', async
   await signIn(page)
   await page.goto(`/dashboard/audits/${AUDIT}`)
 
-  const measured = ['Crawl health', 'Content', 'Structure', 'AI visibility']
-  const blank = ['Performance', 'Authority', 'Local', 'Agent readiness']
+  const measured = ['Crawl health', 'Content', 'Structure', 'AI visibility', 'Agent readiness']
+  const blank = ['Performance', 'Authority', 'Local']
 
   for (const axis of [...measured, ...blank]) {
     await expect(page.getByText(axis, { exact: true })).toBeVisible()

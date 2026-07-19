@@ -15,6 +15,8 @@ export interface RuleContext {
   pages: CrawledPage[]
   robots: RobotsTxt
   posture: AiCrawlerPosture
+  /** The site's llms.txt, or null when it has none. */
+  llmsTxt: string | null
   /** URLs the sitemap declared, whether or not we reached them. */
   sitemapUrls: string[]
   graph: LinkGraph

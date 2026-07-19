@@ -24,12 +24,21 @@ describe('ruleCoverage', () => {
     const coverage = ruleCoverage()
 
     // These are honest blanks, not failures. Performance needs CrUX field data, authority
-    // needs a backlink source, local needs Google Business Profile, and the agent-readiness
-    // checks are not written. When any of those land, the axis stops being blank here with
-    // no change to this module, and this expectation is what will fail to tell us so.
-    for (const axis of ['performance', 'authority', 'local', 'agent_readiness'] as const) {
+    // needs a backlink source, and local needs Google Business Profile. When any of those land,
+    // the axis stops being blank here with no change to this module, and this expectation is
+    // what will fail to tell us so. Agent readiness was one of these until AGENT-001 (llms.txt)
+    // landed, which is exactly the transition this test is here to catch.
+    for (const axis of ['performance', 'authority', 'local'] as const) {
       expect(coverage[axis].checksRun).toBe(0)
     }
+  })
+
+  it('now measures agent readiness, and is honest that llms.txt is not a ranking factor', () => {
+    // The first agent-readiness rule (llms.txt) flipped this axis from blank to measured. The
+    // note must keep the rule-8 honesty: llms.txt helps agents, and Google Search ignores it.
+    const coverage = ruleCoverage()
+    expect(coverage.agent_readiness.checksRun).toBeGreaterThanOrEqual(1)
+    expect(coverage.agent_readiness.note).toMatch(/ignores it|Google Search/i)
   })
 
   it('says which missing data source is behind every unmeasured axis', () => {

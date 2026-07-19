@@ -21,9 +21,6 @@ const NOT_MEASURED: Partial<Record<Axis, string>> = {
   local:
     'Not measured. Needs the Google Business Profile connector. Only meaningful for sites ' +
     'with a physical presence.',
-  agent_readiness:
-    'Not measured. llms.txt, the accessibility tree, and Lighthouse Agentic Browsing checks ' +
-    'are not built yet.',
 }
 
 /**
@@ -38,6 +35,10 @@ const THIN_COVERAGE: Partial<Record<Axis, string>> = {
   content:
     'Partially measured. Titles, descriptions, headings, and thin or duplicate pages are ' +
     'checked. Originality, freshness, and keyword cannibalisation are not.',
+  agent_readiness:
+    'Partially measured. We check for llms.txt, the file that helps AI agents navigate the site ' +
+    '(and which Google Search ignores). The accessibility tree and Lighthouse Agentic Browsing ' +
+    'checks are not built yet.',
 }
 
 /**

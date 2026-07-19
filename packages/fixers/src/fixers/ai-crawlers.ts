@@ -1,5 +1,6 @@
 import type { Finding } from '@seo/core'
 import type { FileChange, FixContext, Fixer, FixResult } from '../engine.js'
+import { ROBOTS_FILES } from '../root-files.js'
 
 /**
  * TECH-002: robots.txt blocks the AI search crawlers that make a site citable in ChatGPT and
@@ -57,9 +58,6 @@ export class UnblockAiCrawlersFixer implements Fixer {
     }
   }
 }
-
-/** Where a static robots.txt lives, most conventional first. A code-generated route is not here. */
-const ROBOTS_FILES = ['public/robots.txt', 'robots.txt', 'static/robots.txt', 'src/robots.txt']
 
 /**
  * The blocked agent tokens, read from the finding's evidence.

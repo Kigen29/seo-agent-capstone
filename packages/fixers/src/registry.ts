@@ -1,6 +1,7 @@
 import { FixerRegistry } from './engine.js'
 import { UnblockAiCrawlersFixer } from './fixers/ai-crawlers.js'
 import { CanonicalRedirectFixer } from './fixers/canonical.js'
+import { LlmsTxtFixer } from './fixers/llms-txt.js'
 import { RemoveNoindexFixer } from './fixers/noindex.js'
 
 /**
@@ -15,5 +16,6 @@ export function createFixerRegistry(): FixerRegistry {
     new UnblockAiCrawlersFixer(),
     new CanonicalRedirectFixer(),
     new RemoveNoindexFixer(),
+    new LlmsTxtFixer(),
   )
 }
