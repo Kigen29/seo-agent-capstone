@@ -19,7 +19,7 @@ Every delivery is signed by GitHub with `X-Hub-Signature-256`, an HMAC of the ex
 
 ### Keep the raw bytes, or the signature never matches
 
-GitHub signs the exact bytes it sent. Re-serialising a parsed JSON object does not reproduce them (key order, whitespace, number formatting all differ), so hashing the re-serialised form would fail every time. The webhook route therefore registers its own content-type parser that preserves the raw request body alongside the parsed object, scoped to that route so the rest of the API keeps Fastify's default JSON handling. The HMAC is computed over the preserved raw bytes.
+GitHub signs the exact bytes it sent. Re-serialising a parsed JSON object does not reproduce them (key order, whitespace, number formatting all differ), so hashing the re-serialised form would fail every time. The webhook route therefore registers its own content-type parser that preserves the raw request body alongside the parsed object (the `webhookRoutes` plugin in `apps/api/src/app.ts`, via `addContentTypeParser`), scoped to that route so the rest of the API keeps Fastify's default JSON handling. The HMAC is computed over the preserved raw bytes.
 
 ### Mint installation tokens on demand, store none
 
