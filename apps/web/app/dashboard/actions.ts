@@ -1,6 +1,6 @@
 'use server'
 
-import { ApiRequestError } from '@seo/api-client'
+import { ApiRequestError, type ConnectRepoResult } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { handleApiError } from '@/lib/api-error'
@@ -87,11 +87,11 @@ export async function connectGoogle(): Promise<void> {
   redirect(url)
 }
 
-/** What the picker component gets back when it begins connecting a repo. */
-export type BeginConnectRepo =
-  | { mode: 'install'; url: string }
-  | { mode: 'pick'; repos: { fullName: string; installationId: number }[]; manageUrl: string }
-  | { mode: 'error'; message: string }
+/**
+ * What the picker component gets back when it begins connecting a repo: the API's own result
+ * (install or pick), reused so the shape cannot drift, plus an error branch for a failed call.
+ */
+export type BeginConnectRepo = ConnectRepoResult | { mode: 'error'; message: string }
 
 /**
  * Begin connecting a repository to a site.
@@ -119,7 +119,7 @@ export async function beginConnectRepo(siteId: string): Promise<BeginConnectRepo
 export async function chooseRepo(
   siteId: string,
   repoFullName: string,
-): Promise<{ ok?: true; error?: string }> {
+): Promise<{ ok: true } | { error: string }> {
   const api = await getClient()
   if (!api) redirect('/login')
 

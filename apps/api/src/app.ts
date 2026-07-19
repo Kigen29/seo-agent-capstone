@@ -823,8 +823,10 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
             return {
               mode: 'pick' as const,
               repos,
-              // Where the user grants access to a repo the App cannot see yet.
-              manageUrl: `https://github.com/settings/installations/${installationIds[0]}`,
+              // Where the user grants access to a repo the App cannot see yet. The generic
+              // installations page, not one installation, because a tenant may have installed the
+              // App on more than one account and this lists them all.
+              manageUrl: 'https://github.com/settings/installations',
             }
           }
 

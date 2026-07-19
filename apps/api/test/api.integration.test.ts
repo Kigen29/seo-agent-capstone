@@ -684,7 +684,7 @@ describe.skipIf(!shouldRun)('the API', () => {
       const body = res.json()
       expect(body.mode).toBe('pick')
       expect(body.repos).toContainEqual({ fullName: 'octo/owned', installationId: INSTALLATION_ID })
-      expect(body.manageUrl).toContain(`installations/${INSTALLATION_ID}`)
+      expect(body.manageUrl).toBe('https://github.com/settings/installations')
 
       // The picker does not bind anything on its own; a repo is bound by the choose step below.
       const site = await withTenant(db, tenantId, async (tx) => {

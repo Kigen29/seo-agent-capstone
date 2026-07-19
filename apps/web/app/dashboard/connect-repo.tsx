@@ -53,7 +53,7 @@ export function ConnectRepo({
     setError(null)
     start(async () => {
       const result = await chooseRepo(siteId, selected)
-      if (result.error) {
+      if ('error' in result) {
         setError(result.error)
         return
       }
