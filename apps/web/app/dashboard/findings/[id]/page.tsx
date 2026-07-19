@@ -87,7 +87,11 @@ export default async function FindingPage({
         </p>
       ) : finding.status === 'verified' ? (
         <p className="note note-ok" style={{ marginBottom: 'var(--space-6)' }}>
-          Verified fixed.
+          &#10003; Verified fixed. A re-audit no longer finds this.
+        </p>
+      ) : finding.status === 'rejected' ? (
+        <p className="note note-error" style={{ marginBottom: 'var(--space-6)' }}>
+          The fix was merged, but a re-audit still finds this. It did not work; the finding stands.
         </p>
       ) : (
         <div style={{ marginBottom: 'var(--space-6)' }}>

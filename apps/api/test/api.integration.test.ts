@@ -11,7 +11,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
 import { createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -63,6 +63,7 @@ describe.skipIf(!shouldRun)('the API', () => {
   const verifyEnqueued: VerifyJob[] = []
   const confirmEnqueued: ConfirmVerifyJob[] = []
   const fixEnqueued: FixJob[] = []
+  const verifyFixEnqueued: VerifyFixJob[] = []
 
   const mint = (tenant: string) => {
     const plain = generateToken()
@@ -93,6 +94,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       },
       enqueueFix: async (job) => {
         fixEnqueued.push(job)
+      },
+      enqueueVerifyFix: async (job) => {
+        verifyFixEnqueued.push(job)
       },
       github: {
         app: {
@@ -745,6 +749,114 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
       expect(site?.gscVerificationStatus).toBe('none')
       expect(site?.gscVerificationPrUrl).toBeNull()
+    })
+
+    /** A site with a repo, an audit, and one fix finding whose PR is open at `prUrl`. */
+    const seedFixFinding = async (url: string, prUrl: string) => {
+      const fxSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [s] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url,
+            repoFullName: 'octo/owned',
+            githubInstallationId: INSTALLATION_ID,
+          })
+          .returning()
+        return s!.id
+      })
+      const auditId = await withTenant(db, tenantId, async (tx) => {
+        const [a] = await tx
+          .insert(audits)
+          .values({ tenantId, siteId: fxSiteId, status: 'complete' })
+          .returning()
+        return a!.id
+      })
+      const findingId = await withTenant(db, tenantId, async (tx) => {
+        const [f] = await tx
+          .insert(findings)
+          .values({
+            tenantId,
+            siteId: fxSiteId,
+            auditId,
+            ruleId: 'TECH-007',
+            key: 'TECH-007#0',
+            axis: 'crawl_health',
+            severity: 'high',
+            confidence: 1,
+            title: 'a canonical that redirects',
+            evidence: {
+              kind: 'http',
+              url: 'https://www.example.com/',
+              status: 200,
+              redirectChain: ['https://example.com/'],
+              observedAt: '2026-07-19T00:00:00.000Z',
+              source: 'crawler',
+            },
+            affectedUrls: ['https://example.com/about'],
+            estimatedEffort: 'trivial',
+            estimatedImpact: 70,
+            falsification: 'still redirects after merge',
+            fixable: true,
+            status: 'pr_open',
+            prUrl,
+          })
+          .returning()
+        return f!.id
+      })
+      return { fxSiteId, findingId }
+    }
+
+    it('marks a finding merged and enqueues verification when its fix PR is merged', async () => {
+      const prUrl = 'https://github.com/octo/owned/pull/501'
+      const { fxSiteId, findingId } = await seedFixFinding('https://fixmerge.example.com', prUrl)
+
+      const body = JSON.stringify({
+        action: 'closed',
+        pull_request: {
+          merged: true,
+          html_url: prUrl,
+          head: { ref: 'seo-agent/TECH-007-0-canonical' },
+        },
+      })
+      const res = await webhook('pull_request', body, signWebhook(body))
+
+      expect(res.statusCode).toBe(204)
+      expect(verifyFixEnqueued.at(-1)).toMatchObject({ tenantId, siteId: fxSiteId })
+
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx.select({ status: findings.status }).from(findings).where(eq(findings.id, findingId)),
+      )
+      expect(row?.status).toBe('merged')
+    })
+
+    it('resets a finding to open when its fix PR is closed unmerged', async () => {
+      const prUrl = 'https://github.com/octo/owned/pull/502'
+      const before = verifyFixEnqueued.length
+      const { findingId } = await seedFixFinding('https://fixclose.example.com', prUrl)
+
+      const body = JSON.stringify({
+        action: 'closed',
+        pull_request: {
+          merged: false,
+          html_url: prUrl,
+          head: { ref: 'seo-agent/TECH-007-0-canonical' },
+        },
+      })
+      const res = await webhook('pull_request', body, signWebhook(body))
+
+      expect(res.statusCode).toBe(204)
+      // Closing unmerged verifies nothing.
+      expect(verifyFixEnqueued.length).toBe(before)
+
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ status: findings.status, prUrl: findings.prUrl })
+          .from(findings)
+          .where(eq(findings.id, findingId)),
+      )
+      expect(row?.status).toBe('open')
+      expect(row?.prUrl).toBeNull()
     })
   })
 
