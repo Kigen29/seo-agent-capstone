@@ -17,6 +17,7 @@ import { PgBoss } from 'pg-boss'
 export const AUDIT_QUEUE = 'audit'
 export const VERIFY_QUEUE = 'verify'
 export const CONFIRM_VERIFY_QUEUE = 'confirm-verify'
+export const FIX_QUEUE = 'fix'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -46,6 +47,19 @@ export interface ConfirmVerifyJob {
   siteId: string
 }
 
+/**
+ * What a worker needs to open a pull request that fixes one finding.
+ *
+ * The finding's row id is the whole payload beyond scope: the worker loads the finding, its
+ * evidence, and its site from the row, so the job stays small and can never carry a stale copy
+ * of a finding the crawl has since replaced.
+ */
+export interface FixJob {
+  tenantId: string
+  siteId: string
+  findingRowId: string
+}
+
 export type Queue = PgBoss
 
 /**
@@ -65,6 +79,7 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
   await boss.createQueue(AUDIT_QUEUE)
   await boss.createQueue(VERIFY_QUEUE)
   await boss.createQueue(CONFIRM_VERIFY_QUEUE)
+  await boss.createQueue(FIX_QUEUE)
   return boss
 }
 
@@ -119,6 +134,24 @@ export async function enqueueConfirmVerify(
     // One pending confirmation per site. The scheduled worker re-enqueues confirmations for
     // every site still awaiting one, so without this a slow deploy would pile up duplicate jobs.
     singletonKey: job.siteId,
+  })
+}
+
+/**
+ * Put a fix-PR job on the queue.
+ *
+ * The same small retry policy as verification: opening a PR that fails twice (a revoked token,
+ * an unreachable repo, a fixer that cannot locate the source) will not succeed on a third try,
+ * and the failure is surfaced on the drain rather than retried forever. `singletonKey` on the
+ * finding keeps a double click, or a retried enqueue, from queuing two jobs for one finding;
+ * the provider is idempotent per finding besides, so at worst a duplicate is a no-op.
+ */
+export async function enqueueFix(queue: Queue, job: FixJob): Promise<string | null> {
+  return queue.send(FIX_QUEUE, job, {
+    retryLimit: 2,
+    retryDelay: 30,
+    expireInSeconds: 10 * 60,
+    singletonKey: job.findingRowId,
   })
 }
 
@@ -183,4 +216,12 @@ export function drainConfirmVerify(
   handler: (job: ConfirmVerifyJob) => Promise<void>,
 ): Promise<{ completed: number; failed: number }> {
   return drain(queue, CONFIRM_VERIFY_QUEUE, handler)
+}
+
+/** Drain the fix queue. See {@link drain}. */
+export function drainFix(
+  queue: Queue,
+  handler: (job: FixJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, FIX_QUEUE, handler)
 }

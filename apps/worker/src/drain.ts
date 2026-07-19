@@ -1,6 +1,7 @@
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
-import { createQueue, drainAudits, drainConfirmVerify, drainVerify } from '@seo/queue'
+import { createQueue, drainAudits, drainConfirmVerify, drainFix, drainVerify } from '@seo/queue'
+import { runFix } from './fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
 /**
@@ -36,6 +37,13 @@ try {
   })
 
   console.log(`worker: done. ${result.completed} completed, ${result.failed} failed.`)
+
+  // Then open any pending fix PRs. Same runner, same drain-and-exit shape; a failure here (a
+  // revoked token, an unreachable repo, a fixer that cannot locate the source) fails only its
+  // own job and is surfaced on the finding rather than taking the drain down.
+  console.log('worker: draining the fix queue')
+  const fixed = await drainFix(queue, (job) => runFix(db, job))
+  console.log(`worker: fixes done. ${fixed.completed} completed, ${fixed.failed} failed.`)
 
   // Then drain any verification-PR jobs. Same runner, same drain-and-exit shape; a failure here
   // (a revoked token, an unreachable repo) fails only its own job.

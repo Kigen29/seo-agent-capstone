@@ -37,7 +37,7 @@ export function renderTag(tag: HeadTag): string {
  * fetch a known path but not list a directory; a repo whose head is somewhere unlisted falls
  * through to null, which is the honest outcome. Ordered most-conventional first.
  */
-const HEAD_FILES: Record<HeadStrategy, string[]> = {
+export const HEAD_FILES: Record<HeadStrategy, string[]> = {
   'spa-index': ['index.html', 'public/index.html', 'src/index.html'],
   'framework-head': [
     'app/layout.tsx',

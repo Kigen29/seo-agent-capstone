@@ -177,6 +177,14 @@ export function createApiClient(options: ApiClientOptions) {
       (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))
         .finding,
 
+    /**
+     * Ask the agent to open a pull request that fixes a finding. Returns the queue status; the
+     * worker detects the framework, generates the diff, opens the PR, and marks the finding
+     * pr_open with its URL.
+     */
+    fixFinding: async (id: string) =>
+      request<{ status: string }>(`/findings/${id}/fix`, { method: 'POST' }),
+
     /** What this tenant has connected: Google Search Console, and any connected repositories. */
     getConnections: async () =>
       request<{

@@ -1,5 +1,11 @@
 import { googleOAuthConfigFromEnv } from '@seo/connectors'
-import { createQueue, enqueueAudit, enqueueConfirmVerify, enqueueVerify } from '@seo/queue'
+import {
+  createQueue,
+  enqueueAudit,
+  enqueueConfirmVerify,
+  enqueueFix,
+  enqueueVerify,
+} from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
 import { makeDispatcher } from './dispatch.js'
@@ -77,6 +83,10 @@ const app = await buildApp({
   },
   enqueueConfirmVerify: async (job) => {
     await enqueueConfirmVerify(queue, job)
+    await dispatch()
+  },
+  enqueueFix: async (job) => {
+    await enqueueFix(queue, job)
     await dispatch()
   },
 })

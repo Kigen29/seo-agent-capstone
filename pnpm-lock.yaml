@@ -139,6 +139,9 @@ importers:
       '@seo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@seo/fixers':
+        specifier: workspace:*
+        version: link:../../packages/fixers
       '@seo/queue':
         specifier: workspace:*
         version: link:../../packages/queue

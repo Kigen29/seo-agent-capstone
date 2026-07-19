@@ -17,7 +17,7 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import type { AuditJob, ConfirmVerifyJob, VerifyJob } from '@seo/queue'
+import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyJob } from '@seo/queue'
 import {
   SIGNATURE_HEADER,
   verifyWebhookSignature,
@@ -55,6 +55,11 @@ export interface AppOptions {
    * the others; absent means the webhook still acknowledges the merge but does not auto-confirm.
    */
   enqueueConfirmVerify?: (job: ConfirmVerifyJob) => Promise<unknown>
+  /**
+   * Puts a fix-PR job on the queue and nudges the worker. Injected like the others; absent means
+   * `POST /findings/:id/fix` reports 503 rather than accepting work nothing will run.
+   */
+  enqueueFix?: (job: FixJob) => Promise<unknown>
   /**
    * Google OAuth. Injected so the connection routes can be tested with a mocked token
    * endpoint, and so the app never reads process.env directly. Absent means the routes report
@@ -462,6 +467,60 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
         if (!finding) return notFound(reply)
         return { finding }
+      })
+
+    /**
+     * Open a pull request that fixes a finding the caller owns. Enqueues the work; the worker
+     * detects the framework, generates the diff, and opens the PR, then marks the finding
+     * `pr_open` with the PR URL. The preconditions are checked here with a clear 409 rather than
+     * letting the worker fail obscurely: the finding must be fixable in code, it must not already
+     * have a PR open (or merged), and its site must have a repository connected. A finding that is
+     * not the caller's is a 404, never a 403.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .post('/findings/:id/fix', { schema: { params: uuidParam } }, async (request, reply) => {
+        if (!options.enqueueFix) {
+          return reply
+            .status(503)
+            .send({ error: 'Service Unavailable', message: 'The fixer is not configured.' })
+        }
+
+        const finding = await getFinding(db, request.tenantId, request.params.id)
+        if (!finding) return notFound(reply)
+
+        if (!finding.fixable) {
+          return reply.status(409).send({
+            error: 'Conflict',
+            message: 'This finding cannot be fixed in code automatically; it needs a human.',
+          })
+        }
+        if (finding.status !== 'open') {
+          return reply.status(409).send({
+            error: 'Conflict',
+            message: 'A pull request for this finding has already been opened.',
+          })
+        }
+
+        const [site] = await withTenant(db, request.tenantId, (tx) =>
+          tx
+            .select({ repo: sites.repoFullName, installation: sites.githubInstallationId })
+            .from(sites)
+            .where(eq(sites.id, finding.siteId))
+            .limit(1),
+        )
+        if (!site || !site.repo || !site.installation) {
+          return reply
+            .status(409)
+            .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
+        }
+
+        await options.enqueueFix({
+          tenantId: request.tenantId,
+          siteId: finding.siteId,
+          findingRowId: finding.rowId,
+        })
+        return reply.status(202).send({ status: 'queued' })
       })
 
     /**
