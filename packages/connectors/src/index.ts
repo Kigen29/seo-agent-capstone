@@ -43,3 +43,14 @@ export {
   META_TAG_NAME,
 } from './siteverification/client.js'
 export type { SiteVerificationClientOptions } from './siteverification/client.js'
+
+export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
+export {
+  summarisePrompt,
+  shareOfVoice,
+  MIN_POLLS,
+  STABLE_THRESHOLD,
+} from './visibility/stability.js'
+export { pollEngines } from './visibility/poll.js'
+export type { AiEngine, EngineAnswer, PollTarget, CitationCheck } from './visibility/types.js'
+export type { Stability, PromptSummary, ShareOfVoice } from './visibility/stability.js'
