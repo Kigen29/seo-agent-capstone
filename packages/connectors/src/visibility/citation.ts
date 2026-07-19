@@ -34,14 +34,16 @@ export function sameSite(a: string, b: string): boolean {
 function answerMentions(answer: string, domain: string): boolean {
   const host = hostOf(domain)
   if (!host) return false
+  // Normalise once and match everything against the lowercased text; `host` and the stem are
+  // already lowercase, so no case-insensitive flag is needed and the match stays deterministic.
   const haystack = answer.toLowerCase()
-  // The full host if it appears, else the registrable stem as a whole word. The stem match is
-  // deliberately conservative: a two-plus character stem bounded by non-word characters, so
-  // "acme" matches "Acme Safaris" but not "acmeric".
   if (haystack.includes(host)) return true
+
+  // Otherwise the registrable stem as a whole word. Deliberately conservative: a two-plus
+  // character stem bounded by non-word characters, so "acme" matches "acme safaris" but not "acmeric".
   const stem = host.split('.')[0]
   if (!stem || stem.length < 2) return false
-  return new RegExp(`(^|[^a-z0-9])${escapeRegExp(stem)}([^a-z0-9]|$)`, 'i').test(answer)
+  return new RegExp(`(^|[^a-z0-9])${escapeRegExp(stem)}([^a-z0-9]|$)`).test(haystack)
 }
 
 function escapeRegExp(value: string): string {
