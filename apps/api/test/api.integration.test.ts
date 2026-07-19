@@ -665,6 +665,55 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(res.json().github.repos).toContain('octo/owned')
     })
 
+    // From here the tenant already has an installation (set by the demo-path test above), so a
+    // second site must reuse it rather than send the user back through an install that would drop
+    // our state and look cancelled.
+
+    it('binds a second site straight from the existing installation when a repo matches', async () => {
+      const secondSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://owned.example.org' })
+          .returning()
+        return row!.id
+      })
+
+      const res = await postJson('/connections/github', { siteId: secondSiteId }, token)
+
+      expect(res.statusCode).toBe(200)
+      // No install round trip: it connects here and sends the browser back to the dashboard.
+      expect(res.json().url).toContain('/dashboard?github=connected')
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, secondSiteId)).limit(1)
+        return row
+      })
+      expect(site?.githubInstallationId).toBe(INSTALLATION_ID)
+      expect(site?.repoFullName).toBe('octo/owned')
+    })
+
+    it('sends the user to grant the repo when the installation cannot see one for the site', async () => {
+      const unmatchedSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://nomatch.example.com' })
+          .returning()
+        return row!.id
+      })
+
+      const res = await postJson('/connections/github', { siteId: unmatchedSiteId }, token)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().url).toBe(`https://github.com/settings/installations/${INSTALLATION_ID}`)
+
+      // Nothing is bound: we never guess a repo onto a site.
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, unmatchedSiteId)).limit(1)
+        return row
+      })
+      expect(site?.repoFullName).toBeNull()
+    })
+
     it('turns away a webhook with a bad signature before reading it', async () => {
       const body = JSON.stringify({ action: 'created', installation: { id: INSTALLATION_ID } })
       const res = await webhook('installation', body, 'sha256=deadbeef')

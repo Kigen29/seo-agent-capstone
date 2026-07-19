@@ -777,13 +777,60 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           // sign the state. A site that is not theirs cannot be named in a state we will honour.
           const site = await withTenant(db, request.tenantId, async (tx) => {
             const [row] = await tx
-              .select({ id: sites.id })
+              .select({ id: sites.id, url: sites.url })
               .from(sites)
               .where(eq(sites.id, request.body.siteId))
               .limit(1)
             return row
           })
           if (!site) return notFound(reply)
+
+          /**
+           * Reuse an existing installation for a second site, rather than sending the user back
+           * through an install they have already done.
+           *
+           * GitHub's setup callback only carries our signed `state` for a FRESH install. Once the
+           * App is installed, connecting another site goes through a "configure" flow that drops
+           * the query string, so the callback sees no state and the whole thing looks like a
+           * cancelled install ("The install was cancelled. Nothing was connected."). So when the
+           * tenant already has an installation, bind straight from it: if the App can already see a
+           * repo that matches this site, connect it here and now; if not, send the user to grant
+           * that one repo to the existing installation, then come back and click Connect again.
+           *
+           * A tenant can have more than one installation (repos across two GitHub accounts), so we
+           * try each one for a matching repo, and only fall back to asking the user to grant access
+           * when none of them can already see one.
+           */
+          const installedRows = await withTenant(db, request.tenantId, (tx) =>
+            tx
+              .selectDistinct({ installationId: sites.githubInstallationId })
+              .from(sites)
+              .where(
+                and(eq(sites.tenantId, request.tenantId), isNotNull(sites.githubInstallationId)),
+              ),
+          )
+          const installationIds = installedRows
+            .map((row) => row.installationId)
+            .filter((id): id is number => id !== null)
+
+          if (installationIds.length > 0) {
+            for (const installationId of installationIds) {
+              const repos = await options.github.app.listInstallationRepositories(installationId)
+              const match = matchRepoForSite(repos, site.url)
+              if (!match) continue
+
+              await withTenant(db, request.tenantId, (tx) =>
+                tx
+                  .update(sites)
+                  .set({ repoFullName: match.fullName, githubInstallationId: installationId })
+                  .where(eq(sites.id, request.body.siteId)),
+              )
+              return { url: `${webUrl.replace(/\/$/, '')}/dashboard?github=connected` }
+            }
+
+            // Installed, but no installation can see a repo for this site yet. Send them to add it.
+            return { url: `https://github.com/settings/installations/${installationIds[0]}` }
+          }
 
           const state = signInstallState({
             tenantId: request.tenantId,
@@ -812,20 +859,53 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
  * then any repo whose name contains it, and fall back to the first. The user can reconnect to
  * correct a wrong guess; the point is to not fail when the match is obvious.
  */
-function chooseRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRepo {
-  if (repos.length === 1) return repos[0]!
-
+/**
+ * The repo in an installation that belongs to a site, or null when none clearly does.
+ *
+ * Matches on the site's domain stem against the repo name, comparing both with punctuation
+ * removed, so `lakevictoriaaquaculture.com` matches a repo named `lake-victoria-aquaculture`.
+ * Exact first, then either name being a substring of the other. Returns null rather than guess:
+ * the reuse-an-installation path must not bind the wrong repo to a site, so a non-match is sent to
+ * GitHub to grant the right repo instead.
+ */
+function matchRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRepo | null {
   let stem = ''
   try {
-    stem = new URL(siteUrl).hostname.replace(/^www\./, '').split('.')[0] ?? ''
+    stem = normaliseName(new URL(siteUrl).hostname.replace(/^www\./, '').split('.')[0] ?? '')
   } catch {
-    // A malformed URL just means no stem to match on; fall through to the first repo.
+    return null
   }
-  const lower = stem.toLowerCase()
+  if (!stem) return null
 
-  const exact = lower && repos.find((r) => r.name.toLowerCase() === lower)
-  const partial = lower && repos.find((r) => r.name.toLowerCase().includes(lower))
-  return exact || partial || repos[0]!
+  const exact = repos.find((repo) => normaliseName(repo.name) === stem)
+  if (exact) return exact
+
+  // A substring match only for names distinctive enough to trust it. A one or two character stem
+  // ("a.com", "app.io" -> "app") would otherwise match almost any repo, so short names get an
+  // exact match only.
+  const MIN_PARTIAL = 4
+  if (stem.length < MIN_PARTIAL) return null
+
+  return (
+    repos.find((repo) => {
+      const name = normaliseName(repo.name)
+      return name.includes(stem) || (name.length >= MIN_PARTIAL && stem.includes(name))
+    }) ?? null
+  )
+}
+
+const normaliseName = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * Pick which of a fresh install's granted repositories to connect to a site.
+ *
+ * Used by the install callback, where the user has explicitly granted a set of repos, so a
+ * fall-back to the first is reasonable when no name matches. The stricter {@link matchRepoForSite}
+ * is used on the reuse path, where guessing would silently bind the wrong repo.
+ */
+function chooseRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRepo {
+  if (repos.length === 1) return repos[0]!
+  return matchRepoForSite(repos, siteUrl) ?? repos[0]!
 }
 
 /** The slice of a GitHub webhook body we actually read. The rest is ignored on purpose. */
