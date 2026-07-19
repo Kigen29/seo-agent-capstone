@@ -2,7 +2,7 @@
 
 **Project:** Rankwright, an autonomous SEO agent
 **Programme:** Quantic School of Business and Technology, MSSE Capstone
-**Scope of this document:** the design and architecture decisions, the software and architectural patterns used, the deployment options with their cost implications, and the testing carried out. It is generated from the ten Architecture Decision Records in `docs/adr/`, the architecture map in `docs/architecture.md`, the CI configuration, and every test in the repository.
+**Scope of this document:** the design and architecture decisions, the software and architectural patterns used, the deployment options with their cost implications, and the testing carried out. It is generated from the fourteen Architecture Decision Records in `docs/adr/`, the architecture map in `docs/architecture.md`, the CI configuration, and every test in the repository. It reflects the system through Sprint 2, in which the write half of the loop was built: the agent now opens pull requests that fix findings, a human merges, and the agent verifies whether the fix held.
 
 ---
 
@@ -35,7 +35,7 @@ This line is drawn on the architecture map and defended everywhere: detection is
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Monorepo | pnpm workspaces + Turborepo | One install, shared types across ten packages, CI runs once, task caching. |
+| Monorepo | pnpm workspaces + Turborepo | One install, shared types across every package, CI runs once, task caching. |
 | Language | TypeScript, strict, NodeNext | One language across web, API, worker, and rules. The `Finding` type is defined once and every package agrees on it. Zod schemas give the same types at runtime that the compiler gives at build time. |
 | Web app | Next.js 15 App Router, Tailwind | Server components keep the API token in an httpOnly cookie, off the browser. Deploys free to Vercel. |
 | API | Fastify + Zod | Small, fast, and Zod validates every request at the boundary before a query runs. |
@@ -107,6 +107,24 @@ The ceilings were accepted deliberately, not overlooked, and each has a document
 | Render free service cold-starts after fifteen minutes idle | the cold start hurts the product | An always-on paid instance, or ECS (see section 3). The dashboard already handles the cold start honestly rather than showing a broken page. |
 | Refresh tokens in Google Testing mode expire after seven days | onboarding real clients | Submit the OAuth consent screen for Google verification. |
 
+### 1.9 The write path is deterministic too, and the LLM is on a short leash (ADR-0011)
+
+ADR-0001 drew the detection line; opening pull requests reopened the same temptation in a more dangerous form. Hallucinating a finding produces a bad row in a dashboard; hallucinating a change produces a bad commit against a client's `main`. "Ask the model to rewrite this file so the canonical is correct" can reformat the whole file, drop unrelated content, or invent a framework convention, and the reviewer is then diffing the model against the world rather than reading a small, obvious change.
+
+So the decision extends deterministic-first to the write side. A fixer (`packages/fixers`) is a pure function of the finding and the repository, and it transforms structure it located rather than guessing. The canonical fixer rewrites an origin only at a URL boundary, so `https://site.com` never corrupts `https://site.com.evil.test`. The robots fixer walks the file's groups and changes the one line that blocks an AI search crawler, keeping every other byte. The noindex fixer strips the indexing directive from a head meta and leaves the rest. When a fixer cannot locate what it would change, it returns null and the worker reports honestly that no fix could be generated, rather than opening a pull request that changes nothing or the wrong thing. Each fixer ships with a triggering fixture and a clean one.
+
+The one place a model writes to a repository, the meta-description fixer, is held to the same shape and this is the whole reason the deterministic line matters on the write side. A deterministic rule (TECH-021) finds the missing description; the fixer makes **exactly one** `smart` call through `llm.object` with a Zod schema; the output is schema-validated before it can become a diff; and a deterministic head injection places it. The model writes text, a parser writes files. If the model chain is unconfigured or every target fails, the call throws, the fixer returns null, and the finding stays open. A broken pull request is worse than no pull request. This satisfies the cost discipline in ADR-0005 directly: one model call per fixable finding, never one per page.
+
+### 1.10 Pull-request safety and webhook security (ADR-0012, ADR-0014)
+
+The promise to open pull requests is only safe to make if a set of guarantees hold every time, without relying on anyone remembering them. Two ADRs make them structural.
+
+**Nothing is ever pushed to the default branch, because the interface cannot express it (ADR-0012).** The `VersionControlProvider` has no method that writes to a caller-named branch and none that pushes to the default branch; it can read a file, create a fresh branch, write onto a branch it just created, and open a pull request. CLAUDE.md rule 2 ("never push to `main`") is therefore not a convention a fixer must recall but a shape it cannot violate, because the method does not exist. The pull-request body is built before any branch or commit, and the builder refuses to render without all five required sections (the finding, the evidence, the expected effect, the falsification condition, and a rollback note), so a fix missing any of them fails closed with no state left behind. The write path is idempotent: before cutting a branch it asks GitHub whether a pull request for this finding is already open, matched by the branch prefix, and returns the existing one rather than a second. The fixer engine also enforces the programmatic-page cap, refusing above fifty files and warning above thirty, so a runaway fix is stopped at the engine, not at the pull request.
+
+**A merged pull request drives the loop, and the webhook that reports it is verified before it is read (ADR-0014).** `POST /webhooks/github` is necessarily public: GitHub calls it with no bearer token. Every delivery is signed with an HMAC over the exact body bytes under our webhook secret, and the handler verifies that signature first, returning 401 without touching the payload if it fails. Because GitHub signs the raw bytes, the route preserves the raw request body (re-serialising a parsed object would not reproduce them and the signature would never match). Repository access tokens are minted on demand from the App's private key, cached only to the edge of expiry, and never stored, so a database dump yields no repository credential. The App private key lives only in the secret stores, never in the public repository. Because a webhook carries no tenant, it resolves the affected rows itself under `asOwner`, matching a merged verification pull request by branch name and a merged fix pull request by the pull-request URL stored when it was opened; the verified HMAC is what makes trusting those fields safe.
+
+Together these close the loop end to end: a fix pull request opens, a human merges, the webhook marks the finding merged and enqueues a re-audit, and the verifier re-runs the finding's own rule over a fresh crawl and marks it verified if it is gone or rejected if it still fires. The rejected outcome is the product's thesis made mechanical: we shipped, we measured, and a parser (not a promise) says whether it worked.
+
 ---
 
 ## 2. Software and architectural patterns
@@ -142,7 +160,13 @@ Drizzle ORM is confined to `packages/db`. Domain logic does not issue ORM calls 
 | Saga | AI visibility 3-day poll, CWV 28-day verification window | Long-horizon stateful workflows that outlive any process, modelled as scheduled jobs rather than long-running ones. |
 | Guard | per-tenant budget guard before any paid call | Cost blowout is the primary operational risk in a product that makes paid API calls, so the guard runs before the call, not after. |
 | Discriminated union | `Evidence` (`http`, `markup`, `metric`, `file`, `graph`, `search`) | A finding cannot record prose; it must hand back a typed observation a fixer can branch on and a verifier can re-observe. |
-| Dependency injection | `enqueue`, the OAuth config, the `fetch` in every connector | The routes and the audit runner take their side effects as parameters, so a test drives them with a spy or a mocked endpoint without the network. |
+| Dependency injection | `enqueue`, the OAuth config, the `fetch` in every connector, the `llm` client in the content fixer | The routes, the audit runner, and the fixers take their side effects as parameters, so a test drives them with a spy, a mocked endpoint, or a fake model without the network. |
+
+### 2.6 Strategy families: one fixer serves fourteen frameworks (ADR-0013)
+
+The same finding needs a different diff in a different repository. "Add a tag to the head" is one file in a Next.js App Router `layout.tsx`, a different file in a Vue single-page app's `index.html`, a `header.php` in WordPress, a `baseof.html` in Hugo. The framework enum lists fourteen stacks, and writing one fixer per rule per framework is a combinatorial explosion that guarantees most cells are untested.
+
+The pattern is Strategy, applied twice over. First, `detectFramework` reads a handful of known repository files (dependencies, config files, stack signatures like `wp-config.php` or `manage.py`) rather than the rendered page, because the HTML says "probably React" while the repository says "Next.js App Router", and only the second fact chooses the right file. Then each of the fourteen frameworks maps to one of **six head-injection strategy families** (framework-native head, single-page-app index, template hook, static-generator layout, server template, and a universal fallback), and a fixer implements one approach per family, not one per framework. An unrecognised repository resolves to the universal strategy and edits a root HTML document directly; `unknown` is a supported outcome, never a crash. This is the abstraction that makes "support every stack" tractable, and it is unit tested per framework against in-memory fixtures with no clone and no network.
 
 ---
 
@@ -204,7 +228,7 @@ When a ceiling in section 1.8 is reached, **migrate to managed cloud (Option B)*
 
 ## 4. Software testing carried out
 
-This section addresses rubric requirement 4: all software testing carried out, including the automated tests, and the reasons for each. The suite is **400 automated tests**: 393 unit and integration tests plus 7 end-to-end tests, run on every push and pull request by CI.
+This section addresses rubric requirement 4: all software testing carried out, including the automated tests, and the reasons for each. The suite is **over 500 automated tests across 51 test files**: unit, integration, and contract tests plus 7 end-to-end tests, run on every push and pull request by CI. It grew by roughly a quarter in Sprint 2 as the write path landed: the fixers, the pull-request provider, the merge webhook, the re-audit verifier, and the one LLM content fixer each arrived with tests.
 
 ### 4.1 Testing philosophy
 
@@ -218,9 +242,9 @@ Two principles shape the whole suite.
 
 | Layer | Count | What it covers | Why it exists |
 |---|---|---|---|
-| Unit | majority of 393 | The rule engine, the scorecard, the crawler's parsers and graph, the CrUX and quick-wins evaluators, the LLM chain resolution, the token crypto and OAuth state | Pure functions, fixture-driven, 100% deterministic, free to run. This is the bulk of the product's logic and involves zero external calls. |
-| Integration | 6 files | The audit runner end to end, the queue against Postgres, tenant isolation against Postgres, the search step against Postgres with mocked Google | Prove the seams: the places where independently-tested packages meet, which no unit test can exercise. |
-| Contract | 2 files | The CrUX API client and the Search Console client | Google's response shapes are theirs to change without warning. A contract test pins the shape so a change surfaces as a red test, not as an audit quietly reporting no data. |
+| Unit | the large majority | The rule engine, the scorecard, the crawler's parsers and graph, the CrUX and quick-wins evaluators, the LLM chain resolution, the token crypto and OAuth state, the framework detector, every fixer, the pull-request branch and body builders, and the content fixer against a fake model | Pure functions, fixture-driven, 100% deterministic, free to run. This is the bulk of the product's logic and involves zero external calls. |
+| Integration | 6 files | The audit runner end to end, the queue against Postgres, tenant isolation against Postgres, the crawler against a live HTTP server, and the search step against Postgres with mocked Google | Prove the seams: the places where independently-tested packages meet, which no unit test can exercise. |
+| Contract | 3 files | The CrUX client, the Search Console client, and the Site Verification client | Google's response shapes are theirs to change without warning. A contract test pins the shape so a change surfaces as a red test, not as an audit quietly reporting no data. |
 | End-to-end | 7 tests | The real Next app against the real API against real Postgres, with RLS on | The dashboard's acceptance criteria are claims about a screen; only a browser can check them, and the claims that matter most (a blank axis stays blank, another tenant gets a 404) are exactly what a mock would lie about. |
 | LLM evaluation harness | designed | Precision, recall, and hallucination rate of findings against a golden dataset | See 4.5. |
 
@@ -228,15 +252,19 @@ Two principles shape the whole suite.
 
 | Package | Tests | Notable coverage |
 |---|---|---|
-| `@seo/crawler` | 152 | robots.txt matching (longest-match, tie-to-allow), sitemap parsing, the frontier and pacer, PageRank with dangling-mass redistribution, render comparison, and a live-browser integration test against a real HTTP server. |
-| `@seo/rules` | 65 | Every one of the twenty deterministic `TECH-*` rules, the engine, and the coverage report. Includes the property that matters most: "finds nothing on a clean site." |
-| `@seo/connectors` | 54 | CrUX thresholds at the exact boundaries, the Core Web Vitals evaluator, token encryption (round-trip and tamper detection), the OAuth state signing (forgery and replay), the CrUX and GSC contract tests, and the quick-wins evaluator. |
-| `@seo/core` | 43 | The `Finding` schema and its falsification guarantee, the priority score, and the eight-axis scorecard including its refusal to score an unmeasured axis. |
-| `@seo/api` | 35 | Authentication (no header, bad token, and the "never trust an asserted tenant id" case), tenant isolation across the HTTP boundary (404 not 403, indistinguishable from a genuinely missing row), the queue enqueue path, and the Google connection flow including forged-state rejection. |
-| `@seo/audit` | 23 | The runner producing and persisting a complete audit, the reachability guard, the performance and search steps and their honest unmeasured states. |
+| `@seo/crawler` | 141 | robots.txt matching (longest-match, tie-to-allow), sitemap parsing, the frontier and pacer, PageRank with dangling-mass redistribution, render comparison, and a live-browser integration test against a real HTTP server. |
+| `@seo/rules` | 69 | Every one of the twenty-one deterministic `TECH-*` rules, the engine, and the coverage report. Includes the property that matters most: "finds nothing on a clean site." |
+| `@seo/connectors` | 63 | CrUX thresholds at the exact boundaries, the Core Web Vitals evaluator, token encryption (round-trip and tamper detection), the OAuth state signing (forgery and replay), the CrUX, GSC, and Site Verification contract tests, and the quick-wins evaluator. |
+| `@seo/api` | 51 | Authentication (no header, bad token, and the "never trust an asserted tenant id" case), tenant isolation across the HTTP boundary (404 not 403), the enqueue paths for audits, verification, and fixes, the merge webhook moving a finding to merged and enqueuing verification, and the Google connection flow including forged-state rejection. |
+| `@seo/fixers` | 44 | The framework detector per stack, the head injector, and each fixer with a triggering and a clean fixture: the canonical origin rewrite (with the hostname-boundary guard), the robots AI-crawler unblock (named-group flip and wildcard append), and the noindex strip. |
+| `@seo/core` | 36 | The `Finding` schema and its falsification guarantee, the priority score, and the eight-axis scorecard including its refusal to score an unmeasured axis. |
+| `@seo/vcs` | 32 | The branch naming and slug, the pull-request body builder refusing to render without all five sections, the provider's never-to-`main` guarantees and idempotency against a fake GitHub, and the webhook HMAC verification. |
+| `@seo/audit` | 29 | The runner producing and persisting a complete audit, the reachability guard, the performance and search steps and their honest unmeasured states, and the fix-verification reconcile (verified when gone, rejected when the rule still fires on an overlapping URL). |
+| `@seo/agent` | 12 | The Search Console verification orchestration, and the content fixer against a fake model: exactly one call, schema-validated injection, prompt grounded on the title, and stays-open when the chain is unavailable. |
 | `@seo/db` | 10 | Tenant isolation, run against Postgres. Includes the assertion that would have caught the original bug: the query role has `rolbypassrls = false`. |
 | `@seo/llm` | 6 | Chain resolution: absent keys dropped, fallback order preserved, a helpful error when no key is present. |
 | `@seo/queue` | 5 | Enqueue and drain, and the concurrency guarantee that a job goes to only one of two racing drains. |
+| `@seo/api-client` | 4 | The typed client's request handling, including the timeout and the JSON content-type only when there is a body. |
 | `@seo/web` (e2e) | 7 | The dashboard, the findings inbox, the scorecard's honest blanks, and cross-tenant 404, all in a real browser. |
 
 ### 4.4 Tests that earned their keep by catching real defects
@@ -251,15 +279,15 @@ The suite is not decorative. Several tests failed on correct-looking code and pr
 
 ### 4.5 The LLM evaluation harness
 
-The deterministic rule engine (section 1.1) is what makes most of the product testable by ordinary means, because a parser is a pure function. The probabilistic half, where the model writes a fix, needs a different instrument, and its design is fixed even though the fix-generation it measures lands in a later sprint.
+The deterministic rule engine (section 1.1) is what makes most of the product testable by ordinary means, because a parser is a pure function. The probabilistic half now exists: the model writes a fix in the one content fixer, and that fixer is tested by ordinary means too, against a fake model that returns a fixed string, which proves the mechanism (exactly one call, schema-validated, grounded on the title, and stays-open on failure) without spending a token or depending on a live model. What a fake cannot measure is the quality of what a real model writes, and that is what the evaluation harness is for.
 
-The harness is a golden dataset of roughly fifty pages with known, hand-labelled ground-truth issues. Against it, the harness measures three numbers: **precision** (of the findings raised, how many are real), **recall** (of the real issues, how many were found), and **hallucination rate** (findings that reference code or elements that do not exist). In production it adds two more: pull-request merge rate and pull-request revert rate, the ultimate ground truth for whether a fix was correct.
+The harness is a golden dataset of roughly fifty pages with known, hand-labelled ground-truth issues. Against it, the harness measures three numbers: **precision** (of the findings raised, how many are real), **recall** (of the real issues, how many were found), and **hallucination rate** (findings that reference code or elements that do not exist). In production it adds two more: pull-request merge rate and pull-request revert rate, the ultimate ground truth for whether a fix was correct, and both are now observable because the write path and the merge-and-verify loop are built.
 
-One methodological decision is already enforced in code and tested: the `judge` role that grades the harness **must be a different model family than the model under test**. Grading OpenAI's output with OpenAI produces self-preference bias and an evaluation that flatters itself. The role-based LLM layer (section 2.2) makes this a one-line configuration (`LLM_JUDGE=google:gemini-2.5-pro` while the fixer runs on OpenAI), and the chain-resolution tests already prove the layer routes each role independently. What remains for a later sprint is the golden dataset itself and the harness runner, which are meaningful only once the model is generating fixes to grade.
+One methodological decision is already enforced in code and tested: the `judge` role that grades the harness **must be a different model family than the model under test**. Grading OpenAI's output with OpenAI produces self-preference bias and an evaluation that flatters itself. The role-based LLM layer (section 2.2) makes this a one-line configuration (`LLM_JUDGE=google:gemini-2.5-pro` while the fixer runs on OpenAI), and the chain-resolution tests already prove the layer routes each role independently. What remains is the golden dataset itself and the harness runner; the fix generation they grade is now live, so the harness is the next instrument to build rather than a design waiting on its subject.
 
 ### 4.6 Continuous integration
 
-Every push and every pull request runs the full gate: format check, lint, typecheck, build, database migration, the 393 unit and integration tests, and the 7 end-to-end tests. CI provisions a real Postgres 18 service container for the tests that need one, deliberately a different Postgres from Neon, because the container's default role is a superuser and superusers also bypass RLS, so if the `seo_app` role drop were broken the isolation tests would fail in CI rather than in production. Three code-level laws are enforced mechanically by the same pipeline: no vendor SDK outside `providers.ts`, no `@seo/db` import outside the API and worker, and no finding without a falsification condition. The architecture is not a document the code is asked to honour; it is a set of checks the code must pass.
+Every push and every pull request runs the full gate: format check, lint, typecheck, build, database migration, the full unit, integration, and contract suite, and the 7 end-to-end tests. CI provisions a real Postgres 18 service container for the tests that need one, deliberately a different Postgres from Neon, because the container's default role is a superuser and superusers also bypass RLS, so if the `seo_app` role drop were broken the isolation tests would fail in CI rather than in production. Three code-level laws are enforced mechanically by the same pipeline: no vendor SDK outside `providers.ts`, no `@seo/db` import outside the API and worker, and no finding without a falsification condition. The architecture is not a document the code is asked to honour; it is a set of checks the code must pass. A third-party reviewer (Sourcery) also runs on every pull request; its comments are read before merge, and it has caught real defects, including a homepage meta description that was present but empty slipping past its own rule.
 
 ---
 
@@ -277,5 +305,9 @@ Every push and every pull request runs the full gate: format check, lint, typech
 | 0008 | Tenant isolation in Postgres via a non-BYPASSRLS role | Accepted |
 | 0009 | The API is the only door to the database | Accepted |
 | 0010 | The performance axis is CrUX field data, never Lighthouse | Accepted |
+| 0011 | Deterministic-first fix generation | Accepted |
+| 0012 | Pull-request safety and idempotency | Accepted |
+| 0013 | Framework-strategy pattern for fixers | Accepted |
+| 0014 | GitHub App webhook security | Accepted |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.
