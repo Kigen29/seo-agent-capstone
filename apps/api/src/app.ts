@@ -796,23 +796,29 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
            * tenant already has an installation, bind straight from it: if the App can already see a
            * repo that matches this site, connect it here and now; if not, send the user to grant
            * that one repo to the existing installation, then come back and click Connect again.
+           *
+           * A tenant can have more than one installation (repos across two GitHub accounts), so we
+           * try each one for a matching repo, and only fall back to asking the user to grant access
+           * when none of them can already see one.
            */
-          const [installed] = await withTenant(db, request.tenantId, (tx) =>
+          const installedRows = await withTenant(db, request.tenantId, (tx) =>
             tx
-              .select({ installationId: sites.githubInstallationId })
+              .selectDistinct({ installationId: sites.githubInstallationId })
               .from(sites)
               .where(
                 and(eq(sites.tenantId, request.tenantId), isNotNull(sites.githubInstallationId)),
-              )
-              .limit(1),
+              ),
           )
+          const installationIds = installedRows
+            .map((row) => row.installationId)
+            .filter((id): id is number => id !== null)
 
-          if (installed?.installationId) {
-            const installationId = installed.installationId
-            const repos = await options.github.app.listInstallationRepositories(installationId)
-            const match = matchRepoForSite(repos, site.url)
+          if (installationIds.length > 0) {
+            for (const installationId of installationIds) {
+              const repos = await options.github.app.listInstallationRepositories(installationId)
+              const match = matchRepoForSite(repos, site.url)
+              if (!match) continue
 
-            if (match) {
               await withTenant(db, request.tenantId, (tx) =>
                 tx
                   .update(sites)
@@ -822,8 +828,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
               return { url: `${webUrl.replace(/\/$/, '')}/dashboard?github=connected` }
             }
 
-            // Installed, but the App cannot see a repo for this site yet. Send them to add it.
-            return { url: `https://github.com/settings/installations/${installationId}` }
+            // Installed, but no installation can see a repo for this site yet. Send them to add it.
+            return { url: `https://github.com/settings/installations/${installationIds[0]}` }
           }
 
           const state = signInstallState({
@@ -871,13 +877,20 @@ function matchRepoForSite(repos: InstalledRepo[], siteUrl: string): InstalledRep
   }
   if (!stem) return null
 
+  const exact = repos.find((repo) => normaliseName(repo.name) === stem)
+  if (exact) return exact
+
+  // A substring match only for names distinctive enough to trust it. A one or two character stem
+  // ("a.com", "app.io" -> "app") would otherwise match almost any repo, so short names get an
+  // exact match only.
+  const MIN_PARTIAL = 4
+  if (stem.length < MIN_PARTIAL) return null
+
   return (
-    repos.find((repo) => normaliseName(repo.name) === stem) ??
     repos.find((repo) => {
       const name = normaliseName(repo.name)
-      return name.includes(stem) || stem.includes(name)
-    }) ??
-    null
+      return name.includes(stem) || (name.length >= MIN_PARTIAL && stem.includes(name))
+    }) ?? null
   )
 }
 
