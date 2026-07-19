@@ -31,6 +31,25 @@ This is also the capstone-completing sprint. The Quantic MSSE requires a minimum
 
 ---
 
+## Principles that recur across these epics
+
+These constraints apply to every story below. They are stated once here so a story can reference them rather than repeat them, and so an implementer cannot read one epic in isolation and miss them.
+
+- **Deterministic detection, on every axis (ADR-0001).** A parser or an API decides a finding; a model is never the detector. On the AI-visibility axis the engine is the thing being *measured*, like CrUX field data on the performance axis, not the judge of its own citation.
+- **Poll many times over days, never once.** Any citation measurement polls a prompt **at least three times across at least three different days** and reports a stability score; a result from a single poll is noise and is not reported as a citation.
+- **Paid data is opt-in, capped, and honest when off.** Every paid query passes the per-tenant budget guard before it is made. With no key or no budget, the axis is **unmeasured with a note**, never partial, never a surprise charge, never a zero passed off as a measurement.
+- **Draft, never send (rule 6).** The agent drafts outreach; a human sends it.
+- **No ranking claims for `llms.txt` (rule 8).** `llms.txt` is agent-readiness infrastructure and is ignored by Google Search; any text implying otherwise is a bug, and a test asserts the disclaimer.
+
+### Definitions used below
+
+- **Citation rate:** across a prompt's polls, the fraction of answers whose cited sources include the client's domain.
+- **Stability score:** of the N checks run for a prompt (N >= 3, over >= 3 days), how many cited the client. Reported as "cited in k of N", because ~45% of citations appear in only one of three checks.
+- **Share of voice:** the client's citation count as a fraction of all named brands' citations across the same prompts, over the same window.
+- **Agent-readiness signals:** the crawl-derived checks for `llms.txt`, a usable accessibility tree and landmark structure, and other agent-facing readiness markers.
+
+---
+
 ## Epic 12: AI visibility, measured honestly
 
 ### STORY-026: The multi-engine citation poller
@@ -73,7 +92,7 @@ This is also the capstone-completing sprint. The Quantic MSSE requires a minimum
 - Given any `llms.txt` finding or recommendation, then its text states plainly that `llms.txt` is **agent-readiness infrastructure and is ignored by Google Search** (CLAUDE.md rule 8, and Google's own June 2026 guidance). A recommendation that implies `llms.txt` lifts Google rankings is a bug, and a test asserts the disclaimer is present.
 
 **Tasks**
-- Deterministic rules in `packages/rules` reading the crawl: `llms.txt` presence and shape, accessibility-tree landmarks, and the agentic-readiness checks.
+- Deterministic rules in `packages/rules` reading the crawl: `llms.txt` presence and shape, accessibility-tree landmarks, and the agent-readiness checks.
 - A unit test per rule with a fixture, including the rule-8 disclaimer assertion.
 
 **Falsification:** a recommendation claims `llms.txt` improves Google rankings, or the accessibility check fires on a page with a valid landmark structure.
@@ -135,7 +154,7 @@ This is also the capstone-completing sprint. The Quantic MSSE requires a minimum
 
 ### Deferred in Epic 15 (documented, not built): Google Business Profile and the geo-grid
 
-Google Business Profile API access requires an approval process and OAuth scopes beyond this sprint, and geo-grid rank tracking is a per-point paid SERP query that multiplies cost fast. Both are **documented migration triggers**, not silent omissions: NAP-across-external-directories and the geo-grid land when a paying local client justifies the GBP approval and the SERP spend. The local axis is honest about being partially measured until then.
+Google Business Profile API access requires an approval process and OAuth scopes beyond this sprint, and geo-grid rank tracking is a per-point paid SERP query that multiplies cost fast. Both are **documented migration triggers**, not silent omissions: NAP across external directories and the geo-grid land when a paying local client justifies the GBP approval and the SERP spend. The local axis is honest about being partially measured until then.
 
 ---
 
