@@ -2,7 +2,7 @@
 
 **Project:** Rankwright, an autonomous SEO agent
 **Programme:** Quantic School of Business and Technology, MSSE Capstone
-**Scope of this document:** the design and architecture decisions, the software and architectural patterns used, the deployment options with their cost implications, and the testing carried out. It is generated from the fourteen Architecture Decision Records in `docs/adr/`, the architecture map in `docs/architecture.md`, the CI configuration, and every test in the repository. It reflects the system through Sprint 2, in which the write half of the loop was built: the agent now opens pull requests that fix findings, a human merges, and the agent verifies whether the fix held.
+**Scope of this document:** the design and architecture decisions, the software and architectural patterns used, the deployment options with their cost implications, and the testing carried out. It is generated from the nineteen Architecture Decision Records in `docs/adr/`, the architecture map in `docs/architecture.md`, the CI configuration, and every test in the repository. It reflects the system through Sprint 3, in which the four dark axes were lit: AI visibility is measured by polling answer engines over days, authority leads with brand mentions, and agent readiness and local are read from the crawl. Sprint 3 also introduced the product's first paid dependency and the cost guard that contains it.
 
 ---
 
@@ -25,9 +25,11 @@ The decision is a hard architectural line. The rule engine (`packages/rules`) co
 The reasoning:
 
 - **Reproducibility.** "Is there a canonical tag? Does it resolve to 200? Is LCP above 2.5s at the 75th percentile? Is `OAI-SearchBot` disallowed in robots.txt?" These are parser questions, not reasoning questions. A parser gives the same answer every time; a model does not.
-- **Testability.** A pure function reaches 100% unit coverage against fixtures. The rule engine is 65 tests over deterministic inputs, and that is the majority of the product's logic.
+- **Testability.** A pure function reaches 100% unit coverage against fixtures. The rule engine is 81 tests over deterministic inputs, and that is the majority of the product's logic.
 - **Cost.** Most of an audit costs nothing but compute. The model is invoked once per *fixable finding*, not once per page. A five-hundred-page crawl with fourteen fixable findings is fourteen model calls, not five hundred.
 - **Honesty.** Hallucinated findings, the ones that reference code that does not exist, become structurally impossible for the core checks, because a parser cannot invent a status code it did not see.
+
+Sprint 3 tested this line in the place it was most tempting to cross. The AI-visibility axis measures what answer engines say, and the obvious implementation is to ask a model "is this site cited for this query". That is a model grading its own output family, and the decision (ADR-0015) is that the engine is the thing being *measured*, never the judge. A parser decides citation by matching domains in the engine's own source list. The same line held on the authority axis, where mention classification is domain arithmetic, and on the consensus range, which is a regular expression over currency amounts rather than a model summarising a model.
 
 This line is drawn on the architecture map and defended everywhere: detection is deterministic, reproducible, and free; fixing is probabilistic and always reviewed by a human. Detection never crosses that line.
 
@@ -44,15 +46,19 @@ This line is drawn on the architecture map and defended everywhere: detection is
 | Worker | GitHub Actions on a public repo | Unlimited free minutes, Chromium preinstalled, no execution-time pressure. See 1.3 and 1.8. |
 | Crawler | Playwright, Chromium | Renders JavaScript, which is what Google indexes. A raw-HTML fetch would miss client-rendered content. |
 | LLM | Role-based, provider-agnostic layer | Swapping a model is an environment edit, never a code change. See 2.2. |
+| SERP and AI-Overview data | `SerpProvider` interface, SerpApi adapter | The only paid dependency. Behind a Strategy seam and a hard budget cap. See 1.12. |
+| Cost control | `@seo/budget`, a per-tenant cap and ledger | Checked before every paid call, LLM and SERP alike. See 1.13. |
 | VCS integration | GitHub App via Octokit | Least privilege, short-lived tokens, auditable. See 1.4. |
 
 ### 1.3 Event-driven job queue over synchronous request-response (ADR-0004, ADR-0006)
 
-A full audit crawls up to five hundred pages with a headless browser, calls PageSpeed Insights per template page, pulls Search Console data across several dimensions with pagination, polls several AI engines three times each across several days, and generates code fixes. This takes minutes to days, not milliseconds, and it cannot live inside an HTTP request. External APIs rate-limit us, fail transiently, and impose hard daily quotas (Search Console URL Inspection is capped at two thousand per day per property).
+A full audit crawls up to five hundred pages with a headless browser, calls PageSpeed Insights per template page, pulls Search Console data across several dimensions with pagination, polls several AI engines once a day for several days, and generates code fixes. This takes minutes to days, not milliseconds, and it cannot live inside an HTTP request. External APIs rate-limit us, fail transiently, and impose hard daily quotas (Search Console URL Inspection is capped at two thousand per day per property).
 
 The decision is an event-driven architecture with a durable job queue. The API enqueues, the worker processes, the web app polls the audit row for progress. Jobs are idempotent and resumable, and every job carries a tenant id.
 
 Concretely, and this is the shape verified end to end in the tests: the API creates the audit row as `queued`, puts a job on pg-boss, and fires a `repository_dispatch` to GitHub. A GitHub Actions runner spins up, claims the job, runs the crawl and the rules and the scorecard, and writes the result back. A fifteen-minute schedule drains the queue as a safety net, so a job is never stranded even if the dispatch is missed. The `repository_dispatch` is a nudge to start sooner, never the delivery mechanism: the job is already durable in Postgres, so a failed or absent dispatch means the audit starts a little later, never that it is lost. Retries are bounded and a claimed job is invisible to a second worker, so the schedule and a dispatch firing together cannot run an audit twice.
+
+Sprint 3 added a fifth queue, `poll-ai`, and with it a scheduling pattern worth naming. There is no cron entry per site. The worker, on each of its fifteen-minute wakes, asks the database "which sites have prompts and no poll recorded for today" and enqueues those. That query is both the schedule and its own catch-up: a runner that never started, a job that exhausted its retries, or a day the whole worker was down all resolve themselves on the next wake, with no cron state to drift and nothing to reconcile by hand.
 
 The rejected alternative was synchronous HTTP: a five-hundred-page Playwright crawl will never complete inside a request timeout. Serverless fan-out was deferred: cold starts and execution-time limits are hostile to Playwright.
 
@@ -82,21 +88,27 @@ The decision is row-level security on every tenant-scoped table, with `tenant_id
 
 Neon grants `BYPASSRLS` to its default role, which is the role in `DATABASE_URL`. The first implementation had `ENABLE` and `FORCE` set correctly on all five tables; the policies existed, appeared in `pg_policies`, and were never once consulted. An insert stamped with another tenant's id succeeded. The database looked secured and was not. The fix is a `NOLOGIN`, non-`BYPASSRLS` role, `seo_app`, that every transaction drops into with `SET LOCAL ROLE`, so the policies actually apply. The policy carries both a `USING` clause (which rows may be read) and a `WITH CHECK` clause (which rows may be written), because `USING` alone would let a tenant insert rows stamped with someone else's id. The tenant identity and the role are both transaction-local, so a pooled connection cannot carry one request's tenant into the next.
 
+The scheme has since absorbed four new tables without amendment, which is the property a good tenancy model should have: `visibility_prompts`, `visibility_checks`, and `spend` each arrived with `tenant_id`, a policy, and a grant, and the isolation tests covered them by construction rather than by anyone remembering to extend the suite.
+
 ### 1.7 The API is the only door to the database (ADR-0009)
 
 `apps/api` is named in the repo layout and drawn in the architecture map, but no story ever asked for it to be built, and the dashboard was one commit away from reading Postgres directly from React Server Components. That is a legitimate Next.js pattern in general and the wrong answer here, for four specific reasons: every Vercel serverless invocation opens its own connection pool against a free tier with a hard connection ceiling; the API is needed anyway for OAuth callbacks and webhooks and worker dispatch; reading from the web app would put the owner credential (which carries `BYPASSRLS`) into Vercel's environment as well as Render's; and the graded design document is generated from decisions that must be true of the deployed system.
 
-The decision is that every read and write to Postgres goes through the API. `@seo/db` is a restricted import, allow-listed to the API, the worker, the audit runner, and the database package itself, and an ESLint rule fails the build if anything else imports it. The rule is enforced by CI, not by memory. Two consequences of the design are worth stating: authentication comes from a bearer token and never from a header a caller can set, because a header saying "I am tenant X" is a request to be tenant X, not proof of it; and a request for another tenant's resource returns 404, not 403, because a 403 confirms the row exists and lets an attacker enumerate which audits exist across the whole platform without reading a single byte of anyone's data.
+The decision is that every read and write to Postgres goes through the API. `@seo/db` is a restricted import, allow-listed to the API, the worker, the audit runner, the budget package, and the database package itself, and an ESLint rule fails the build if anything else imports it. The rule is enforced by CI, not by memory, and the allow-list is deliberately expensive to extend: its comment reads "adding to this list is an ADR, not a fix", and when the cost guard needed a database handle in Sprint 3 that requirement was honoured rather than waived, which is what ADR-0017 exists to record.
+
+Two consequences of the design are worth stating: authentication comes from a bearer token and never from a header a caller can set, because a header saying "I am tenant X" is a request to be tenant X, not proof of it; and a request for another tenant's resource returns 404, not 403, because a 403 confirms the row exists and lets an attacker enumerate which audits exist across the whole platform without reading a single byte of anyone's data.
 
 ### 1.8 Zero-cost infrastructure: Redis rejected, Supabase rejected, ceilings accepted (ADR-0006, ADR-0007)
 
-A hard constraint on the project is that everything runs on a permanent free tier: total infrastructure cost is zero dollars. Three decisions do most of the work.
+A hard constraint on the project is that infrastructure runs on a permanent free tier: total infrastructure cost is zero dollars. Three decisions do most of the work.
 
 **Make the repository public.** The Quantic handbook encourages it, and public repositories get unlimited free GitHub Actions minutes. That single fact turns GitHub into a free worker fleet. A five-hundred-page Playwright crawl will not run on a free web service, but it runs beautifully in a GitHub Actions job that already has Chromium and no execution-time pressure at six hours per job.
 
 **Drop Redis; use Postgres as the queue.** pg-boss provides a durable queue, scheduling, retries, and dead-letter handling on top of the Postgres already present. Redis was rejected for two reasons: it is a second service and a second free tier to babysit, and the free Redis tiers (Upstash caps at ten thousand commands per day) would have throttled a single large crawl anyway. This supersedes the mechanism in ADR-0004; the event-driven decision stands, only the queue technology changed.
 
 **One Postgres, and nothing else.** Data (via Drizzle, with RLS by `tenant_id`), the job queue (pg-boss), the vector store (pgvector), and the compressed crawl artefacts all live in the same database, addressed only by `DATABASE_URL`. There is no vendor SDK anywhere in the repository, so the host is a commodity that swaps in an environment variable. Supabase was the original database choice and was rejected for two reasons recorded in ADR-0007: its free tier pauses a project after seven days of inactivity, and a paused database is a failed demo during a capstone that sits idle between sprints; and adopting Supabase meant taking on a platform (PostgREST, Realtime, Edge Functions, a service-role key) to use one commodity part of it, Postgres. Neon does not pause on idle and is plain Postgres.
+
+**The asterisk, added honestly in Sprint 3.** The infrastructure is still zero. The *data* is not, for two of the eight axes. AI Overviews and brand mentions come from a SERP vendor that charges per query and has no free tier usable at product scale, and scraping them ourselves was rejected as a false economy (see 1.12). So the claim is now precise rather than absolute: infrastructure is $0 for every tenant; six of the eight axes are $0 for every tenant; and the two earned-media axes cost money to measure at all, are off by default, and are capped per tenant when switched on. Saying so is better than quietly dropping the claim or quietly dropping the axes.
 
 The ceilings were accepted deliberately, not overlooked, and each has a documented migration trigger:
 
@@ -106,12 +118,13 @@ The ceilings were accepted deliberately, not overlooked, and each has a document
 | Neon free tier is ~0.5 GB | approaching the limit | Prune harder (keep only the latest crawl per site), then a paid Neon tier or self-hosted Postgres, still only `DATABASE_URL`. |
 | Render free service cold-starts after fifteen minutes idle | the cold start hurts the product | An always-on paid instance, or ECS (see section 3). The dashboard already handles the cold start honestly rather than showing a broken page. |
 | Refresh tokens in Google Testing mode expire after seven days | onboarding real clients | Submit the OAuth consent screen for Google verification. |
+| No backlink index, so referring domains are unmeasured | a paying client who needs link data | A paid backlink index (Ahrefs, DataForSEO). Mentions carry the axis meanwhile, and the research says mentions are the better signal anyway (1.14). |
 
 ### 1.9 The write path is deterministic too, and the LLM is on a short leash (ADR-0011)
 
 ADR-0001 drew the detection line; opening pull requests reopened the same temptation in a more dangerous form. Hallucinating a finding produces a bad row in a dashboard; hallucinating a change produces a bad commit against a client's `main`. "Ask the model to rewrite this file so the canonical is correct" can reformat the whole file, drop unrelated content, or invent a framework convention, and the reviewer is then diffing the model against the world rather than reading a small, obvious change.
 
-So the decision extends deterministic-first to the write side. A fixer (`packages/fixers`) is a pure function of the finding and the repository, and it transforms structure it has located rather than guessing. The canonical fixer rewrites an origin only at a URL boundary, so `https://site.com` never corrupts `https://site.com.evil.test`. The robots fixer walks the file's groups and changes the one line that blocks an AI search crawler, keeping every other byte. The noindex fixer strips the indexing directive from a head meta and leaves the rest. When a fixer cannot locate what it would change, it returns null and the worker reports honestly that no fix could be generated, rather than opening a pull request that changes nothing or the wrong thing. Each fixer ships with a triggering fixture and a clean one.
+So the decision extends deterministic-first to the write side. A fixer (`packages/fixers`) is a pure function of the finding and the repository, and it transforms structure it has located rather than guessing. The canonical fixer rewrites an origin only at a URL boundary, so `https://site.com` never corrupts `https://site.com.evil.test`. The robots fixer walks the file's groups and changes the one line that blocks an AI search crawler, keeping every other byte. The noindex fixer strips the indexing directive from a head meta and leaves the rest. Sprint 3 added two more in the same shape: an `llms.txt` writer that generates the file from pages the crawl already found, and a `LocalBusiness` schema block populated from the site's own contact details. When a fixer cannot locate what it would change, it returns null and the worker reports honestly that no fix could be generated, rather than opening a pull request that changes nothing or the wrong thing. Each fixer ships with a triggering fixture and a clean one.
 
 The one place a model writes to a repository, the meta-description fixer, is held to the same shape and this is the whole reason the deterministic line matters on the write side. A deterministic rule (TECH-021) finds the missing description; the fixer makes **exactly one** `smart` call through `llm.object` with a Zod schema; the output is schema-validated before it can become a diff; and a deterministic head injection places it. The model writes text, a parser writes files. If the model chain is unconfigured or every target fails, the call throws, the fixer returns null, and the finding stays open. A broken pull request is worse than no pull request. This satisfies the cost discipline in ADR-0005 directly: one model call per fixable finding, never one per page.
 
@@ -125,6 +138,67 @@ The promise to open pull requests is only safe to make if a set of guarantees ho
 
 Together these close the loop end to end: a fix pull request opens, a human merges, the webhook marks the finding merged and enqueues a re-audit, and the verifier re-runs the finding's own rule over a fresh crawl and marks it verified if it is gone or rejected if it still fires. The rejected outcome is the product's thesis made mechanical: we shipped, we measured, and a parser (not a promise) says whether it worked.
 
+### 1.11 AI-visibility citation is measured over days, not asked (ADR-0015)
+
+AI visibility is the axis the product is named for and the one most easily faked, and the fakery is the industry norm in two specific ways.
+
+The first is letting a model decide its own citation. Asking a model "is this site cited for this query" is an LLM grading itself, non-reproducible and unfalsifiable. The decision is that a **deterministic parser** decides citation by matching the client's domain against the engine's own cited sources, normalising hosts and rejecting look-alikes so `example.com.evil.test` is never `example.com`. Where an engine returns no source list (a plain chat model answers from weights), the parser falls back to the domain appearing in the answer text and records that the basis was a weaker `mention` rather than a citation. Google's AI Overview, reached through the SERP provider, is the one engine that returns real sources, which is why its verdicts are the strongest evidence the axis has.
+
+The second is reporting a citation from a single poll. In a controlled study, roughly 45% of citations appeared in only one of three checks, so a tool that polls once and reports "you are cited" is reporting noise as fact about half the time. The decision is that a citation is reported only when it holds across **at least three polls over at least three distinct days**, and the honesty bar is enforced structurally rather than procedurally, in three places:
+
+- The summarising function takes the distinct-day count as a **required argument**. Three engines polled within one minute satisfy a sample-size floor while measuring a single moment, and making the day count un-skippable at the type level means the bar cannot be cleared by forgetting an optional parameter.
+- A **unique index** on (prompt, engine, day) makes a retried job a no-op instead of a duplicate, so a sample can only grow by a day passing, however many times the queue re-runs.
+- The **day travels in the job payload** rather than being read from the clock inside the job, so a job enqueued at 23:58 and retried at 00:03 still writes the correct day's row.
+
+The result is an axis that refuses to answer for three days and then answers with a sample anyone can audit. Findings distinguish the two different meanings of "not cited": a rival cited where the client is not is a high-severity competitive loss with a named opponent, and nobody cited at all is a low-severity open field whose falsification says plainly that the honest outcome may be to stop spending on that question.
+
+### 1.12 Paid data behind a provider, under a hard budget cap (ADR-0016)
+
+Two axes need data no crawl can produce. AI visibility needs Google's AI Overview and its cited sources; authority needs brand mentions across the web. Both are sold per query, and this is the first genuinely paid dependency in a product whose constraint is zero cost.
+
+The decision is a Strategy seam plus a cap. A `SerpProvider` interface fronts the vendor, with a SerpApi adapter behind it, so the measurement code is vendor-blind and swapping to DataForSEO is an adapter and an environment variable. Nothing above the adapter knows a vendor exists, and the deterministic parsers are tested against fakes with no key and no spend.
+
+Two implementation choices inside that seam are worth recording because both trade a little capability for a lot of predictability. An AI Overview that the vendor defers behind a continuation token is **not** followed: that is a second billable query for the same measurement, and doubling the cost of the most expensive axis is not a decision a parser should make unasked, so the day records as "no overview", which is honest and free. And an absent overview is recorded as an uncited observation rather than dropped, because plenty of queries genuinely have no overview and a hole in a three-day window is expensive.
+
+Scraping the data ourselves was rejected as a false economy. It looks free and is not: Google actively blocks scraping of AI Overviews, so it needs rotating proxies and headless browsers at scale, which is infrastructure we would pay for and babysit, on top of a terms-of-service position no client wants their brand associated with.
+
+### 1.13 The cost guard runs before the spend, not after (ADR-0017)
+
+ADR-0016 relied on a per-tenant budget guard that did not exist. The LLM layer had taken a budget checker as a constructor argument since ADR-0005, which is the right seam, but the worker filled it with a function that returned "allowed" every time. For most of the project that was a defensible deferral: the only paid calls were one `smart` call per fixable finding, triggered by a human clicking a button, and a human clicking a button is itself a rate limit.
+
+The AI-visibility poll ended that. It spends **every day, per prompt, per site, indefinitely, with nobody present**. A tenant with twenty prompts and a paid chain makes six hundred calls a month without anybody deciding to, and the gap between an ADR that said "capped" and code that said "allowed" stopped being a deferral and became a false statement about the system.
+
+The guard now checks a per-tenant monthly cap **before** the call and can refuse it. Three properties are load-bearing:
+
+- **Before, not reconciled after.** A guard that notices afterwards is a report: it can tell you what you spent, it cannot stop you spending it. The worst case for a misconfigured tenant is a dark axis, never a bill.
+- **Keyed on the tenant.** A platform-wide limit is not a cap for anybody, because the first tenant to run away spends everyone else's allowance and the tenants who then get refused are the ones who did nothing wrong.
+- **Fails closed.** If the ledger cannot be read, the call is refused. A guard that allows the call when the database is unhappy is a guard-shaped hole that opens at exactly the wrong moment. The cost of being wrong that way is money; the cost of being wrong the other way is a job that retries.
+
+Spend is recorded as a **ledger, not a counter**: every paid call writes a row carrying kind, provider, model, cost, tokens, and time. A running total answers "how much" and nothing else, and the first real incident is always "why did this cost forty dollars last month". The ledger also makes the cap auditable, since the guard's verdict is a sum anyone can re-run by hand. LLM and SERP calls share one cap, because two budgets would let a tenant spend twice what either allows. Money is stored in micro-dollars, because thousands of fraction-of-a-cent calls have to sum without drift and an integer gets that by construction where a float gets it by luck.
+
+Two limitations are recorded rather than hidden. The cap is a **threshold, not a reservation**, so a tenant can overshoot by at most one call, since a call's cost is not known until it returns. And an **unpriced model is invisible to the cap**: the pricing table is maintained by hand, and a model missing from it records zero while billing real money. That cannot be closed from inside the guard, so it is made loud, with a warning naming the model, and a test asserts the warning fires on tokens-without-price while staying silent for a genuinely free call.
+
+### 1.14 The authority axis leads with mentions, not links (ADR-0018)
+
+Every SEO tool opens its off-page section with backlinks, and it is the number clients ask for by name. The evidence for what moves AI visibility does not support that ordering: branded web **mentions** correlate **0.664** with AI Overview visibility, backlinks correlate **0.218**, and 84% of AI citations come from earned media. Mention-building and link-building are two different jobs, and an axis that opens with referring domains sends a client to do the one that matters less.
+
+So the axis measures mentions and reports referring domains as **unmeasured**, never as zero, because a zero and an absence look identical on a dashboard and mean opposite things. Four implementation decisions carry the honesty:
+
+- **Counted by distinct domain, never by result.** Ten pages on one publication is one publication that covered the client; counting results would let a single press release read as a campaign.
+- **The query does the separating.** The brand is quoted (so "Heartbeest Safaris" does not match any page containing "safaris") and the client's own site is excluded with a search operator, which makes the result earned media by construction rather than something filtered afterwards and hoped for.
+- **Earned coverage is kept apart from self-published platforms.** Not because social is lesser but because it is different evidence: a company's own post is a mention it wrote, a trade publication's article is one it earned, and merging them would let a busy social calendar read as authority.
+- **The brand name is stored, not derived.** A domain yields a stem the web has never heard of, because the press writes the spaced name. Guessing the spaces back in would under-count every multi-word brand, and an under-count here is indistinguishable from a brand nobody talks about.
+
+Outreach is drafted and **never sent** (CLAUDE.md rule 6). There is deliberately no transport in the module: no address book, no queue, nothing to call. It returns text, and everything that turns that text into an email is a human's deliberate act under their own name. Automating the send sounds like a small step from drafting and is not, because the moment it is automated the review becomes a formality and the failure mode is a client's name on a hundred emails they never read. The drafter also **refuses** when it has no concrete, sourced fact to build on, returning nothing and making no model call at all, because a pitch with no specific fact is the template every other tool sends and spending a client's name on one costs them a relationship for no gain.
+
+### 1.15 `llms.txt` is agent-readiness infrastructure, and never a ranking claim (ADR-0019)
+
+`llms.txt` is the most oversold file in the industry, marketed as an AI-SEO essential and sold as a deliverable. Google's own guidance lists it among the tactics to ignore: Search does not use it, and because AI Overviews run on the same core ranking systems, a file Search ignores does not influence them either.
+
+We ship an `llms.txt` rule and fixer, which puts us one careless sentence away from selling the same lie. The decision is that no text we generate may claim or imply a ranking benefit, and that this is enforced by tests rather than by review attention: one test asserts the disclaimer lives in the finding itself so the UI cannot drop it, and another asserts it in the generated file. A rule enforced by attention fails silently the first time attention lapses, and the failure mode is a sentence in a pull-request body that a client reads and believes.
+
+Writing this ADR caught a real inconsistency, which is recorded because the reasoning generalises. The scorecard's own comment cited this finding as the example of why the `info` severity scores zero, on the grounds that a finding admitting it changes nothing must not change a score. That argument is right about *search* and wrong here: the finding sits on the `agent_readiness` axis, missing `llms.txt` is a genuine if small gap in whether agents can navigate the site, and scoring it zero would leave the axis unable to tell a site that has the file from one that does not, on the one property it exists to measure. The rule was correct at `low` severity; the comment explaining it was not. Being honest about what a fix will not do is not the same as pretending the gap is absent.
+
 ---
 
 ## 2. Software and architectural patterns
@@ -133,15 +207,19 @@ This section addresses rubric requirement 2: the software and architectural patt
 
 ### 2.1 Strategy / Adapter: `VersionControlProvider`, `@seo/llm` providers, `SerpProvider`
 
-All VCS access sits behind a `VersionControlProvider` interface, with `GitHubProvider` as the first implementation. The fixer logic asks the interface to open a pull request; it does not know it is talking to GitHub. Adding GitLab or Bitbucket is a new adapter, and no call site changes. The same shape confines every model vendor behind a provider interface (see 2.2), and will confine SERP data behind a `SerpProvider` so SerpApi and DataForSEO are interchangeable. The reason is direct: the parts of this product most likely to change (which VCS host, which model vendor, which SERP index) are exactly the parts a Strategy pattern keeps out of the call sites.
+All VCS access sits behind a `VersionControlProvider` interface, with `GitHubProvider` as the first implementation. The fixer logic asks the interface to open a pull request; it does not know it is talking to GitHub. Adding GitLab or Bitbucket is a new adapter, and no call site changes. The same shape confines every model vendor behind a provider interface (see 2.2), and, as of Sprint 3, confines SERP and AI-Overview data behind a `SerpProvider` so SerpApi and DataForSEO are interchangeable. The reason is direct: the parts of this product most likely to change (which VCS host, which model vendor, which SERP index) are exactly the parts a Strategy pattern keeps out of the call sites.
+
+The AI-Overview engine is a small but instructive case of the pattern paying off twice. It is an adapter over the `SerpProvider` that presents it as one more `AiEngine` to the citation poller, so the poller stays ignorant of both the vendor and the fact that this particular engine is billed at all. It is named `ai_overview` rather than for the vendor, because that name is stored on every check row and forms half of the one-poll-per-engine-per-day key: renaming it on a vendor switch would fork one measurement window into two.
 
 ### 2.2 Role-based indirection for the LLM layer, enforced by CI (ADR-0005)
 
-Application code addresses models by **role**, never by vendor: `fast` for high-volume extraction, `smart` for reasoning and code generation, `embed` for page embeddings, and `judge` for grading the evaluation harness. Roles resolve at runtime from environment variables as ordered fallback chains, for example `LLM_SMART=openai:gpt-4.1,google:gemini-2.5-pro`.
+Application code addresses models by **role**, never by vendor: `fast` for high-volume extraction, `smart` for reasoning and code generation, `embed` for page embeddings, `judge` for grading the evaluation harness, and, added in Sprint 3, `poll` for the answer engines the AI-visibility axis measures. Roles resolve at runtime from environment variables as ordered fallback chains, for example `LLM_SMART=openai:gpt-4.1,google:gemini-2.5-pro`.
 
 The reason is that everything about a model changes on a quarterly cycle: our OpenAI credit will run out, free tiers appear and vanish, model names change, prices change. If provider and model names are scattered through the code, every one of those events becomes a pull request and a regression risk. Under this design, each is an environment edit. Three properties make it work, and all three are unit tested: a target whose API key is absent is silently dropped from the chain, so a chain can list five providers and use only the ones with keys; a retriable failure (429, quota, 5xx) falls through to the next target; and `packages/llm/src/providers.ts` is the only file in the codebase allowed to import a vendor SDK.
 
 That last property is not left to discipline. An ESLint rule lists the vendor SDK package names as restricted imports and allow-lists exactly one file, so importing `@ai-sdk/openai` anywhere else fails the build. This is the same mechanism that enforces "only the API touches the database" (1.7): the architecture is a property of CI, not of anyone's memory.
+
+`poll` is a separate role rather than a reuse of `smart`, for two reasons that both follow from it being a measurement instead of a generation. The model here is the *instrument*, so an operator wants to point it at whatever is closest to what their customers actually use, which is a different choice from "the best model for writing a fix". And it is the only role that spends every day, forever, so a separate variable makes a recurring bill something an operator switches on deliberately, and leaving it unset costs nothing and darkens one axis honestly.
 
 ### 2.3 Chain of responsibility: the LLM fallback chain
 
@@ -149,20 +227,26 @@ The ordered fallback chain is a chain of responsibility. Each target in `LLM_SMA
 
 ### 2.4 Repository pattern: `packages/db`
 
-Drizzle ORM is confined to `packages/db`. Domain logic does not issue ORM calls directly; it goes through `withTenant` and `asOwner`, which own the transaction and the tenant scoping. The reason is that tenancy becomes enforceable in exactly one place: every tenant-scoped read and write passes through a function that sets the tenant and drops to the non-privileged role, so a handler cannot forget to scope a query, because it never touches the ORM directly. `asOwner` is the single, loudly documented exception for operations that logically precede a tenant, such as creating a tenant or resolving an API token.
+Drizzle ORM is confined to `packages/db`. Domain logic does not issue ORM calls directly; it goes through `withTenant` and `asOwner`, which own the transaction and the tenant scoping. The reason is that tenancy becomes enforceable in exactly one place: every tenant-scoped read and write passes through a function that sets the tenant and drops to the non-privileged role, so a handler cannot forget to scope a query, because it never touches the ORM directly. `asOwner` is the single, loudly documented exception for operations that logically precede a tenant, such as creating a tenant, resolving an API token, or a system sweep across tenants like "which sites are due a poll today".
 
-### 2.5 The other patterns, briefly
+### 2.5 Decorator: the budgeted SERP provider
+
+The cost guard wraps the vendor adapter rather than living inside it. `budgeted(provider)` returns a `SerpProvider` that checks the tenant's budget, delegates, and records the cost. The reason is the same reason the seam exists: a guard written inside SerpApi's adapter would have to be rewritten, correctly, in every adapter that follows, whereas wrapping means DataForSEO arrives already capped and the adapter stays a pure translation of one vendor's response shape.
+
+The order inside the decorator is refuse, call, record, and each step is deliberate. Recording before the call would charge for queries that never happened. Recording only on success would let a vendor error *after* billing go uncounted, so the record happens in a `finally`: erring towards over-recording is the right direction for a cost guard, because the failure mode is a tenant reaching the cap slightly early rather than an unbounded loop of failing billable calls the ledger never sees. The guard's hooks are injected functions rather than a database handle, exactly as the LLM layer takes its checker and recorder, which keeps `packages/connectors` free of `@seo/db` and lets the whole thing be tested with no key, no database, and no spend.
+
+### 2.6 The other patterns, briefly
 
 | Pattern | Where | Reason |
 |---|---|---|
 | Pipeline / Chain | crawl, evaluate, prioritise, fix, verify | Each stage is independently testable and resumable. The audit runner is the one composition point where the stages meet; none of them knows about the others. |
 | Registry | `packages/rules/src/registry.ts` | Rules self-register. Adding a rule touches one file, and `ruleCoverage()` is derived from the registry so it cannot drift. |
-| Saga | AI visibility 3-day poll, CWV 28-day verification window | Long-horizon stateful workflows that outlive any process, modelled as scheduled jobs rather than long-running ones. |
-| Guard | per-tenant budget guard before any paid call | Cost blowout is the primary operational risk in a product that makes paid API calls, so the guard runs before the call, not after. |
-| Discriminated union | `Evidence` (`http`, `markup`, `metric`, `file`, `graph`, `search`) | A finding cannot record prose; it must hand back a typed observation a fixer can branch on and a verifier can re-observe. |
-| Dependency injection | `enqueue`, the OAuth config, the `fetch` in every connector, the `llm` client in the content fixer | The routes, the audit runner, and the fixers take their side effects as parameters, so a test drives them with a spy, a mocked endpoint, or a fake model without the network. |
+| Saga | The AI-visibility three-day poll; the CrUX 28-day verification window | Long-horizon stateful workflows that outlive any process, modelled as scheduled jobs rather than long-running ones. The poll saga is now built: one observation a day, accumulated into a verdict that no single run can produce. |
+| Guard | `@seo/budget`, before any paid call | Cost blowout is the primary operational risk in a product that makes paid API calls, so the guard runs before the call and fails closed. See 1.13. |
+| Discriminated union | `Evidence` (`http`, `markup`, `metric`, `file`, `graph`, `search`, `citation`) | A finding cannot record prose; it must hand back a typed observation a fixer can branch on and a verifier can re-observe. The `citation` variant carries the sample (polls run, days polled, matched sources) rather than a bare verdict, because a citation is a claim about a distribution and evidence for a bare "cited: true" would be evidence for a claim we refuse to make. |
+| Dependency injection | `enqueue`, the OAuth config, the `fetch` in every connector, the `llm` client, the `SerpProvider`, the budget hooks | The routes, the audit runner, the fixers, and the pollers take their side effects as parameters, so a test drives them with a spy, a mocked endpoint, a fake model, or a fake vendor without the network and without spending. |
 
-### 2.6 Strategy families: one fixer serves fourteen frameworks (ADR-0013)
+### 2.7 Strategy families: one fixer serves fourteen frameworks (ADR-0013)
 
 The same finding needs a different diff in a different repository. "Add a tag to the head" is one file in a Next.js App Router `layout.tsx`, a different file in a Vue single-page app's `index.html`, a `header.php` in WordPress, a `baseof.html` in Hugo. The framework enum lists fourteen stacks, and writing one fixer per rule per framework is a combinatorial explosion that guarantees most cells are untested.
 
@@ -174,7 +258,7 @@ The pattern is Strategy, applied twice over. First, `detectFramework` reads a ha
 
 This section addresses rubric requirement 3: the deployment options, cloud or on-premises, with the relative cost implications of the choice. Figures are in USD per month and are realistic mid-range estimates for a small production workload (one always-on API, a worker fleet, one database of a few gigabytes, modest traffic).
 
-### 3.1 Option A: the free tier (current deployment), $0/month
+### 3.1 Option A: the free tier (current deployment), $0/month infrastructure
 
 | Component | Service | Monthly cost |
 |---|---|---|
@@ -183,9 +267,23 @@ This section addresses rubric requirement 3: the deployment options, cloud or on
 | Database, queue, vectors, artefacts | Neon free (~0.5 GB) | $0 |
 | Worker fleet | GitHub Actions on a public repo (unlimited minutes) | $0 |
 | CI | GitHub Actions (public repo) | $0 |
-| **Total** | | **$0** |
+| **Infrastructure total** | | **$0** |
 
-This is what the project runs on today. The trade-offs are the accepted ceilings in section 1.8: a fifteen-minute cold start on the API, a ~0.5 GB database, and artefacts in Postgres. All are fine for a capstone, a demo, and an early-stage product with a handful of tenants, and each has a documented trigger and path off it.
+This is what the project runs on today. The trade-offs are the accepted ceilings in section 1.8: the API sleeps after fifteen minutes idle and takes roughly thirty seconds to wake, the database is ~0.5 GB, and artefacts live in Postgres. All are fine for a capstone, a demo, and an early-stage product with a handful of tenants, and each has a documented trigger and path off it.
+
+**Data costs sit on top of this, are opt-in, and are capped.** They are the only non-zero line in the whole system:
+
+| Data source | Cost basis | Monthly cost at demo scale |
+|---|---|---|
+| Own crawler, rules, link graph, schema | free forever | $0 |
+| Search Console, Site Verification, PageSpeed Insights, CrUX | free Google APIs | $0 |
+| LLM calls (fix generation) | one `smart` call per fixable finding | pennies, on existing credit |
+| LLM calls (`poll` role, AI visibility) | one call per prompt per day | ~$1 to $3 for 5 prompts on one site |
+| SERP and AI Overviews (SerpApi) | 250 searches/month free, then per query | $0 at demo scale (5 prompts x 3 polls x 4 weeks = 60 searches) |
+| **Default per tenant** | unset keys, both axes unmeasured | **$0** |
+| **Hard cap per tenant** | enforced before the call (1.13) | **$5**, a database column |
+
+The important property is not the size of those numbers but their shape: they are zero unless somebody opts in, and bounded by construction when they do.
 
 ### 3.2 Option B: managed cloud (AWS), roughly $105 to $160/month
 
@@ -202,7 +300,7 @@ The natural production target when the free-tier ceilings are hit. Indicative li
 | Logs, metrics, data transfer | CloudWatch + egress | ~$10 |
 | **Total** | | **~$107** |
 
-Note that ElastiCache is optional. Because the queue is pg-boss on Postgres, a cloud deployment can keep the queue on RDS and drop the ~$13 Redis line entirely, which is one of the quiet benefits of the "no Redis" decision: it removes a cost line in every deployment tier, not just the free one. A high-availability setup (multi-AZ RDS, more workers) moves this into the $250 to $500 range.
+Note that ElastiCache is optional. Because the queue is pg-boss on Postgres, a cloud deployment can keep the queue on RDS and drop the ~$13 Redis line entirely, which is one of the quiet benefits of the "no Redis" decision: it removes a cost line in every deployment tier, not just the free one. A high-availability setup (multi-AZ RDS, more workers) moves this into the $250 to $500 range. Data costs from 3.1 are unchanged by the hosting choice, because they are per query and not per server.
 
 ### 3.3 Option C: on-premises
 
@@ -218,7 +316,7 @@ The honest figure for on-premises is dominated by the last row, which the other 
 
 ### 3.4 Recommendation
 
-For the current stage (capstone, demo, early access), **the free tier is the correct choice** and the total is genuinely zero. It is not a toy: the same code, the same database schema, and the same worker model scale up, because the only integration surface is `DATABASE_URL` and a set of environment variables.
+For the current stage (capstone, demo, early access), **the free tier is the correct choice** and the infrastructure total is genuinely zero. It is not a toy: the same code, the same database schema, and the same worker model scale up, because the only integration surface is `DATABASE_URL` and a set of environment variables.
 
 When a ceiling in section 1.8 is reached, **migrate to managed cloud (Option B)**, one component at a time, following the documented triggers: artefacts to R2 or S3 first, then an always-on API, then a paid database tier. Because nothing in the code names a vendor SDK, each migration is configuration, not a rewrite.
 
@@ -228,7 +326,7 @@ When a ceiling in section 1.8 is reached, **migrate to managed cloud (Option B)*
 
 ## 4. Software testing carried out
 
-This section addresses rubric requirement 4: all software testing carried out, including the automated tests, and the reasons for each. The suite is **over 500 automated tests across 51 test files**: unit, integration, and contract tests plus 7 end-to-end tests, run on every push and pull request by CI. It grew by roughly a quarter in Sprint 2 as the write path landed: the fixers, the pull-request provider, the merge webhook, the re-audit verifier, and the one LLM content fixer each arrived with tests.
+This section addresses rubric requirement 4: all software testing carried out, including the automated tests, and the reasons for each. The suite is **673 automated tests across 64 test files**: 666 unit, integration, and contract tests plus 7 end-to-end tests, run on every push and pull request by CI. It grew by roughly a third in Sprint 3 as the four dark axes landed: the citation parser and stability aggregator, the consensus extractor, the visibility and authority evaluators, the SERP contract and its budget decorator, the cost guard, and the outreach drafter each arrived with tests.
 
 ### 4.1 Testing philosophy
 
@@ -236,15 +334,15 @@ Two principles shape the whole suite.
 
 **Every finding carries its falsification condition, and the tests enforce it.** The domain model requires a non-empty `falsification` field on every finding, in three independent places: the TypeScript type will not compile without it, the Zod schema will not parse without it, and the database column is `NOT NULL`. A test constructs findings through the real engine and asserts the schema rejects an empty one, so "unfalsifiable advice" is not a guideline but a compile-and-runtime error.
 
-**Where a claim can only be proven against real infrastructure, the test uses real infrastructure.** Row-level security is enforced by Postgres and by nothing else, so a mock would only test our beliefs about Postgres, and those beliefs were wrong once (section 1.6). The security tests, the queue tests, the API tests, and the end-to-end tests all run against a real Postgres. A mock there would be theatre.
+**Where a claim can only be proven against real infrastructure, the test uses real infrastructure.** Row-level security is enforced by Postgres and by nothing else, so a mock would only test our beliefs about Postgres, and those beliefs were wrong once (section 1.6). The security tests, the queue tests, the API tests, the budget tests, the visibility window tests, and the end-to-end tests all run against a real Postgres. A mock there would be theatre. The clearest Sprint 3 example is the test that inserts a second poll for the same prompt, engine, and day and asserts the database rejects it: the "three polls over three days" guarantee is a claim about a unique index, so only the index can prove it.
 
 ### 4.2 The testing pyramid
 
 | Layer | Count | What it covers | Why it exists |
 |---|---|---|---|
-| Unit | the large majority | The rule engine, the scorecard, the crawler's parsers and graph, the CrUX and quick-wins evaluators, the LLM chain resolution, the token crypto and OAuth state, the framework detector, every fixer, the pull-request branch and body builders, and the content fixer against a fake model | Pure functions, fixture-driven, 100% deterministic, free to run. This is the bulk of the product's logic and involves zero external calls. |
-| Integration | 6 files | The audit runner end to end, the queue against Postgres, tenant isolation against Postgres, the crawler against a live HTTP server, and the search step against Postgres with mocked Google | Prove the seams: the places where independently-tested packages meet, which no unit test can exercise. |
-| Contract | 3 files | The CrUX client, the Search Console client, and the Site Verification client | Google's response shapes are theirs to change without warning. A contract test pins the shape so a change surfaces as a red test, not as an audit quietly reporting no data. |
+| Unit | 51 files, the large majority of tests | The rule engine, the scorecard, the crawler's parsers and graph, the CrUX and quick-wins evaluators, the citation parser and stability aggregator, the consensus extractor, the visibility and authority evaluators, the LLM chain resolution, the token crypto and OAuth state, the framework detector, every fixer, the pull-request builders, the budget decorator, and the content and outreach drafters against fake models | Pure functions, fixture-driven, 100% deterministic, free to run. This is the bulk of the product's logic and involves zero external calls and zero spend. |
+| Integration | 8 files | The audit runner end to end, the queue against Postgres, tenant isolation against Postgres, the crawler against a live HTTP server, the search step against Postgres with mocked Google, the visibility poll window against Postgres, the API against Postgres, and the budget ledger against Postgres | Prove the seams: the places where independently-tested packages meet, and the guarantees that live in the database rather than in the code. |
+| Contract | 4 files | The CrUX client, the Search Console client, the Site Verification client, and the SerpApi provider | These response shapes are somebody else's to change without warning, and the failure mode is not a crash but an axis that goes quiet while looking healthy. A contract test pins our reading of the shape so a vendor change surfaces as a red test. |
 | End-to-end | 7 tests | The real Next app against the real API against real Postgres, with RLS on | The dashboard's acceptance criteria are claims about a screen; only a browser can check them, and the claims that matter most (a blank axis stays blank, another tenant gets a 404) are exactly what a mock would lie about. |
 | LLM evaluation harness | designed | Precision, recall, and hallucination rate of findings against a golden dataset | See 4.5. |
 
@@ -252,17 +350,19 @@ Two principles shape the whole suite.
 
 | Package | Tests | Notable coverage |
 |---|---|---|
-| `@seo/crawler` | 141 | robots.txt matching (longest-match, tie-to-allow), sitemap parsing, the frontier and pacer, PageRank with dangling-mass redistribution, render comparison, and a live-browser integration test against a real HTTP server. |
-| `@seo/rules` | 69 | Every one of the twenty-one deterministic `TECH-*` rules, the engine, and the coverage report. Includes the property that matters most: "finds nothing on a clean site." |
-| `@seo/connectors` | 63 | CrUX thresholds at the exact boundaries, the Core Web Vitals evaluator, token encryption (round-trip and tamper detection), the OAuth state signing (forgery and replay), the CrUX, GSC, and Site Verification contract tests, and the quick-wins evaluator. |
-| `@seo/api` | 51 | Authentication (no header, bad token, and the "never trust an asserted tenant id" case), tenant isolation across the HTTP boundary (404 not 403), the enqueue paths for audits, verification, and fixes, the merge webhook moving a finding to merged and enqueuing verification, and the Google connection flow including forged-state rejection. |
-| `@seo/fixers` | 44 | The framework detector per stack, the head injector, and each fixer with a triggering and a clean fixture: the canonical origin rewrite (with the hostname-boundary guard), the robots AI-crawler unblock (named-group flip and wildcard append), and the noindex strip. |
-| `@seo/core` | 36 | The `Finding` schema and its falsification guarantee, the priority score, and the eight-axis scorecard including its refusal to score an unmeasured axis. |
+| `@seo/crawler` | 152 | robots.txt matching (longest-match, tie-to-allow), sitemap parsing, the frontier and pacer, PageRank with dangling-mass redistribution, render comparison, AI-crawler posture, and a live-browser integration test against a real HTTP server. |
+| `@seo/connectors` | 131 | CrUX thresholds at the exact boundaries and the Core Web Vitals evaluator; token encryption (round-trip and tamper detection); OAuth state signing (forgery and replay); four contract tests; the citation parser including look-alike domain rejection; the stability aggregator including the same-day triple; the consensus range including outlier robustness; the visibility and authority evaluators; and the budget decorator. |
+| `@seo/rules` | 81 | Every one of the twenty-three deterministic crawl rules, the engine, and the coverage report. Includes the property that matters most, "finds nothing on a clean site", and the rule-8 disclaimer assertion. |
+| `@seo/api` | 77 | Authentication (no header, bad token, and the "never trust an asserted tenant id" case), tenant isolation across the HTTP boundary (404 not 403), the enqueue paths for audits, verification, and fixes, the merge webhook, the Google connection flow including forged-state rejection, and the visibility settings endpoints including the prompt-history-preserving diff. |
+| `@seo/fixers` | 54 | The framework detector per stack, the head injector, and each fixer with a triggering and a clean fixture: the canonical origin rewrite (with the hostname-boundary guard), the robots AI-crawler unblock, the noindex strip, the `llms.txt` writer, and the `LocalBusiness` schema block. |
+| `@seo/core` | 43 | The `Finding` schema and its falsification guarantee, the evidence union including the `citation` variant, the priority score, and the eight-axis scorecard including its refusal to score an unmeasured axis. |
+| `@seo/audit` | 36 | The runner producing and persisting a complete audit, the reachability guard, the performance and search steps and their honest unmeasured states, the fix-verification reconciliation, and the visibility window against Postgres (four kinds of "nothing", the days-not-checks rule, and the duplicate-check rejection). |
 | `@seo/vcs` | 32 | The branch naming and slug, the pull-request body builder refusing to render without all five sections, the provider's never-to-`main` guarantees and idempotency against a fake GitHub, and the webhook HMAC verification. |
-| `@seo/audit` | 29 | The runner producing and persisting a complete audit, the reachability guard, the performance and search steps and their honest unmeasured states, and the fix-verification reconciliation (verified when gone, rejected when the rule still fires on an overlapping URL). |
-| `@seo/agent` | 12 | The Search Console verification orchestration, and the content fixer against a fake model: exactly one call, schema-validated injection, prompt grounded on the title, and stays-open when the chain is unavailable. |
+| `@seo/agent` | 20 | The Search Console verification orchestration; the content fixer against a fake model; and the outreach drafter, including that it refuses without a grounding fact, makes no call when it refuses, and returns nothing that could send an email. |
 | `@seo/db` | 10 | Tenant isolation, run against Postgres. Includes the assertion that would have caught the original bug: the query role has `rolbypassrls = false`. |
+| `@seo/budget` | 9 | The cap against Postgres: accumulation, refusal at the cap, cross-tenant isolation, calendar-month reset, the recorder seam, the unpriced-model warning and its silence on genuinely free calls, and fail-closed when the ledger cannot be read. |
 | `@seo/llm` | 6 | Chain resolution: absent keys dropped, fallback order preserved, a helpful error when no key is present. |
+| `@seo/web` (unit) | 6 | The API-error handling that decides between a redirect and a retry message. |
 | `@seo/queue` | 5 | Enqueue and drain, and the concurrency guarantee that a job goes to only one of two racing drains. |
 | `@seo/api-client` | 4 | The typed client's request handling, including the timeout and the JSON content-type only when there is a body. |
 | `@seo/web` (e2e) | 7 | The dashboard, the findings inbox, the scorecard's honest blanks, and cross-tenant 404, all in a real browser. |
@@ -276,18 +376,23 @@ The suite is not decorative. Several tests failed on correct-looking code and pr
 - **The `onRequest` authentication leak.** A test showed that authenticating in Fastify's `preHandler` let an anonymous caller receive a 400 (revealing a route's schema) before the 401, because validation runs first. Authentication moved to `onRequest`.
 - **An empty login shell.** A test caught the login page rendering as blank HTML because `useSearchParams` had silently opted the route out of server rendering.
 - **A build-time environment variable read at runtime.** The end-to-end suite caught `NEXT_PUBLIC_API_URL` being inlined at build time, so a deployed app would dial whatever URL it was compiled with.
+- **A consensus range nobody had stated (Sprint 3).** The consensus extractor originally took a plain median, and its own test showed two answers quoting $3,000 and $4,000 collapsing into a "consensus" of $3,500 to $3,500: a figure neither answer gave, presented as agreement, with the disagreement hidden. The statistic was changed so the two medians lean outwards, which means every endpoint is now a figure some answer really stated.
+- **The exhaustive evidence switch (Sprint 3).** Adding the `citation` evidence variant broke the build in `pr-body.ts`, because the renderer's switch is exhaustive over the union. The type system, rather than a reviewer, insisted that a new kind of evidence be given a way to appear in a pull-request body.
+- **A stale rationale in the scorecard (Sprint 3).** Writing ADR-0019 surfaced a comment asserting the `llms.txt` finding scored zero, referencing a rule id that no longer existed. Checking which of the two was right (the code) rather than making them agree is documented in 1.15.
 
 ### 4.5 The LLM evaluation harness
 
-The deterministic rule engine (section 1.1) is what makes most of the product testable by ordinary means, because a parser is a pure function. The probabilistic half now exists: the model writes a fix in the one content fixer, and that fixer is tested by ordinary means too, against a fake model that returns a fixed string, which proves the mechanism (exactly one call, schema-validated, grounded on the title, and stays-open on failure) without spending a token or depending on a live model. What a fake cannot measure is the quality of what a real model writes, and that is what the evaluation harness is for.
+The deterministic rule engine (section 1.1) is what makes most of the product testable by ordinary means, because a parser is a pure function. The probabilistic half now exists in two places: the model writes a fix in the content fixer, and it drafts outreach on the authority axis. Both are tested by ordinary means, against fake models that return canned output, which proves the mechanism (exactly one call, schema-validated, grounded on real facts, and a graceful nothing on failure) without spending a token or depending on a live model. The outreach test goes one step further and parses its canned output through the caller's own schema, so a test cannot pass on a shape production would reject.
 
-The harness is a golden dataset of roughly fifty pages with known, hand-labelled ground-truth issues. Against it, the harness measures three numbers: **precision** (of the findings raised, how many are real), **recall** (of the real issues, how many were found), and **hallucination rate** (findings that reference code or elements that do not exist). In production it adds two more: pull-request merge rate and pull-request revert rate, the ultimate ground truth for whether a fix was correct, and both are now observable because the write path and the merge-and-verify loop are built.
+What a fake cannot measure is the quality of what a real model writes, and that is what the evaluation harness is for. The harness is a golden dataset of roughly fifty pages with known, hand-labelled ground-truth issues. Against it, the harness measures three numbers: **precision** (of the findings raised, how many are real), **recall** (of the real issues, how many were found), and **hallucination rate** (findings that reference code or elements that do not exist). In production it adds two more: pull-request merge rate and pull-request revert rate, the ultimate ground truth for whether a fix was correct, and both are now observable because the write path and the merge-and-verify loop are built.
 
 One methodological decision is already enforced in code and tested: the `judge` role that grades the harness **must be a different model family than the model under test**. Grading OpenAI's output with OpenAI produces self-preference bias and an evaluation that flatters itself. The role-based LLM layer (section 2.2) makes this a one-line configuration (`LLM_JUDGE=google:gemini-2.5-pro` while the fixer runs on OpenAI), and the chain-resolution tests already prove the layer routes each role independently. What remains is the golden dataset itself and the harness runner; the fix generation they grade is now live, so the harness is the next instrument to build rather than a design waiting on its subject.
 
 ### 4.6 Continuous integration
 
-Every push and every pull request runs the full gate: format check, lint, typecheck, build, database migration, the full unit, integration, and contract suite, and the 7 end-to-end tests. CI provisions a real Postgres 18 service container for the tests that need one, deliberately a different Postgres from Neon, because the container's default role is a superuser and superusers also bypass RLS, so if the `seo_app` role drop were broken the isolation tests would fail in CI rather than in production. Three code-level laws are enforced mechanically by the same pipeline: no vendor SDK outside `providers.ts`, no `@seo/db` import outside the API and worker, and no finding without a falsification condition. The architecture is not a document the code is asked to honour; it is a set of checks the code must pass. A third-party reviewer (Sourcery) also runs on every pull request; its comments are read before merge, and it has caught real defects, including a homepage meta description that was present but empty slipping past its own rule.
+Every push and every pull request runs the full gate: format check, lint, typecheck, build, database migration, the full unit, integration, and contract suite, and the 7 end-to-end tests. CI provisions a real Postgres 18 service container for the tests that need one, deliberately a different Postgres from Neon, because the container's default role is a superuser and superusers also bypass RLS, so if the `seo_app` role drop were broken the isolation tests would fail in CI rather than in production. The migration step runs before the tests, because the isolation suite has nothing to assert against until the schema and the policies exist.
+
+Four code-level laws are enforced mechanically by the same pipeline: no vendor SDK outside `providers.ts`, no `@seo/db` import outside the API, the worker, the audit runner, and the budget package, no finding without a falsification condition, and no `llms.txt` recommendation that claims a ranking benefit. The architecture is not a document the code is asked to honour; it is a set of checks the code must pass. A third-party reviewer (Sourcery) also runs on every pull request; its comments are read before merge, and it has caught real defects, including a homepage meta description that was present but empty slipping past its own rule.
 
 ---
 
@@ -309,5 +414,10 @@ Every push and every pull request runs the full gate: format check, lint, typech
 | 0012 | Pull-request safety and idempotency | Accepted |
 | 0013 | Framework-strategy pattern for fixers | Accepted |
 | 0014 | GitHub App webhook security | Accepted |
+| 0015 | Citation measurement is poll-many-times-over-days, and deterministic | Accepted |
+| 0016 | Third-party SERP data behind a provider, under a per-tenant budget cap | Accepted |
+| 0017 | The cost guard is enforced before the spend, per tenant, in its own package | Accepted |
+| 0018 | The authority axis leads with mentions, not links | Accepted |
+| 0019 | `llms.txt` is agent-readiness infrastructure, never a ranking claim | Accepted |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.
