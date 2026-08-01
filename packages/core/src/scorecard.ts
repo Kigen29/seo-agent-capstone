@@ -67,9 +67,17 @@ export type Scorecard = z.infer<typeof scorecardSchema>
 /**
  * How much a single finding damages its axis, before confidence and impact scale it down.
  *
- * `info` is zero by definition. TECH-020 tells the user their llms.txt is missing and says
- * in its own falsification note that fixing it will not move search rankings. A finding
- * that admits it changes nothing must not be allowed to change the score either.
+ * `info` is zero by definition: a finding that changes nothing must not be allowed to change
+ * a score, which would be an overclaim wearing a number.
+ *
+ * The reference example here used to be the missing-llms.txt finding, on the grounds that it
+ * says in its own falsification note that fixing it will not move search rankings. That was
+ * the wrong example and it is worth recording why, because the reasoning is easy to repeat.
+ * That finding (AGENT-001) sits on `agent_readiness`, not on a search axis, and missing
+ * `llms.txt` is a real if small gap in whether agents can navigate the site. Scoring it zero
+ * would leave that axis unable to tell a site that has the file from one that does not, on
+ * the one property it exists to measure. So it is `low`, and ADR-0019 records the decision.
+ * Being honest about what a fix will not do is not the same as pretending the gap is absent.
  */
 const SEVERITY_DAMAGE: Record<Severity, number> = {
   critical: 50,
