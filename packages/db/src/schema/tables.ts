@@ -45,6 +45,23 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+
+  /**
+   * What this tenant may spend on paid model and data calls in a calendar month, in millionths
+   * of a dollar.
+   *
+   * Micro-dollars, not a decimal, because this is money and floating point is not. A single
+   * `fast` call can cost fractions of a cent, so the unit has to be small enough that thousands
+   * of them sum without drift, and an integer is the only representation where that is true by
+   * construction rather than by luck.
+   *
+   * Per tenant, because a cap that is not per tenant is not a cap: one runaway prompt list would
+   * spend everyone else's allowance (ADR-0016).
+   */
+  monthlyBudgetMicros: bigint('monthly_budget_micros', { mode: 'number' })
+    .notNull()
+    .default(5_000_000),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -379,6 +396,45 @@ export const visibilityChecks = pgTable(
   ],
 )
 
+/**
+ * Every paid call we have made, one row each.
+ *
+ * A ledger rather than a running total on the tenant, because a total answers "how much" and
+ * nothing else. When a bill surprises someone, the only useful question is *what* spent it, and
+ * that needs the provider, the model, and the hour. It also makes the cap auditable: the guard's
+ * verdict is a sum over rows anyone can re-run by hand.
+ *
+ * `kind` exists because the LLM is not the only thing that costs money. SERP and AI-Overview data
+ * is the other paid dependency (ADR-0016), and it has to sit under the same cap: two separate
+ * budgets would let a tenant spend twice what either one allows.
+ */
+export const spend = pgTable(
+  'spend',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+
+    /** 'llm' or 'serp'. Not an enum: a new paid dependency should not need a migration. */
+    kind: text('kind').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+
+    /** Millionths of a dollar. See tenants.monthlyBudgetMicros for why it is an integer. */
+    micros: bigint('micros', { mode: 'number' }).notNull(),
+
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    /** The guard's only query: this tenant, this month. */
+    index('spend_tenant_created_idx').on(table.tenantId, table.createdAt),
+  ],
+)
+
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
 export const TENANT_SCOPED = [
   sites,
@@ -389,4 +445,5 @@ export const TENANT_SCOPED = [
   apiTokens,
   visibilityPrompts,
   visibilityChecks,
+  spend,
 ] as const

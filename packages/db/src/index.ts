@@ -18,6 +18,7 @@ export {
   findings,
   oauthCredentials,
   sites,
+  spend,
   tenants,
   visibilityChecks,
   visibilityPrompts,

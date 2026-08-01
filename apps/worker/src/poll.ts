@@ -129,7 +129,7 @@ export async function runPollAi(
 
   if (prompts.length === 0) return { prompts: 0, checks: 0 }
 
-  const engines = configuredEngines(deps.llm ?? createWorkerLlm(), job.tenantId)
+  const engines = configuredEngines(deps.llm ?? createWorkerLlm(db), job.tenantId)
   if (engines.length === 0) {
     console.log(
       `worker: no answer engine is configured (LLM_POLL), so site ${job.siteId} has no ` +

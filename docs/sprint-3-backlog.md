@@ -190,8 +190,9 @@ Google Business Profile API access requires an approval process and OAuth scopes
 
 - **ADR-0015: Citation measurement is poll-many-times-over-days, and deterministic.** Poll each prompt at least three times across at least three days, detect citation with a parser over the answer and its sources, never with a model judging itself, and never report a citation from a single poll. The stability score is the honesty, and it is why this axis is trustworthy where a one-shot check is not.
 - **ADR-0016: Third-party SERP and AI data behind a `SerpProvider`, under a hard budget cap.** The first paid dependency in the product. A Strategy seam (SerpApi, DataForSEO) so the vendor is swappable, and a per-tenant budget guard so the axis degrades to unmeasured rather than spending without consent. This is where the $0 constraint (ADR-0006) meets a paid necessity, and the resolution is: paid is opt-in, capped, and honest when off.
-- **ADR-0017: The authority axis leads with mentions, not links.** Grounded in the 0.664-vs-0.218 research: mention-building and link-building are different jobs, and the axis reflects that rather than the industry's link obsession. Outreach is drafted, never sent (rule 6).
-- **ADR-0018: `llms.txt` is agent-readiness infrastructure, never a ranking claim.** Formalises CLAUDE.md rule 8 and Google's own guidance into an accepted decision, so the honesty is a recorded architectural commitment and a tested one, not a footnote.
+- **ADR-0017: The cost guard is enforced before the spend, per tenant, in its own package.** Accepted. Written earlier than planned, because STORY-027 turned uncontrolled cost from a risk into a certainty: the poll spends every day, per prompt, per site, with nobody present, and the guard ADR-0016 relied on was still a stub returning `allowed: true`.
+- **ADR-0018: The authority axis leads with mentions, not links.** Grounded in the 0.664-vs-0.218 research: mention-building and link-building are different jobs, and the axis reflects that rather than the industry's link obsession. Outreach is drafted, never sent (rule 6).
+- **ADR-0019: `llms.txt` is agent-readiness infrastructure, never a ranking claim.** Formalises CLAUDE.md rule 8 and Google's own guidance into an accepted decision, so the honesty is a recorded architectural commitment and a tested one, not a footnote.
 
 ---
 
