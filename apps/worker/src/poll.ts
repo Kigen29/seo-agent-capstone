@@ -1,4 +1,12 @@
-import { pollEnginesDetailed, type AiEngine, type PollTarget } from '@seo/connectors'
+import {
+  aiOverviewEngine,
+  budgeted,
+  createSerpApiProvider,
+  pollEnginesDetailed,
+  type AiEngine,
+  type PollTarget,
+} from '@seo/connectors'
+import { createBudgetGuard, recordSpend } from '@seo/budget'
 import {
   asOwner,
   sites,
@@ -71,23 +79,84 @@ function llmEngine(llm: LlmClient, tenantId: string): AiEngine {
 }
 
 /**
+ * Google's AI Overview, when a SERP key is configured and only then.
+ *
+ * The most valuable engine on the axis, and the only one billed per question. It is also the only
+ * one that returns a real source list, so its verdicts carry `basis: 'citations'` where a plain
+ * chat model can only manage a text mention.
+ *
+ * Every query goes through the same per-tenant guard as every LLM call, so the two paid
+ * dependencies share one cap rather than having one each (ADR-0016, ADR-0017). No key means no
+ * engine, which means the axis is measured by whatever else is configured, or honestly unmeasured.
+ */
+function serpEngine(db: Database, tenantId: string): AiEngine | null {
+  const apiKey = process.env.SERPAPI_API_KEY
+  if (!apiKey) return null
+
+  const guard = createBudgetGuard(db)
+  const provider = budgeted(
+    createSerpApiProvider({
+      apiKey,
+      // AI answers are heavily geography-dependent, and the research names geographic scope as
+      // the strongest predictor of a stable citation, so asking from the wrong country measures
+      // somebody else's market.
+      ...(process.env.SERP_COUNTRY ? { country: process.env.SERP_COUNTRY } : {}),
+    }),
+    {
+      tenantId,
+      checkBudget: guard.checkBudget,
+      recordSpend: (id, entry) =>
+        recordSpend(db, id, {
+          kind: 'serp',
+          provider: entry.provider,
+          model: entry.model,
+          micros: entry.micros,
+        }),
+      costPerQueryMicros: serpCostMicros(),
+    },
+  )
+
+  return aiOverviewEngine(provider)
+}
+
+/**
+ * What one SERP query costs, in micro-dollars.
+ *
+ * Configuration rather than a table, because the rate is per plan: SerpApi's price per search
+ * falls as the plan grows, so any number hard-coded here would be wrong for most operators. The
+ * default is the pay-as-you-go rate at the time of writing, which errs high, and erring high is
+ * the safe direction for a cost guard.
+ */
+function serpCostMicros(): number {
+  const configured = Number(process.env.SERP_COST_PER_QUERY_USD)
+  const usd = Number.isFinite(configured) && configured > 0 ? configured : 0.015
+  return Math.round(usd * 1_000_000)
+}
+
+/**
  * The engines this worker can poll, or an empty list when none is configured.
  *
- * Empty is a supported state, not a failure. A tenant with no `LLM_POLL` chain gets an
- * AI-visibility axis that says it is unmeasured and why (ADR-0016: paid data is opt-in, and the
- * axis degrades to honest silence rather than spending or erroring).
+ * Empty is a supported state, not a failure. A tenant with no `LLM_POLL` chain and no SERP key
+ * gets an AI-visibility axis that says it is unmeasured and why (ADR-0016: paid data is opt-in,
+ * and the axis degrades to honest silence rather than spending or erroring).
  */
-export function configuredEngines(llm: LlmClient, tenantId: string): AiEngine[] {
+export function configuredEngines(llm: LlmClient, tenantId: string, db: Database): AiEngine[] {
+  const engines: AiEngine[] = []
+
   try {
     // Resolve the chain up front rather than discovering it is empty inside the first call. The
     // difference matters: unconfigured is a state to report calmly once, but if it surfaced as a
     // failed call it would be logged as an error per prompt per day, for every site, forever.
     resolveChain('poll')
-    return [llmEngine(llm, tenantId)]
+    engines.push(llmEngine(llm, tenantId))
   } catch (error) {
-    if (error instanceof NoProviderConfiguredError) return []
-    throw error
+    if (!(error instanceof NoProviderConfiguredError)) throw error
   }
+
+  const serp = serpEngine(db, tenantId)
+  if (serp) engines.push(serp)
+
+  return engines
 }
 
 /** Today, as the `YYYY-MM-DD` UTC day the checks table keys on. */
@@ -129,11 +198,12 @@ export async function runPollAi(
 
   if (prompts.length === 0) return { prompts: 0, checks: 0 }
 
-  const engines = configuredEngines(deps.llm ?? createWorkerLlm(db), job.tenantId)
+  const engines = configuredEngines(deps.llm ?? createWorkerLlm(db), job.tenantId, db)
   if (engines.length === 0) {
     console.log(
-      `worker: no answer engine is configured (LLM_POLL), so site ${job.siteId} has no ` +
-        'AI-visibility poll today. The axis reports itself unmeasured rather than guessing.',
+      `worker: no answer engine is configured (LLM_POLL, SERPAPI_API_KEY), so site ` +
+        `${job.siteId} has no AI-visibility poll today. The axis reports itself unmeasured ` +
+        'rather than guessing.',
     )
     return { prompts: prompts.length, checks: 0 }
   }
