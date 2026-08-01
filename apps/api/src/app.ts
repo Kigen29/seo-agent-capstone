@@ -1,5 +1,17 @@
 import cors from '@fastify/cors'
-import { getAudit, getFinding, listFindings, listSites } from '@seo/audit'
+import {
+  getAudit,
+  getFinding,
+  getVisibilitySettings,
+  listFindings,
+  listSites,
+  normaliseCompetitors,
+  normalisePrompts,
+  saveVisibilitySettings,
+  MAX_COMPETITORS,
+  MAX_PROMPTS,
+  MAX_PROMPT_LENGTH,
+} from '@seo/audit'
 import {
   buildAuthUrl,
   encryptToken,
@@ -903,6 +915,68 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           error: 'Conflict',
           message: 'The app cannot access that repository. Grant it access on GitHub, then retry.',
         })
+      },
+    )
+
+    /**
+     * What questions this site is tracked on, and against whom.
+     *
+     * The AI-visibility axis is the only one that cannot infer its own inputs. Every other axis
+     * reads something that already exists; this one needs a human to say what their customers
+     * actually ask, because there is no way to derive that from a website, and a guess would
+     * measure the guess.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .get('/sites/:id/visibility', { schema: { params: uuidParam } }, async (request, reply) => {
+        const settings = await getVisibilitySettings(db, request.tenantId, request.params.id)
+        if (!settings) return notFound(reply)
+        return settings
+      })
+
+    /**
+     * Replace the prompts and competitors for a site.
+     *
+     * The caps are cost ceilings, and they are enforced here rather than trimmed silently: each
+     * prompt is a poll a day, on every engine, indefinitely, so a list is a standing subscription
+     * and a user who asked for thirty questions deserves to be told they got twenty rather than
+     * to discover it later. Tidying that does not change meaning (trimming, collapsing runs of
+     * whitespace, dropping a duplicate) happens quietly; anything that would drop a thing the
+     * user asked for comes back as a 400 naming it.
+     *
+     * The save itself is a diff, so adding one question does not reset the history of the others.
+     */
+    protectedRoutes.withTypeProvider<ZodTypeProvider>().put(
+      '/sites/:id/visibility',
+      {
+        schema: {
+          params: uuidParam,
+          body: z.object({
+            prompts: z.array(z.string().max(MAX_PROMPT_LENGTH)).max(MAX_PROMPTS),
+            competitors: z.array(z.string().max(253)).max(MAX_COMPETITORS),
+          }),
+        },
+      },
+      async (request, reply) => {
+        const prompts = normalisePrompts(request.body.prompts)
+        const { competitors, invalid } = normaliseCompetitors(request.body.competitors)
+
+        if (invalid.length > 0) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message:
+              `Not a domain: ${invalid.join(', ')}. Competitors are matched by host, so give ` +
+              'them as domains, like rivalsafaris.com.',
+          })
+        }
+
+        const saved = await saveVisibilitySettings(db, request.tenantId, request.params.id, {
+          prompts,
+          competitors,
+        })
+
+        if (!saved) return notFound(reply)
+        return saved
       },
     )
   })

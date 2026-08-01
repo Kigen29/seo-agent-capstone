@@ -82,6 +82,15 @@ export interface PickableRepo {
 export type ConnectRepoResult =
   { mode: 'install'; url: string } | { mode: 'pick'; repos: PickableRepo[]; manageUrl: string }
 
+/**
+ * What a site's AI-visibility axis is configured to measure: the customer questions we poll the
+ * answer engines with, and the competitor hosts share of voice is computed against.
+ */
+export interface VisibilitySettings {
+  prompts: string[]
+  competitors: string[]
+}
+
 export interface ApiClientOptions {
   baseUrl: string
   token: string
@@ -233,6 +242,21 @@ export function createApiClient(options: ApiClientOptions) {
      */
     verifySite: async (siteId: string) =>
       request<{ status: string }>(`/sites/${siteId}/verify`, { method: 'POST' }),
+
+    /** The questions this site's AI visibility is measured on, and the rivals it is measured against. */
+    getVisibility: async (siteId: string) =>
+      request<VisibilitySettings>(`/sites/${siteId}/visibility`),
+
+    /**
+     * Replace a site's prompts and competitors. Returns what was actually stored, which may be
+     * tidier than what was sent (trimmed, deduplicated, competitors reduced to bare hosts), so a
+     * caller should render the response rather than its own input.
+     */
+    setVisibility: async (siteId: string, settings: VisibilitySettings) =>
+      request<VisibilitySettings>(`/sites/${siteId}/visibility`, {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      }),
   }
 }
 
