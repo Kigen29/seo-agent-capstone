@@ -77,6 +77,24 @@ function renderEvidence(evidence: Evidence): string {
         `position ${evidence.position}, ${evidence.impressions} impressions, ` +
         `${evidence.clicks} clicks (${evidence.startDate} to ${evidence.endDate})`
       )
+    // The sample is the evidence here, not the verdict: "cited twice" means nothing without the
+    // number of checks and the days they span, so the line leads with all three.
+    case 'citation':
+      return (
+        `"${evidence.prompt}": cited in ${evidence.citedCount} of ${evidence.pollsRun} checks ` +
+        `across ${evidence.daysPolled} days on ${evidence.engines.join(', ') || 'no engine'}` +
+        (evidence.citedCompetitors.length > 0
+          ? `; also cited: ${evidence.citedCompetitors.join(', ')}`
+          : '') +
+        (evidence.matchedSources.length > 0
+          ? `; matched ${evidence.matchedSources.join(', ')}`
+          : '') +
+        (evidence.consensus
+          ? `; the answers agreed on ${evidence.consensus.currency} ` +
+            `${evidence.consensus.low.toLocaleString('en-US')} to ` +
+            `${evidence.consensus.high.toLocaleString('en-US')}`
+          : '')
+      )
   }
 }
 

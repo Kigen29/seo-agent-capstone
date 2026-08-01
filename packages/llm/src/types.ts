@@ -5,7 +5,7 @@
  * Which provider and model serve that role is resolved at runtime from env.
  * Adding a new key or swapping a model is a .env change, never a code change.
  */
-export type ModelRole = 'fast' | 'smart' | 'embed' | 'judge'
+export type ModelRole = 'fast' | 'smart' | 'embed' | 'judge' | 'poll'
 
 export type ProviderId =
   'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter' | 'ollama' | 'custom' // any OpenAI-compatible endpoint

@@ -80,6 +80,12 @@ These constraints apply to every story below. They are stated once here so a sto
 
 **Falsification:** a citation from a single poll is reported as a citation, or a stability score is emitted from fewer than three checks.
 
+#### Deferred in STORY-027 (documented, not built): the geographic-scope finding
+
+The third finding in the task list above, "a page whose geographic scope does not match the answer's scope", is not built, and the reason is a constraint rather than a shortfall of time. Detecting it deterministically needs to know that Nairobi is inside Kenya, which means a place gazetteer we do not have and would have to license or maintain. The only way to get it without one is to ask a model whether the scopes match, and that is precisely the detector-side use ADR-0001 and ADR-0015 forbid: it would be unfalsifiable, and it would be a model grading the output of a model.
+
+The two findings that ship instead (not cited while a competitor is, and cited unstably) rest on counts the parser can point at. Geographic scope lands when a gazetteer does, and until then the axis is honest about measuring citation and stability rather than the reason behind them. Also deferred with it: naming the client's own numbers against the consensus range. The range itself is parsed from the answers and carried on the finding's evidence; matching it against the client's real figures needs the money page's contents, which is the content fixer's job, not the poller's.
+
 ---
 
 ## Epic 13: Agent readiness

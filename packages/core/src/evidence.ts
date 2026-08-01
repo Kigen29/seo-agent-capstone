@@ -108,6 +108,52 @@ export const searchEvidenceSchema = z.object({
   endDate: z.string(),
 })
 
+/**
+ * What an AI answer engine did, over a poll window: the prompt we asked, how many times we
+ * asked it, over how many days, and how often the client's domain came back.
+ *
+ * The counts are the honesty. A citation is a claim about a distribution, not about one
+ * answer, because roughly 45% of citations appear in only one of three checks (ADR-0015), so
+ * evidence that recorded a single "cited: true" would be evidence for a claim we refuse to
+ * make. `pollsRun` and `daysPolled` are here so a reader can see the sample the verdict rests
+ * on, and `matchedSources` carries the actual URLs the parser matched, which is what makes
+ * the finding falsifiable: if no source in that list is the client's, the poller was wrong.
+ */
+export const citationEvidenceSchema = z.object({
+  ...evidenceBase,
+  kind: z.literal('citation'),
+  /** The question we asked the engines, verbatim. */
+  prompt: z.string().min(1),
+  /** The engines polled, e.g. ['chatgpt', 'perplexity']. */
+  engines: z.array(z.string()).default([]),
+  pollsRun: z.number().int().min(0),
+  citedCount: z.number().int().min(0),
+  /** Distinct days the polls span. Below three, no citation verdict is reported at all. */
+  daysPolled: z.number().int().min(0),
+  /** The cited source URLs the parser matched to the client. Empty when never cited. */
+  matchedSources: z.array(z.string()).default([]),
+  /** Competitor domains cited for this prompt, deduplicated across the window. */
+  citedCompetitors: z.array(z.string()).default([]),
+  /**
+   * The figures the answers agreed on, parsed out of the answer texts, when they named any.
+   *
+   * An observation rather than advice, which is why it belongs on the evidence: these are
+   * numbers the engines actually printed. It is here because an answer is written first and
+   * sources are then chosen to support it, so a page contradicting the consensus does not get
+   * picked however true it is. Knowing the range is what lets a client state it and then put
+   * their own numbers underneath.
+   */
+  consensus: z
+    .object({
+      currency: z.string().min(1),
+      low: z.number(),
+      high: z.number(),
+      /** How many answers contributed a figure. Never below two. */
+      answers: z.number().int().min(2),
+    })
+    .optional(),
+})
+
 export const evidenceSchema = z.discriminatedUnion('kind', [
   httpEvidenceSchema,
   markupEvidenceSchema,
@@ -115,9 +161,11 @@ export const evidenceSchema = z.discriminatedUnion('kind', [
   fileEvidenceSchema,
   graphEvidenceSchema,
   searchEvidenceSchema,
+  citationEvidenceSchema,
 ])
 
 export type Evidence = z.infer<typeof evidenceSchema>
+export type CitationEvidence = z.infer<typeof citationEvidenceSchema>
 export type HttpEvidence = z.infer<typeof httpEvidenceSchema>
 export type MarkupEvidence = z.infer<typeof markupEvidenceSchema>
 export type MetricEvidence = z.infer<typeof metricEvidenceSchema>

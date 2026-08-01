@@ -19,6 +19,7 @@ export const VERIFY_QUEUE = 'verify'
 export const CONFIRM_VERIFY_QUEUE = 'confirm-verify'
 export const FIX_QUEUE = 'fix'
 export const VERIFY_FIX_QUEUE = 'verify-fix'
+export const POLL_AI_QUEUE = 'poll-ai'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -71,6 +72,23 @@ export interface VerifyFixJob {
   siteId: string
 }
 
+/**
+ * What a worker needs to poll the answer engines for one site, on one day.
+ *
+ * `day` is in the payload rather than read from the clock inside the job, and that is the whole
+ * saga in one field. This is one step of a measurement that spans days (ADR-0015), so the step
+ * has to know which day it is a step of: a job enqueued at 23:58 and retried at 00:03 must still
+ * write Tuesday's row, or the retry would land as a second day and inflate a sample that only
+ * grows honestly by waiting. The database's unique index on (prompt, engine, day) then makes the
+ * retry a no-op rather than a duplicate.
+ */
+export interface PollAiJob {
+  tenantId: string
+  siteId: string
+  /** The UTC day this poll belongs to, `YYYY-MM-DD`. */
+  day: string
+}
+
 export type Queue = PgBoss
 
 /**
@@ -92,6 +110,7 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
   await boss.createQueue(CONFIRM_VERIFY_QUEUE)
   await boss.createQueue(FIX_QUEUE)
   await boss.createQueue(VERIFY_FIX_QUEUE)
+  await boss.createQueue(POLL_AI_QUEUE)
   return boss
 }
 
@@ -185,6 +204,27 @@ export async function enqueueVerifyFix(queue: Queue, job: VerifyFixJob): Promise
 }
 
 /**
+ * Put a day's AI-visibility poll on the queue.
+ *
+ * The singleton key is the site *and the day*, not just the site, which is what keeps the sweep
+ * idempotent: the worker runs every fifteen minutes and re-enqueues whatever is due, so without
+ * the day in the key a site would collect ninety-six identical jobs a day. With it, the second
+ * enqueue for Tuesday is dropped by pg-boss and the first one still runs.
+ *
+ * The retry policy is generous because the thing being retried is a day of measurement that
+ * cannot be recovered later: a transient model outage at noon should not silently cost this site
+ * a day of its window. The database's unique index makes a retry safe.
+ */
+export async function enqueuePollAi(queue: Queue, job: PollAiJob): Promise<string | null> {
+  return queue.send(POLL_AI_QUEUE, job, {
+    retryLimit: 4,
+    retryDelay: 120,
+    expireInSeconds: 30 * 60,
+    singletonKey: `${job.siteId}:${job.day}`,
+  })
+}
+
+/**
  * Drain a queue: run every waiting job, then return.
  *
  * A drain-and-exit loop, not a long-lived subscription, because the worker is a GitHub Actions
@@ -261,4 +301,12 @@ export function drainVerifyFix(
   handler: (job: VerifyFixJob) => Promise<void>,
 ): Promise<{ completed: number; failed: number }> {
   return drain(queue, VERIFY_FIX_QUEUE, handler)
+}
+
+/** Drain the AI-visibility poll queue. See {@link drain}. */
+export function drainPollAi(
+  queue: Queue,
+  handler: (job: PollAiJob) => Promise<void>,
+): Promise<{ completed: number; failed: number }> {
+  return drain(queue, POLL_AI_QUEUE, handler)
 }

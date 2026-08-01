@@ -1,11 +1,12 @@
 import { buildScorecard, type Finding, type Scorecard } from '@seo/core'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
-import { audits, findings as findingsTable, withTenant, type Database } from '@seo/db'
+import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import { QUICK_WIN_CHECKS, googleOAuthConfigFromEnv, type OAuthConfig } from '@seo/connectors'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
 import { measurePerformance } from './performance.js'
 import { measureSearch } from './search.js'
+import { measureVisibility } from './visibility.js'
 
 /** The env OAuth config, or undefined when Google is not configured. Never throws. */
 function googleOAuthConfig(): OAuthConfig | undefined {
@@ -208,9 +209,50 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       { config: options.googleOAuth ?? googleOAuthConfig() },
     )
 
-    const found = [...crawlFindings, ...performance.findings, ...search.findings]
+    /**
+     * The AI-visibility axis, read from the poll window the daily saga has been filling.
+     *
+     * This one only reads. The polls happen once a day on their own schedule, over days, because
+     * a citation is a claim about a distribution and not about one answer (ADR-0015). An audit
+     * that polled inline would be a single check, and a single check is exactly the noise the
+     * whole axis is built to refuse, so running an audit twice in an afternoon cannot conjure a
+     * citation into existence.
+     */
+    const [site] = await withTenant(db, tenantId, (tx) =>
+      tx
+        .select({ competitors: sites.competitors })
+        .from(sites)
+        .where(eq(sites.id, siteId))
+        .limit(1),
+    )
+
+    const visibility = await measureVisibility(db, {
+      tenantId,
+      siteId,
+      domain: seed,
+      competitors: site?.competitors ?? [],
+    })
+
+    const found = [
+      ...crawlFindings,
+      ...performance.findings,
+      ...search.findings,
+      ...visibility.findings,
+    ]
 
     const coverage = { ...ruleCoverage(), performance: performance.coverage }
+
+    /**
+     * The crawl already contributes one check here (can the AI crawlers reach the site at all),
+     * and the poll adds one per prompt it has enough history to judge. The two notes read as one
+     * sentence pair on purpose: the crawl's says being reachable is the precondition for a
+     * citation and not evidence of one, the poll's says what the engines actually did.
+     */
+    coverage.ai_visibility = {
+      checksRun: coverage.ai_visibility.checksRun + visibility.promptsMeasured,
+      note: `${coverage.ai_visibility.note ?? ''} ${visibility.note}`.trim(),
+    }
+
     if (search.measured) {
       // Content is already measured by the crawl rules; the quick wins add to it rather than
       // replacing it, so the check count grows and the note records that Search Console fed in.

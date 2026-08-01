@@ -12,6 +12,7 @@ import {
   bigint,
   boolean,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -67,6 +68,18 @@ export const sites = pgTable(
      */
     githubInstallationId: bigint('github_installation_id', { mode: 'number' }),
     framework: frameworkEnum('framework').$type<Framework>().notNull().default('unknown'),
+
+    /**
+     * The competitor domains this site is measured against on the AI-visibility axis.
+     *
+     * Share of voice is meaningless without a named field: "cited twice" says nothing until
+     * you know a rival was cited nine times for the same questions. Empty is a perfectly
+     * valid state, and the axis then reports citation and stability without a share.
+     */
+    competitors: text('competitors')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
 
     /** Search Console property, e.g. 'https://example.com/', set when auto-verification runs. */
     gscProperty: text('gsc_property'),
@@ -281,6 +294,91 @@ export const apiTokens = pgTable(
   (table) => [uniqueIndex('api_tokens_hash_idx').on(table.tokenHash)],
 )
 
+/**
+ * The questions we ask the AI answer engines on a site's behalf.
+ *
+ * These are the client's real customer questions, not keywords, because that is what a person
+ * types into ChatGPT. They are stored rather than derived: the whole axis is a longitudinal
+ * measurement, and a prompt that changed between polls would silently invalidate the window
+ * it is being compared across.
+ */
+export const visibilityPrompts = pgTable(
+  'visibility_prompts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+
+    prompt: text('prompt').notNull(),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('visibility_prompts_site_prompt_idx').on(table.siteId, table.prompt)],
+)
+
+/**
+ * One engine answer, parsed. The raw material the stability score is computed from.
+ *
+ * Every row is a single observation, never a verdict: `cited` here means one engine cited the
+ * client on one day, which ADR-0015 is explicit is not a citation worth reporting. The verdict
+ * is an aggregate over rows, and it needs at least three of them on at least three days.
+ *
+ * `polledOn` is a date, not a timestamp, and it is half of a unique index with the prompt and
+ * the engine. That constraint is what makes "three polls over three days" true by construction
+ * rather than by the worker behaving: a second drain on the same day cannot insert a second row
+ * for the same prompt and engine, so three rows for one engine are always three distinct days,
+ * and no amount of re-running the queue can inflate a sample.
+ */
+export const visibilityChecks = pgTable(
+  'visibility_checks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    promptId: uuid('prompt_id')
+      .notNull()
+      .references(() => visibilityPrompts.id, { onDelete: 'cascade' }),
+
+    /** 'chatgpt', 'perplexity', 'ai_overview', ... */
+    engine: text('engine').notNull(),
+
+    cited: boolean('cited').notNull(),
+    /** 'citations' when matched against the engine's own source list, 'mention' when not. */
+    basis: text('basis').$type<'citations' | 'mention'>().notNull(),
+    citedCompetitors: text('cited_competitors')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    /** Every source the engine cited, so a human can check the parser's verdict by hand. */
+    sources: text('sources')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    /** The answer text, truncated. Kept because the consensus range is parsed out of it. */
+    answer: text('answer').notNull().default(''),
+
+    /** The UTC day this poll belongs to. See the unique index above. */
+    polledOn: date('polled_on').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('visibility_checks_site_day_idx').on(table.siteId, table.polledOn),
+    uniqueIndex('visibility_checks_prompt_engine_day_idx').on(
+      table.promptId,
+      table.engine,
+      table.polledOn,
+    ),
+  ],
+)
+
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
 export const TENANT_SCOPED = [
   sites,
@@ -289,4 +387,6 @@ export const TENANT_SCOPED = [
   artefacts,
   oauthCredentials,
   apiTokens,
+  visibilityPrompts,
+  visibilityChecks,
 ] as const

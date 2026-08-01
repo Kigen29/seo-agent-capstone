@@ -26,9 +26,8 @@ const NOT_MEASURED: Partial<Record<Axis, string>> = {
  */
 const THIN_COVERAGE: Partial<Record<Axis, string>> = {
   ai_visibility:
-    'Partially measured. We check that AI search crawlers can reach the site, which is the ' +
-    'precondition for being cited. We do not yet poll the engines to see whether you ' +
-    'actually are cited: that needs the multi-engine citation module.',
+    'From the crawl: AI search crawlers can reach the site, which is the precondition for being ' +
+    'cited and not evidence of it.',
   content:
     'Partially measured. Titles, descriptions, headings, and thin or duplicate pages are ' +
     'checked. Originality, freshness, and keyword cannibalisation are not.',
@@ -47,10 +46,10 @@ const THIN_COVERAGE: Partial<Record<Axis, string>> = {
  * than hand-maintained. Adding a rule for an unmeasured axis makes it measured with no
  * other change, which is the property that stops this drifting out of date.
  *
- * The thin coverage is deliberately visible. `ai_visibility` runs exactly one check, and
+ * The thin coverage is deliberately visible. `ai_visibility` runs exactly one check here, and
  * a scorecard that showed it as a bare 100 would be claiming we had verified the site was
- * cited in ChatGPT, when all we verified is that robots.txt does not block the crawler.
- * The note says so.
+ * cited in ChatGPT, when all we verified is that robots.txt does not block the crawler. The
+ * note says so, and the audit runner appends what the citation poll found, if anything.
  */
 export function ruleCoverage(): Record<Axis, AxisCoverage> {
   const counts = new Map<Axis, number>()

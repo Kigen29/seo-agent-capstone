@@ -61,11 +61,27 @@ export function parseTarget(raw: string): ModelTarget {
   })
 }
 
+/**
+ * `poll` is its own role rather than a reuse of `smart`, for two reasons that are both about
+ * the AI-visibility axis being a measurement rather than a generation.
+ *
+ * First, the model here is the *instrument*: we are asking what an answer engine says about the
+ * client, so an operator wants to point it at whatever is closest to what their customers use,
+ * and ideally something with browsing that returns real citations. That is a different choice
+ * from "the best model for writing a fix", and folding them into one variable would force the
+ * two to move together.
+ *
+ * Second, this is the only role that spends every day, per prompt, per site, forever. A separate
+ * variable means a recurring bill is something an operator switches on deliberately (ADR-0016),
+ * and leaving it unset costs nothing and darkens one axis honestly, rather than quietly
+ * attaching a daily cost to the chain that fixes findings.
+ */
 const ROLE_ENV: Record<ModelRole, string> = {
   fast: 'LLM_FAST',
   smart: 'LLM_SMART',
   embed: 'LLM_EMBED',
   judge: 'LLM_JUDGE',
+  poll: 'LLM_POLL',
 }
 
 /**
