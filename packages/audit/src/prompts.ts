@@ -33,6 +33,14 @@ export const MAX_PROMPT_LENGTH = 300
 export interface VisibilitySettings {
   prompts: string[]
   competitors: string[]
+  /**
+   * The brand name as a human writes it, for the authority axis. Null until somebody says.
+   *
+   * It lives with the prompts because it is the same kind of thing: a fact about the business
+   * that no crawl can discover and no heuristic can guess, which one person types once and two
+   * axes then measure against.
+   */
+  brand: string | null
 }
 
 /**
@@ -105,7 +113,7 @@ export async function getVisibilitySettings(
 ): Promise<VisibilitySettings | null> {
   return withTenant(db, tenantId, async (tx) => {
     const [site] = await tx
-      .select({ competitors: sites.competitors })
+      .select({ competitors: sites.competitors, brand: sites.brand })
       .from(sites)
       .where(eq(sites.id, siteId))
       .limit(1)
@@ -120,7 +128,11 @@ export async function getVisibilitySettings(
       .where(eq(visibilityPrompts.siteId, siteId))
       .orderBy(visibilityPrompts.createdAt)
 
-    return { prompts: prompts.map((row) => row.prompt), competitors: site.competitors }
+    return {
+      prompts: prompts.map((row) => row.prompt),
+      competitors: site.competitors,
+      brand: site.brand,
+    }
   })
 }
 
@@ -185,7 +197,14 @@ export async function saveVisibilitySettings(
         .onConflictDoNothing()
     }
 
-    await tx.update(sites).set({ competitors: settings.competitors }).where(eq(sites.id, siteId))
+    // An empty brand is stored as null rather than '', so "nobody has told us" has one spelling.
+    // Two spellings of absent is how a "not measured" note ends up saying the wrong thing.
+    const brand = settings.brand?.trim()
+
+    await tx
+      .update(sites)
+      .set({ competitors: settings.competitors, brand: brand ? brand : null })
+      .where(eq(sites.id, siteId))
 
     return true
   })

@@ -89,6 +89,14 @@ export type ConnectRepoResult =
 export interface VisibilitySettings {
   prompts: string[]
   competitors: string[]
+  /**
+   * The brand name as a human writes it, for the authority axis. Null until somebody says.
+   *
+   * It travels with the prompts because it is the same kind of thing: a fact about the business
+   * no crawl can discover and no heuristic can guess, typed once and measured against by two
+   * different axes.
+   */
+  brand: string | null
 }
 
 export interface ApiClientOptions {

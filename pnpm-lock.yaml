@@ -217,6 +217,9 @@ importers:
 
   packages/audit:
     dependencies:
+      '@seo/budget':
+        specifier: workspace:*
+        version: link:../budget
       '@seo/connectors':
         specifier: workspace:*
         version: link:../connectors

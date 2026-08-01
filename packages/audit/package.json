@@ -22,6 +22,7 @@
     "seed:e2e": "node --env-file-if-exists=../../.env dist/seed-cli.js"
   },
   "dependencies": {
+    "@seo/budget": "workspace:*",
     "@seo/core": "workspace:*",
     "@seo/crawler": "workspace:*",
     "@seo/db": "workspace:*",

@@ -1,12 +1,21 @@
 import { buildScorecard, type Finding, type Scorecard } from '@seo/core'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
-import { QUICK_WIN_CHECKS, googleOAuthConfigFromEnv, type OAuthConfig } from '@seo/connectors'
+import {
+  budgeted,
+  createSerpApiProvider,
+  googleOAuthConfigFromEnv,
+  QUICK_WIN_CHECKS,
+  type OAuthConfig,
+  type SerpProvider,
+} from '@seo/connectors'
+import { createBudgetGuard, recordSpend } from '@seo/budget'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
 import { measurePerformance } from './performance.js'
 import { measureSearch } from './search.js'
 import { measureVisibility } from './visibility.js'
+import { measureAuthority } from './authority.js'
 
 /** The env OAuth config, or undefined when Google is not configured. Never throws. */
 function googleOAuthConfig(): OAuthConfig | undefined {
@@ -15,6 +24,42 @@ function googleOAuthConfig(): OAuthConfig | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * A budget-guarded SERP provider from the environment, or undefined when no key is configured.
+ *
+ * Built here rather than taken as a required dependency so the CLI and the worker both get the
+ * paid axes without either of them having to know how a provider is assembled. Undefined is the
+ * normal case: this is the only paid dependency in the product and it is off by default, which
+ * leaves the authority axis honestly unmeasured rather than silently spending (ADR-0016).
+ */
+function serpFromEnv(db: Database, tenantId: string): SerpProvider | undefined {
+  const apiKey = process.env.SERPAPI_API_KEY
+  if (!apiKey) return undefined
+
+  const guard = createBudgetGuard(db)
+  const usd = Number(process.env.SERP_COST_PER_QUERY_USD)
+
+  return budgeted(
+    createSerpApiProvider({
+      apiKey,
+      ...(process.env.SERP_COUNTRY ? { country: process.env.SERP_COUNTRY } : {}),
+    }),
+    {
+      tenantId,
+      checkBudget: guard.checkBudget,
+      recordSpend: (id, entry) =>
+        recordSpend(db, id, {
+          kind: 'serp',
+          provider: entry.provider,
+          model: entry.model,
+          micros: entry.micros,
+        }),
+      // Errs high when unset, which is the safe direction for a cost guard.
+      costPerQueryMicros: Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.015) * 1_000_000),
+    },
+  )
 }
 
 export interface RunAuditOptions {
@@ -35,6 +80,12 @@ export interface RunAuditOptions {
   cruxApiKey?: string
   /** Google OAuth config for the Search Console quick-wins step. Falls back to the env. */
   googleOAuth?: OAuthConfig
+  /**
+   * SERP data source for the authority axis. Falls back to one built from the env, and to no
+   * measurement at all when there is no key. Injectable so a test can drive the axis with a fake
+   * and no spend.
+   */
+  serp?: SerpProvider
 }
 
 export interface AuditResult {
@@ -220,7 +271,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
      */
     const [site] = await withTenant(db, tenantId, (tx) =>
       tx
-        .select({ competitors: sites.competitors })
+        .select({ competitors: sites.competitors, brand: sites.brand })
         .from(sites)
         .where(eq(sites.id, siteId))
         .limit(1),
@@ -233,11 +284,30 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       competitors: site?.competitors ?? [],
     })
 
+    /**
+     * The authority axis, from where the web mentions this brand.
+     *
+     * Unlike the visibility poll, this one does spend at audit time: a mention footprint is a
+     * snapshot rather than a distribution over days, so there is nothing to accumulate and
+     * nothing gained by waiting. Every query passes the per-tenant guard first, so an audit run
+     * by a tenant at its cap comes back with the axis unmeasured rather than a bill (ADR-0017).
+     */
+    const authority = await measureAuthority(
+      {
+        siteId,
+        brand: site?.brand ?? null,
+        domain: seed,
+        competitors: site?.competitors ?? [],
+      },
+      options.serp ?? serpFromEnv(db, tenantId),
+    )
+
     const found = [
       ...crawlFindings,
       ...performance.findings,
       ...search.findings,
       ...visibility.findings,
+      ...authority.findings,
     ]
 
     const coverage = { ...ruleCoverage(), performance: performance.coverage }
@@ -252,6 +322,11 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       checksRun: coverage.ai_visibility.checksRun + visibility.promptsMeasured,
       note: `${coverage.ai_visibility.note ?? ''} ${visibility.note}`.trim(),
     }
+
+    // Authority has no crawl rules behind it at all, so the mention step is the whole axis: its
+    // coverage replaces rather than adds to what the rule engine reported (which was zero checks
+    // and a note saying a backlink source was missing).
+    coverage.authority = authority.coverage
 
     if (search.measured) {
       // Content is already measured by the crawl rules; the quick wins add to it rather than
