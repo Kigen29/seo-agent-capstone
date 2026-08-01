@@ -7,6 +7,7 @@ import { getClient } from '@/lib/session'
 import { startAudit, verifySite } from './actions'
 import { AddSite } from './add-site'
 import { ConnectRepo } from './connect-repo'
+import { VisibilityPrompts } from './visibility-prompts'
 
 export const dynamic = 'force-dynamic'
 
@@ -194,6 +195,8 @@ export default async function Dashboard({
                     ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
                     : 'Never audited'}
                 </p>
+
+                <VisibilityPrompts siteId={site.id} siteUrl={site.url} />
               </div>
             )
           })}
