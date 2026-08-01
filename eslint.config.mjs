@@ -41,8 +41,22 @@ const DB_RULE = {
     'Only the API and the worker may talk to Postgres (STORY-013). Everything else goes through the API over HTTP. If you are in apps/web, use @seo/api-client.',
 }
 
-/** The only places allowed to hold a database handle. Adding to this list is an ADR, not a fix. */
-const DB_ALLOWED = ['apps/api/**', 'apps/worker/**', 'packages/audit/**', 'packages/db/**']
+/**
+ * The only places allowed to hold a database handle. Adding to this list is an ADR, not a fix.
+ *
+ * `packages/budget` was added by ADR-0017: the spend ledger has three readers (the worker writes
+ * it, the SERP provider checks it, the dashboard will show it), so the cost guard is a package
+ * rather than a file inside one app. It is server-side only and imported by the API and the
+ * worker, so it does not touch the risk this list exists for, which is DATABASE_URL reaching
+ * Vercel.
+ */
+const DB_ALLOWED = [
+  'apps/api/**',
+  'apps/worker/**',
+  'packages/audit/**',
+  'packages/budget/**',
+  'packages/db/**',
+]
 
 export default tseslint.config(
   {

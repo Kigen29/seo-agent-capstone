@@ -78,6 +78,13 @@
       "when": 1785379000000,
       "tag": "0010_ai_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785466000000,
+      "tag": "0011_spend_and_budget",
+      "breakpoints": true
     }
   ]
 }

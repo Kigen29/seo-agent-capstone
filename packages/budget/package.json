@@ -1,28 +1,34 @@
 {
-  "name": "@seo/worker",
+  "name": "@seo/budget",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "drain": "node --env-file-if-exists=../../.env dist/drain.js",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@seo/agent": "workspace:*",
-    "@seo/audit": "workspace:*",
-    "@seo/budget": "workspace:*",
-    "@seo/connectors": "workspace:*",
     "@seo/db": "workspace:*",
-    "@seo/fixers": "workspace:*",
     "@seo/llm": "workspace:*",
-    "@seo/queue": "workspace:*",
-    "@seo/vcs": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
-    "typescript": "^5.7.2"
+    "dotenv": "^17.4.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.0.0"
   }
 }

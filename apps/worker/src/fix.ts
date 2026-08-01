@@ -21,9 +21,13 @@ import { createWorkerLlm } from './llm.js'
  * can act on rather than a stack trace.
  */
 const registry = createFixerRegistry()
-const llm = createWorkerLlm()
 
 export async function runFix(db: Database, job: FixJob): Promise<void> {
+  // Built per job rather than once at module load, because the client now carries the budget
+  // guard and the guard needs the database handle the job was called with. It is a couple of
+  // closures over an existing pool; the cost is nothing next to the crawl this sits behind.
+  const llm = createWorkerLlm(db)
+
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
   if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
   if (!finding.fixable) throw new Error('This finding is not fixable in code.')
