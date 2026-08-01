@@ -69,6 +69,13 @@ jobs:
           # Needed by googleOAuthConfigFromEnv even though the refresh call does not send it;
           # the verify job refreshes the tenant's token before calling Search Console.
           GOOGLE_OAUTH_REDIRECT_URI: ${{ secrets.GOOGLE_OAUTH_REDIRECT_URI }}
+          # The SERP vendor, for Google AI Overviews on the visibility poll and (next) brand
+          # mentions on the authority axis. The only per-query paid dependency in the product:
+          # unset means those two axes stay honestly unmeasured rather than spending (ADR-0016),
+          # and every query that does happen passes the per-tenant budget guard first (ADR-0017).
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          SERP_COUNTRY: ${{ vars.SERP_COUNTRY }}
+          SERP_COST_PER_QUERY_USD: ${{ vars.SERP_COST_PER_QUERY_USD }}
           GOOGLE_PSI_API_KEY: ${{ secrets.GOOGLE_PSI_API_KEY }}
           GOOGLE_CRUX_API_KEY: ${{ secrets.GOOGLE_CRUX_API_KEY }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}

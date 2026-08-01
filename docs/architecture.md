@@ -60,10 +60,11 @@ Never move detection across that line. ADR-0001.
 | Pattern | Where | Why |
 |---|---|---|
 | Strategy / Adapter | `VersionControlProvider`, `@seo/llm` providers, `SerpProvider` | Swap GitHub for GitLab, or one model vendor for another, or SerpApi for DataForSEO, without touching call sites |
-| Role-based indirection | `@seo/llm`: code asks for `fast` / `smart` / `embed` / `judge` | No vendor or model name appears in application code. Swapping a model is a `.env` edit, enforced by an ESLint rule that confines vendor SDKs to `providers.ts`. ADR-0005 |
+| Role-based indirection | `@seo/llm`: code asks for `fast` / `smart` / `embed` / `judge` / `poll` | No vendor or model name appears in application code. Swapping a model is a `.env` edit, enforced by an ESLint rule that confines vendor SDKs to `providers.ts`. ADR-0005 |
+| Decorator | `budgeted(provider)` around a `SerpProvider` | The cap wraps the vendor rather than living inside it, so every future adapter arrives already capped and the adapter stays a pure translation of one vendor's shape. ADR-0016 |
 | Chain of responsibility | The per-role fallback chain, e.g. `LLM_SMART=openai:gpt-4.1,google:gemini-2.5-pro` | Falls through on 429, quota, or 5xx. Targets whose API key is absent are dropped silently, so the free tier degrades instead of breaking |
 | Repository | `packages/db` | Keeps Drizzle out of the domain logic; makes tenancy enforceable in one place |
 | Pipeline / Chain | crawl -> evaluate -> prioritise -> fix -> verify | Each stage is independently testable and resumable |
 | Saga | AI visibility 3-day poll; CWV 28-day verification window | Long-horizon stateful workflows that outlive any process |
 | Registry | `packages/rules/src/registry.ts` | Rules self-register; adding a rule touches one file |
-| Guard | per-tenant budget guard on every paid call | Cost blowout is the #1 operational risk in an LLM product |
+| Guard | `@seo/budget`: a per-tenant cap checked before every paid call, LLM and SERP alike | Cost blowout is the #1 operational risk in an LLM product. Checked before the spend and failing closed, so the worst case is a dark axis rather than a bill. ADR-0017 |

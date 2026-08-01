@@ -44,6 +44,21 @@ export {
 } from './siteverification/client.js'
 export type { SiteVerificationClientOptions } from './siteverification/client.js'
 
+export { createSerpApiProvider } from './serp/serpapi.js'
+export type { SerpApiOptions } from './serp/serpapi.js'
+export { budgeted } from './serp/budgeted.js'
+export type { BudgetedSerpOptions, SerpBudgetHooks } from './serp/budgeted.js'
+export { SerpBudgetError, SerpRequestError } from './serp/types.js'
+export type {
+  AiOverviewResult,
+  MentionResult,
+  SerpProvider,
+  SerpQueryOptions,
+  SerpSource,
+} from './serp/types.js'
+
+export { aiOverviewEngine } from './visibility/ai-overview.js'
+
 export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
 export {
   summarisePrompt,
