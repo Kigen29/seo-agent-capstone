@@ -59,6 +59,11 @@ export type {
 
 export { aiOverviewEngine } from './visibility/ai-overview.js'
 
+export { classifyMentions, mentionQuery } from './authority/mentions.js'
+export type { MentionFootprint } from './authority/mentions.js'
+export { evaluateAuthority, THIN_FOOTPRINT } from './authority/evaluate.js'
+export type { AuthorityInput, AuthorityReport } from './authority/evaluate.js'
+
 export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
 export {
   summarisePrompt,

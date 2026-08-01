@@ -36,6 +36,7 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
   const [pending, start] = useTransition()
   const [prompts, setPrompts] = useState('')
   const [competitors, setCompetitors] = useState('')
+  const [brand, setBrand] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
 
@@ -58,6 +59,7 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
       }
       setPrompts(result.prompts.join('\n'))
       setCompetitors(result.competitors.join(', '))
+      setBrand(result.brand ?? '')
       setOpen(true)
     })
   }
@@ -69,6 +71,7 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
       const result = await saveVisibility(siteId, {
         prompts: linesOf(prompts),
         competitors: commasOf(competitors),
+        brand: brand.trim() || null,
       })
 
       if ('error' in result) {
@@ -80,6 +83,7 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
       // competitors come back as bare hosts, and duplicates are gone.
       setPrompts(result.prompts.join('\n'))
       setCompetitors(result.competitors.join(', '))
+      setBrand(result.brand ?? '')
       setSaved(
         result.prompts.length === 0
           ? 'Saved. With no questions, this axis stays unmeasured, and says so.'
@@ -137,6 +141,20 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
           onChange={(event) => setPrompts(event.target.value)}
           placeholder={'how much does a kenyan safari cost\nbest safari operator in nairobi'}
           style={{ resize: 'vertical', fontFamily: 'inherit' }}
+        />
+      </label>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+        <span style={{ fontSize: 12, opacity: 0.7 }}>
+          Brand name, exactly as the press writes it. Used to find who mentions you, which is the
+          authority axis&rsquo;s lead signal: mentions correlate 0.664 with AI Overview visibility,
+          backlinks 0.218.
+        </span>
+        <input
+          className="input"
+          value={brand}
+          onChange={(event) => setBrand(event.target.value)}
+          placeholder="Heartbeest Safaris"
         />
       </label>
 

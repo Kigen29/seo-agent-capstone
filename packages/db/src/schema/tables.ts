@@ -87,7 +87,8 @@ export const sites = pgTable(
     framework: frameworkEnum('framework').$type<Framework>().notNull().default('unknown'),
 
     /**
-     * The competitor domains this site is measured against on the AI-visibility axis.
+     * The competitor domains this site is measured against on the AI-visibility and authority
+     * axes.
      *
      * Share of voice is meaningless without a named field: "cited twice" says nothing until
      * you know a rival was cited nine times for the same questions. Empty is a perfectly
@@ -97,6 +98,17 @@ export const sites = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
+
+    /**
+     * The brand name, as a human writes it. Null until somebody says what it is.
+     *
+     * Not derivable from the domain, which is exactly why it is stored. `heartbeestsafaris.com`
+     * yields the stem "heartbeestsafaris", and searching the web for that finds almost nothing,
+     * because the press writes "Heartbeest Safaris". Guessing the space back in is a heuristic
+     * that would silently under-count the authority axis for every multi-word brand, which is
+     * most of them.
+     */
+    brand: text('brand'),
 
     /** Search Console property, e.g. 'https://example.com/', set when auto-verification runs. */
     gscProperty: text('gsc_property'),

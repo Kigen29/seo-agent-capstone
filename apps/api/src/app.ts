@@ -954,6 +954,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
           body: z.object({
             prompts: z.array(z.string().max(MAX_PROMPT_LENGTH)).max(MAX_PROMPTS),
             competitors: z.array(z.string().max(253)).max(MAX_COMPETITORS),
+            /** The brand as the press writes it, for the authority axis. Optional. */
+            brand: z.string().max(200).nullish(),
           }),
         },
       },
@@ -973,6 +975,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         const saved = await saveVisibilitySettings(db, request.tenantId, request.params.id, {
           prompts,
           competitors,
+          brand: request.body.brand ?? null,
         })
 
         if (!saved) return notFound(reply)

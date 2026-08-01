@@ -1,0 +1,13 @@
+-- The brand name, for the authority axis.
+--
+-- Stored rather than derived, and that is the whole point of the column. A domain gives you a
+-- stem: `heartbeestsafaris.com` yields "heartbeestsafaris", and searching the web for that finds
+-- almost nothing, because the press writes "Heartbeest Safaris". Splitting the stem back into
+-- words is a heuristic that would quietly under-count mentions for every multi-word brand, which
+-- is most of them, and an under-count on this axis is indistinguishable from a brand nobody talks
+-- about.
+--
+-- Nullable, because it is a fact only the client knows. Until it is set, the authority axis reports
+-- itself unmeasured and says which field is missing, the same three-state honesty the performance
+-- axis uses for a missing CrUX key (ADR-0010).
+ALTER TABLE "sites" ADD COLUMN "brand" text;

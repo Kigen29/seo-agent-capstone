@@ -1246,7 +1246,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       const res = await get(`/sites/${siteId}/visibility`, token)
 
       expect(res.statusCode).toBe(200)
-      expect(res.json()).toEqual({ prompts: [], competitors: [] })
+      // A null brand, not an empty string. "Nobody has told us" needs one spelling, or the
+      // authority axis's "not measured" note ends up saying the wrong thing.
+      expect(res.json()).toEqual({ prompts: [], competitors: [], brand: null })
     })
 
     it('saves prompts and reduces competitors to bare hosts', async () => {
@@ -1255,6 +1257,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         {
           prompts: ['  how much does a kenyan safari   cost  ', 'best safari operator in nairobi'],
           competitors: ['https://Rivalsafaris.com/pricing', 'www.anothertour.co.ke'],
+          brand: 'Heartbeest Safaris',
         },
         token,
       )
@@ -1265,7 +1268,18 @@ describe.skipIf(!shouldRun)('the API', () => {
         prompts: ['how much does a kenyan safari cost', 'best safari operator in nairobi'],
         // The parser matches on host, so a stored URL would never match anything.
         competitors: ['rivalsafaris.com', 'anothertour.co.ke'],
+        brand: 'Heartbeest Safaris',
       })
+    })
+
+    it('stores a blank brand as null, so absent has one spelling', async () => {
+      const res = await putJson(
+        `/sites/${siteId}/visibility`,
+        { prompts: [], competitors: [], brand: '   ' },
+        token,
+      )
+
+      expect(res.json().brand).toBeNull()
     })
 
     it('drops a duplicate question rather than splitting one window into two half-samples', async () => {
