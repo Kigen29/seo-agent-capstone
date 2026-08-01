@@ -8,6 +8,7 @@ export { effortCost, effortSchema } from './effort.js'
 export type { Effort } from './effort.js'
 
 export {
+  citationEvidenceSchema,
   evidenceSchema,
   fileEvidenceSchema,
   graphEvidenceSchema,
@@ -17,6 +18,7 @@ export {
   searchEvidenceSchema,
 } from './evidence.js'
 export type {
+  CitationEvidence,
   Evidence,
   EvidenceSource,
   FileEvidence,

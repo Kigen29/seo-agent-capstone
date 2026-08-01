@@ -61,8 +61,11 @@ describe('ruleCoverage', () => {
 
   it('admits that one robots.txt check is not a measurement of AI visibility', () => {
     // The most dangerous overclaim available to us. Checking that OAI-SearchBot is not
-    // blocked proves the site *can* be cited. It says nothing about whether it *is*.
+    // blocked proves the site *can* be cited. It says nothing about whether it *is*, and the
+    // note has to say so in as many words: the citation poll is a separate measurement that
+    // the audit runner appends to this note when it has one.
     expect(ruleCoverage().ai_visibility).toMatchObject({ checksRun: 1 })
-    expect(ruleCoverage().ai_visibility.note).toMatch(/not yet poll/i)
+    expect(ruleCoverage().ai_visibility.note).toMatch(/precondition for being cited/i)
+    expect(ruleCoverage().ai_visibility.note).toMatch(/not evidence of it/i)
   })
 })

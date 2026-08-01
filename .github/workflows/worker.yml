@@ -60,6 +60,10 @@ jobs:
           LLM_SMART: ${{ vars.LLM_SMART }}
           LLM_EMBED: ${{ vars.LLM_EMBED }}
           LLM_JUDGE: ${{ vars.LLM_JUDGE }}
+          # The answer engine the AI-visibility axis polls. Unset on purpose until an operator
+          # opts in: this is the one role that spends every day, per prompt, per site, and an
+          # unset chain darkens that axis honestly rather than starting a recurring bill.
+          LLM_POLL: ${{ vars.LLM_POLL }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           # Needed by googleOAuthConfigFromEnv even though the refresh call does not send it;

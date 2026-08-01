@@ -5,9 +5,11 @@ import {
   drainAudits,
   drainConfirmVerify,
   drainFix,
+  drainPollAi,
   drainVerify,
   drainVerifyFix,
 } from '@seo/queue'
+import { enqueueDuePolls, runPollAi } from './poll.js'
 import { runFix } from './fix.js'
 import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
@@ -79,6 +81,27 @@ try {
   console.log(
     `worker: confirmation done. ${confirmed.completed} completed, ${confirmed.failed} failed.`,
   )
+
+  /**
+   * Last, today's AI-visibility polls. The query for who is due is the whole schedule: any site
+   * with prompts and no row for today gets one job, and the singleton key on (site, day) means
+   * ninety-six wakes a day still produce one poll. A day the worker never ran is simply a day
+   * missing from a rolling window, which the stability score already knows how to report.
+   *
+   * It runs at the end because it is the least urgent thing here. A crawl, a fix PR, or a
+   * verification is somebody waiting; this is one observation in a measurement that will not be
+   * complete for three days either way.
+   */
+  const due = await enqueueDuePolls(db, queue)
+  console.log(`worker: ${due} site(s) due an AI-visibility poll today`)
+  const polled = await drainPollAi(queue, async (job) => {
+    const result = await runPollAi(db, job)
+    console.log(
+      `worker: polled ${result.prompts} prompt(s) for site ${job.siteId} on ${job.day}, ` +
+        `${result.checks} new check(s).`,
+    )
+  })
+  console.log(`worker: polling done. ${polled.completed} completed, ${polled.failed} failed.`)
 } finally {
   await queue.stop({ graceful: false })
   await pool.end()

@@ -71,6 +71,13 @@
       "when": 1784378000000,
       "tag": "0009_verification_status",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785379000000,
+      "tag": "0010_ai_visibility",
+      "breakpoints": true
     }
   ]
 }

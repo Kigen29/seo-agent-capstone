@@ -19,5 +19,7 @@ export {
   oauthCredentials,
   sites,
   tenants,
+  visibilityChecks,
+  visibilityPrompts,
   TENANT_SCOPED,
 } from './schema/tables.js'
