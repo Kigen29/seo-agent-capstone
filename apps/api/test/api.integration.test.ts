@@ -8,6 +8,7 @@ import {
   oauthCredentials,
   sites,
   tenants,
+  visibilityPrompts,
   withTenant,
   type Database,
 } from '@seo/db'
@@ -1223,6 +1224,138 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       expect(res.statusCode).toBe(202)
       expect(verifyEnqueued.at(-1)).toMatchObject({ tenantId, siteId: readyId })
+    })
+  })
+
+  /**
+   * The prompts are the one input the AI-visibility axis cannot infer, so this is the door to the
+   * whole axis. What matters here is less the round trip than the two things that would quietly
+   * corrupt a measurement: a save that resets the history of questions the user did not touch,
+   * and a competitor stored in a shape the citation parser can never match.
+   */
+  describe('AI-visibility prompts', () => {
+    const putJson = (path: string, payload: unknown, bearer?: string) =>
+      app.inject({
+        method: 'PUT',
+        url: path,
+        headers: bearer ? { authorization: `Bearer ${bearer}` } : {},
+        payload: payload as object,
+      })
+
+    it('starts empty, which is a real state and not a missing one', async () => {
+      const res = await get(`/sites/${siteId}/visibility`, token)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ prompts: [], competitors: [] })
+    })
+
+    it('saves prompts and reduces competitors to bare hosts', async () => {
+      const res = await putJson(
+        `/sites/${siteId}/visibility`,
+        {
+          prompts: ['  how much does a kenyan safari   cost  ', 'best safari operator in nairobi'],
+          competitors: ['https://Rivalsafaris.com/pricing', 'www.anothertour.co.ke'],
+        },
+        token,
+      )
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        // Trimmed, and the run of spaces collapsed. The question is unchanged.
+        prompts: ['how much does a kenyan safari cost', 'best safari operator in nairobi'],
+        // The parser matches on host, so a stored URL would never match anything.
+        competitors: ['rivalsafaris.com', 'anothertour.co.ke'],
+      })
+    })
+
+    it('drops a duplicate question rather than splitting one window into two half-samples', async () => {
+      const res = await putJson(
+        `/sites/${siteId}/visibility`,
+        {
+          prompts: ['How Much Does A Kenyan Safari Cost', 'how much does a kenyan safari cost'],
+          competitors: [],
+        },
+        token,
+      )
+
+      expect(res.json().prompts).toEqual(['How Much Does A Kenyan Safari Cost'])
+    })
+
+    it('keeps the history of a question the user did not touch', async () => {
+      await putJson(
+        `/sites/${siteId}/visibility`,
+        { prompts: ['a settled question'], competitors: [] },
+        token,
+      )
+
+      const [prompt] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ id: visibilityPrompts.id })
+          .from(visibilityPrompts)
+          .where(eq(visibilityPrompts.siteId, siteId)),
+      )
+
+      await putJson(
+        `/sites/${siteId}/visibility`,
+        { prompts: ['a settled question', 'a brand new question'], competitors: [] },
+        token,
+      )
+
+      const after = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ id: visibilityPrompts.id, prompt: visibilityPrompts.prompt })
+          .from(visibilityPrompts)
+          .where(eq(visibilityPrompts.siteId, siteId)),
+      )
+
+      // The same row, not a new one with the same text. A prompt owns its checks by foreign key,
+      // so a delete-and-reinsert would cascade away every poll ever taken and silently reset a
+      // window the user had already waited three days for.
+      const settled = after.find((row) => row.prompt === 'a settled question')
+      expect(settled?.id).toBe(prompt!.id)
+      expect(after).toHaveLength(2)
+    })
+
+    it('names a competitor it could not read instead of silently dropping it', async () => {
+      const res = await putJson(
+        `/sites/${siteId}/visibility`,
+        { prompts: [], competitors: ['rivalsafaris.com', 'not a domain'] },
+        token,
+      )
+
+      // Dropping it quietly would leave a user watching a share of voice that omits the rival
+      // they most wanted to track, with nothing on screen to explain why.
+      expect(res.statusCode).toBe(400)
+      expect(res.json().message).toContain('not a domain')
+    })
+
+    it('refuses more prompts than the cap, rather than trimming the list behind their back', async () => {
+      const res = await putJson(
+        `/sites/${siteId}/visibility`,
+        {
+          prompts: Array.from({ length: 21 }, (_, i) => `question number ${i}`),
+          competitors: [],
+        },
+        token,
+      )
+
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('is a 404 for another tenant, never a 403', async () => {
+      const read = await get(`/sites/${siteId}/visibility`, otherToken)
+      const write = await putJson(
+        `/sites/${siteId}/visibility`,
+        { prompts: ['stolen question'], competitors: [] },
+        otherToken,
+      )
+
+      expect(read.statusCode).toBe(404)
+      expect(write.statusCode).toBe(404)
+    })
+
+    it('needs a token like everything else', async () => {
+      expect((await get(`/sites/${siteId}/visibility`)).statusCode).toBe(401)
     })
   })
 

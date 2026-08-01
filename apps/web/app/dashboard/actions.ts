@@ -1,6 +1,6 @@
 'use server'
 
-import { ApiRequestError, type ConnectRepoResult } from '@seo/api-client'
+import { ApiRequestError, type ConnectRepoResult, type VisibilitySettings } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { handleApiError } from '@/lib/api-error'
@@ -135,6 +135,57 @@ export async function chooseRepo(
 
   revalidatePath('/dashboard')
   return { ok: true }
+}
+
+/**
+ * Load the questions a site's AI visibility is measured on.
+ *
+ * Fetched on demand rather than with the dashboard, because it is one request per site and most
+ * visits to this page are not about prompts. The panel asks for it when it opens.
+ */
+export async function loadVisibility(
+  siteId: string,
+): Promise<VisibilitySettings | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  try {
+    return await api.getVisibility(siteId)
+  } catch (error) {
+    handleApiError(error)
+    return { error: 'Could not load the prompts. The API may be waking up; try again shortly.' }
+  }
+}
+
+/**
+ * Save a site's prompts and competitors.
+ *
+ * Returns what the API actually stored rather than what was submitted, because the two can
+ * differ: prompts are trimmed and deduplicated, and competitors come back as bare hosts. Showing
+ * the user their own input after a save would hide that, and they would not learn that
+ * `https://Rival.com/pricing` is tracked as `rival.com` until a share-of-voice number confused
+ * them a week later.
+ */
+export async function saveVisibility(
+  siteId: string,
+  settings: VisibilitySettings,
+): Promise<VisibilitySettings | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  let saved: VisibilitySettings
+  try {
+    saved = await api.setVisibility(siteId, settings)
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 400) {
+      return { error: error.message }
+    }
+    handleApiError(error)
+    return { error: 'Could not save the prompts. Try again shortly.' }
+  }
+
+  revalidatePath('/dashboard')
+  return saved
 }
 
 /**
