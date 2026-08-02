@@ -63,7 +63,7 @@ export async function startAudit(formData: FormData): Promise<void> {
   }
 
   revalidatePath('/dashboard')
-  redirect(`/dashboard/audits/${auditId}`)
+  redirect(`/audits/${auditId}`)
 }
 
 /**

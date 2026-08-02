@@ -26,5 +26,5 @@ export async function openFixPr(formData: FormData) {
     status = 'failed'
   }
 
-  redirect(`/dashboard/findings/${id}?fix=${status}`)
+  redirect(`/findings/${id}?fix=${status}`)
 }
