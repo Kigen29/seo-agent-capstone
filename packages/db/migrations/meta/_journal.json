@@ -92,6 +92,13 @@
       "when": 1785467000000,
       "tag": "0012_site_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785553000000,
+      "tag": "0013_priority_score_and_indexes",
+      "breakpoints": true
     }
   ]
 }

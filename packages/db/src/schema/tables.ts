@@ -131,6 +131,11 @@ export const sites = pgTable(
      * constraint is checked before any policy runs.
      */
     uniqueIndex('sites_tenant_url_idx').on(table.tenantId, table.url),
+    /**
+     * The GitHub webhook unbinds every site on an installation when the App is uninstalled, and
+     * the repo picker collects a tenant's installations. Both scanned the whole table.
+     */
+    index('sites_installation_idx').on(table.githubInstallationId),
   ],
 )
 
@@ -156,7 +161,15 @@ export const audits = pgTable(
     /** Why the audit failed, when it did. */
     error: text('error'),
   },
-  (table) => [index('audits_site_started_idx').on(table.siteId, table.startedAt)],
+  (table) => [
+    index('audits_site_started_idx').on(table.siteId, table.startedAt),
+    /**
+     * "The latest audit per site, for this tenant" is the first query the findings inbox runs and
+     * the hottest in the API. Only `(site_id, started_at)` existed, so it scanned and sorted every
+     * audit the tenant had ever run before it could pick the newest few.
+     */
+    index('audits_tenant_started_idx').on(table.tenantId, table.startedAt),
+  ],
 )
 
 export const findings = pgTable(
@@ -199,6 +212,22 @@ export const findings = pgTable(
     estimatedImpact: integer('estimated_impact').notNull(),
 
     /**
+     * `severity_weight * confidence * impact / effort_cost`, computed by `priorityScore()` at
+     * write time and stored.
+     *
+     * Denormalised on purpose, which is the one thing that makes this list paginable. The score
+     * was previously computed in Node after loading every finding the tenant had, which meant the
+     * sort could never be pushed into SQL, which meant `LIMIT` could never be applied: the API had
+     * to fetch everything to know what the first twenty rows were. Storing it turns "the most
+     * important twenty findings" into an ordinary indexed query.
+     *
+     * The cost of denormalising is that it can drift from the formula. It cannot drift silently:
+     * the value is written by the same exported function the UI sorts with, and a test asserts the
+     * stored column equals `priorityScore()` for every finding an audit produces.
+     */
+    priorityScore: real('priority_score').notNull().default(0),
+
+    /**
      * "How would we know this fix failed?" NOT NULL, and that is the whole point.
      *
      * CLAUDE.md rule 3 is now enforced in three independent places: TypeScript will not
@@ -225,6 +254,15 @@ export const findings = pgTable(
     index('findings_site_status_idx').on(table.siteId, table.status),
     /** Re-running an audit must not silently duplicate its findings. */
     uniqueIndex('findings_audit_key_idx').on(table.auditId, table.key),
+    /** The inbox's default order, so the first page is an index scan rather than a sort. */
+    index('findings_audit_priority_idx').on(table.auditId, table.priorityScore),
+    /** Tenant-wide filters (status, axis, severity) with no site in the predicate. */
+    index('findings_tenant_status_idx').on(table.tenantId, table.status),
+    /**
+     * The merge webhook looks a finding up by its pull-request URL, under `asOwner`, so without
+     * this it sequentially scans every finding belonging to every tenant on each delivery.
+     */
+    index('findings_pr_url_idx').on(table.prUrl),
   ],
 )
 

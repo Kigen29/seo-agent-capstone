@@ -1,4 +1,4 @@
-import { buildScorecard, type Finding } from '@seo/core'
+import { buildScorecard, priorityScore, type Finding } from '@seo/core'
 import { apiTokens, asOwner, audits, createDb, findings, sites, tenants, withTenant } from '@seo/db'
 import { ruleCoverage } from '@seo/rules'
 import { createHash } from 'node:crypto'
@@ -154,6 +154,9 @@ export async function seedE2E(): Promise<void> {
           affectedUrls: d.affectedUrls,
           estimatedEffort: d.estimatedEffort,
           estimatedImpact: d.estimatedImpact,
+          // Written by the same function the inbox orders by, so the seeded backlog sorts the way
+          // a real one does rather than tying on the default of zero.
+          priorityScore: priorityScore(d),
           falsification: d.falsification,
           fixable: d.fixable,
           status: d.status,
