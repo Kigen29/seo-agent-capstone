@@ -21,6 +21,7 @@ export default async function Login({
 
   return (
     <main
+      id="main"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -40,9 +41,7 @@ export default async function Login({
           <div className="card-kicker" style={{ textAlign: 'center' }}>
             Welcome back
           </div>
-          <h2 style={{ fontWeight: 400, textAlign: 'center', marginBottom: 'var(--space-4)' }}>
-            Sign in
-          </h2>
+          <h2 className="mb-4 text-center">Sign in</h2>
 
           <LoginForm expired={expired === '1'} />
 

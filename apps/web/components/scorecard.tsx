@@ -107,19 +107,13 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
               is not blocked. The note says which data source is missing and what connecting
               it would buy.
             */}
-            {axis.coverage.note && (
-              <p
-                style={{
-                  margin: '0 0 var(--space-2)',
-                  paddingLeft: 'calc(150px + var(--space-4))',
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  color: 'color-mix(in srgb, var(--color-text) 55%, transparent)',
-                }}
-              >
-                {axis.coverage.note}
-              </p>
-            )}
+            {/*
+              `score-note` rather than an inline `paddingLeft: calc(150px + var(--space-4))`.
+              That magic number silently duplicated `.score-row`'s own column width, so changing
+              the grid in CSS misaligned the note in TSX with nothing to catch it, and it could
+              not collapse on a phone.
+            */}
+            {axis.coverage.note && <p className="score-note">{axis.coverage.note}</p>}
           </div>
         )
       })}

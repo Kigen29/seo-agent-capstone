@@ -4,9 +4,15 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { SeverityBadge } from '@/components/severity'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { openFixPr } from './actions'
+import { FixButton } from './fix-button'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * No `loading.tsx` here, on purpose. A Suspense boundary makes Next stream a 200 before
+ * `notFound()` can set a 404, and this route 404s for another tenant's finding by design
+ * (ADR-0009). See the same note on the audit route for the full reasoning.
+ */
 
 const EFFORT_LABEL: Record<string, string> = {
   trivial: 'Trivial',
@@ -51,7 +57,7 @@ export default async function FindingPage({
   const fixMessage = fix ? FIX_MESSAGE[fix] : undefined
 
   return (
-    <main className="wrap-narrow">
+    <main id="main" className="wrap-narrow">
       <Link href={`/dashboard/audits/${finding.auditId}`} style={{ fontSize: 13 }}>
         &larr; Back to the audit
       </Link>
@@ -68,7 +74,7 @@ export default async function FindingPage({
         {finding.fixable && <span className="tag tag-outline">Fixable in code</span>}
       </div>
 
-      <h1 style={{ fontWeight: 400, marginBottom: 'var(--space-4)' }}>{finding.title}</h1>
+      <h1 className="mb-4">{finding.title}</h1>
 
       {/* The action that closes the loop: turn this finding into a pull request. */}
       {finding.status === 'pr_open' && finding.prUrl ? (
@@ -102,14 +108,9 @@ export default async function FindingPage({
           )}
           {finding.fixable &&
             (connections.github.connected ? (
-              <form action={openFixPr}>
-                <input type="hidden" name="findingId" value={finding.rowId} />
-                <button type="submit" className="btn btn-primary">
-                  Open a pull request
-                </button>
-              </form>
+              <FixButton findingId={finding.rowId} />
             ) : (
-              <p style={{ fontSize: 13, opacity: 0.7, margin: 0 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                 Connect a repository to this site to open a fix pull request.
               </p>
             ))}

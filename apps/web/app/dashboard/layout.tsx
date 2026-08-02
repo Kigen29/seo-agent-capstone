@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <>
-      <AppNav active="level" />
+      <AppNav />
       {children}
     </>
   )

@@ -1,6 +1,240 @@
 @import 'tailwindcss';
 @import './classical.css';
 
+/*
+ * The design tokens, declared once, in Tailwind's own token block.
+ *
+ * They used to live under a `.classical` selector, which meant no Tailwind utility and no
+ * component outside the body element could reach them: the app shipped Tailwind's whole reset
+ * to deliver two utilities, and every layout was written as an inline style instead. Declaring
+ * them here fixes both halves at once. `@theme` emits each token as a custom property on :root
+ * AND generates the matching utilities, so `--color-accent-100` becomes `bg-accent-100`, and
+ * `var(--color-accent-100)` keeps working unchanged in the CSS and in the inline styles that
+ * have not been migrated yet.
+ */
+@theme {
+  /* Paper and ink. The Classical identity: warm off-white, near-black, one gold accent. */
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-raised: #f8f7f7;
+  --color-text: #201f1d;
+  --color-accent: #b68235;
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff3e4;
+  --color-accent-200: #ffe3bf;
+  --color-accent-300: #facb8d;
+  --color-accent-400: #e1ad66;
+  --color-accent-500: #c28d41;
+  --color-accent-600: #a06f24;
+  --color-accent-700: #7d5411;
+  --color-accent-800: #5a3b0a;
+  --color-accent-900: #3a270d;
+
+  /*
+   * Semantic status, which did not exist before.
+   *
+   * `.note-ok` and `.note-warn` previously shared a background and `.note-error` was grey, so
+   * success, warning and error were visually indistinguishable: the app could tell you a fix had
+   * landed and that a fix had failed in the same colour. These four hues are chosen to sit with
+   * the warm palette rather than fight it, and to stay distinct from the gold accent, which is
+   * doing a different job (emphasis, not status).
+   */
+  --color-success: #3f6b4f;
+  --color-success-bg: #e7efe9;
+  --color-success-text: #294a34;
+  --color-warning: #9a5b1c;
+  --color-warning-bg: #fbeeda;
+  --color-warning-text: #6b3d0e;
+  --color-danger: #a03428;
+  --color-danger-bg: #fae9e6;
+  --color-danger-text: #6f2019;
+  --color-info: #3a5a72;
+  --color-info-bg: #e7eef3;
+  --color-info-text: #24404f;
+
+  --font-heading: var(--font-cormorant, 'Cormorant Garamond', Georgia, serif);
+  --font-body: var(--font-lora, 'Lora', Georgia, serif);
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /*
+   * A 4px grid. The old scale was 4.6px (4.6 / 9.2 / 13.8 / 18.4 ...), a 1.15x scaling that never
+   * lands on a device pixel and rounds differently at every zoom level. Setting Tailwind's base
+   * spacing here also means `p-4`, `gap-3` and `space-y-2` share the grid with the `--space-*`
+   * aliases below, so a migrated component and an unmigrated one still line up.
+   */
+  --spacing: 4px;
+
+  /*
+   * Fluid type. The old scale was fixed px (a 42px h1, overridden inline to 54px on the landing
+   * page), which on a 360px phone is a wrapping accident. Each step now interpolates between a
+   * comfortable phone size and the intended desktop size.
+   */
+  --text-display: clamp(2.25rem, 1.6rem + 3.2vw, 3.375rem);
+  --text-h1: clamp(1.875rem, 1.45rem + 2.1vw, 2.625rem);
+  --text-h2: clamp(1.5rem, 1.25rem + 1.25vw, 2rem);
+  --text-h3: clamp(1.25rem, 1.1rem + 0.75vw, 1.5625rem);
+  --text-h4: clamp(1.125rem, 1.05rem + 0.35vw, 1.25rem);
+  --text-h5: 1rem;
+  --text-h6: 0.8125rem;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+  --radius-xl: 12px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-shadow) 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, var(--color-shadow) 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, var(--color-shadow) 22%, transparent);
+}
+
+/*
+ * Dark mode as a variant, so `dark:` utilities work alongside the token flip below. Keyed on the
+ * data attribute the theme toggle writes, not on the media query alone, because a user who has
+ * chosen a theme must beat their operating system's preference in both directions.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Tokens that are derived rather than chosen. Kept out of `@theme` because they reference other
+ * tokens and must re-resolve when those flip for dark mode. The old file hard-coded #201f1d and
+ * #2d2b2b inside these `color-mix()` calls, which is exactly why they would not have flipped.
+ */
 :root {
+  --color-shadow: #2d2b2b;
+  --color-divider: color-mix(in srgb, var(--color-text) 16%, transparent);
+  --color-text-muted: color-mix(in srgb, var(--color-text) 62%, transparent);
+  --color-text-subtle: color-mix(in srgb, var(--color-text) 45%, transparent);
+
+  /*
+   * The focus ring, deliberately not `--color-accent`.
+   *
+   * Gold on off-white measures about 2.4:1, under the 3:1 WCAG 2.2 minimum for non-text contrast,
+   * so the one affordance a keyboard user depends on was among the least visible things on the
+   * page. The darker accent clears the bar comfortably on light; dark mode overrides it.
+   */
+  --color-focus: var(--color-accent-700);
+
+  /* Aliases, so the inline styles not yet migrated keep working during the redesign. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
   color-scheme: light;
+}
+
+/*
+ * Dark mode. Every chosen colour is re-declared; everything derived from them (dividers, muted
+ * text, shadows) follows automatically because those reference `--color-text` rather than a hex.
+ *
+ * The palette is warm rather than blue-black, so it reads as the same product with the lights
+ * off: ink and paper inverted, not a different design. The accent ramp inverts too, so
+ * `--color-accent-800` stays "the high-contrast end" in both themes and every existing
+ * `var(--color-accent-800)` call site keeps meaning what it meant.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #1a1917;
+    --color-surface: #232120;
+    --color-raised: #2a2826;
+    --color-text: #ece7e0;
+    --color-shadow: #000000;
+    --color-accent: #d9a552;
+    --color-focus: var(--color-accent-300);
+
+    --color-neutral-100: #2a2826;
+    --color-neutral-200: #34312f;
+    --color-neutral-300: #423e3b;
+    --color-neutral-400: #5a5551;
+    --color-neutral-500: #79736e;
+    --color-neutral-600: #9a938d;
+    --color-neutral-700: #b8b1ab;
+    --color-neutral-800: #d4cdc6;
+    --color-neutral-900: #ece7e0;
+
+    --color-accent-100: #33281a;
+    --color-accent-200: #453520;
+    --color-accent-300: #facb8d;
+    --color-accent-400: #e1ad66;
+    --color-accent-500: #c28d41;
+    --color-accent-600: #d9a552;
+    --color-accent-700: #e8bd7a;
+    --color-accent-800: #f5d9a8;
+    --color-accent-900: #fbead0;
+
+    --color-success: #6fa77f;
+    --color-success-bg: #1f2c23;
+    --color-success-text: #a8d4b6;
+    --color-warning: #d9944a;
+    --color-warning-bg: #2f2417;
+    --color-warning-text: #f0c48c;
+    --color-danger: #d4685c;
+    --color-danger-bg: #2e1c1a;
+    --color-danger-text: #f0a89f;
+    --color-info: #7aa3bf;
+    --color-info-bg: #1c262d;
+    --color-info-text: #a9c8dc;
+
+    color-scheme: dark;
+  }
+}
+
+/* The same palette, forced, when the user has explicitly chosen dark over their OS setting. */
+:root[data-theme='dark'] {
+  --color-bg: #1a1917;
+  --color-surface: #232120;
+  --color-raised: #2a2826;
+  --color-text: #ece7e0;
+  --color-shadow: #000000;
+  --color-accent: #d9a552;
+  --color-focus: var(--color-accent-300);
+
+  --color-neutral-100: #2a2826;
+  --color-neutral-200: #34312f;
+  --color-neutral-300: #423e3b;
+  --color-neutral-400: #5a5551;
+  --color-neutral-500: #79736e;
+  --color-neutral-600: #9a938d;
+  --color-neutral-700: #b8b1ab;
+  --color-neutral-800: #d4cdc6;
+  --color-neutral-900: #ece7e0;
+
+  --color-accent-100: #33281a;
+  --color-accent-200: #453520;
+  --color-accent-300: #facb8d;
+  --color-accent-400: #e1ad66;
+  --color-accent-500: #c28d41;
+  --color-accent-600: #d9a552;
+  --color-accent-700: #e8bd7a;
+  --color-accent-800: #f5d9a8;
+  --color-accent-900: #fbead0;
+
+  --color-success: #6fa77f;
+  --color-success-bg: #1f2c23;
+  --color-success-text: #a8d4b6;
+  --color-warning: #d9944a;
+  --color-warning-bg: #2f2417;
+  --color-warning-text: #f0c48c;
+  --color-danger: #d4685c;
+  --color-danger-bg: #2e1c1a;
+  --color-danger-text: #f0a89f;
+  --color-info: #7aa3bf;
+  --color-info-bg: #1c262d;
+  --color-info-text: #a9c8dc;
+
+  color-scheme: dark;
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Cormorant_Garamond, Lora } from 'next/font/google'
+import { themeScript } from '@/components/theme-toggle'
 import { siteUrl } from '@/lib/site'
 import './globals.css'
 
@@ -30,8 +31,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/*
+          Runs before first paint, so a user who chose dark never sees a frame of light paper.
+          `suppressHydrationWarning` above is required because this script legitimately mutates
+          the html element before React sees it.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className={`classical ${cormorant.variable} ${lora.variable} min-h-screen antialiased`}>
+        {/* The first tab stop on every page, for anyone who does not use a mouse. */}
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         {children}
       </body>
     </html>

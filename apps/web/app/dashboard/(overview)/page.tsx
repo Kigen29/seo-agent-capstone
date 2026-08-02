@@ -4,10 +4,10 @@ import { GoogleConnection } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { startAudit, verifySite } from './actions'
-import { AddSite } from './add-site'
-import { ConnectRepo } from './connect-repo'
-import { VisibilityPrompts } from './visibility-prompts'
+import { startAudit, verifySite } from '../actions'
+import { AddSite } from '../add-site'
+import { ConnectRepo } from '../connect-repo'
+import { VisibilityPrompts } from '../visibility-prompts'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,7 @@ const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string; github?: string; verify?: string }>
+  searchParams: Promise<{ google?: string; github?: string; verify?: string; asleep?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
@@ -42,6 +42,7 @@ export default async function Dashboard({
     google: googleCallback,
     github: githubCallback,
     verify: verifyCallback,
+    asleep,
   } = await searchParams
   const verifyMessage = verifyCallback ? VERIFY_MESSAGE[verifyCallback] : undefined
 
@@ -55,7 +56,7 @@ export default async function Dashboard({
   }
 
   return (
-    <main className="wrap">
+    <main id="main" className="wrap">
       <div
         style={{
           display: 'flex',
@@ -66,7 +67,7 @@ export default async function Dashboard({
       >
         <div>
           <div className="card-kicker">Level</div>
-          <h1 style={{ fontWeight: 400, margin: 0 }}>Your sites</h1>
+          <h1 className="m-0">Your sites</h1>
         </div>
         <Link href="/findings">All findings &rarr;</Link>
       </div>
@@ -78,6 +79,19 @@ export default async function Dashboard({
       <GoogleConnection connection={connections.google} callback={googleCallback} />
 
       <RepoCallback callback={githubCallback} />
+
+      {/*
+        `startAudit` redirects here with ?asleep=1 when the API did not answer, and nothing read
+        it: the parameter was set, the page destructured three other keys, and the user got a
+        silent bounce back to the dashboard with their audit never queued and no explanation. The
+        button appeared to do nothing at all.
+      */}
+      {asleep && (
+        <p role="status" className="note note-warn" style={{ marginTop: 'var(--space-4)' }}>
+          The API was waking up, so the audit was not queued. It sleeps after about fifteen minutes
+          idle on the free tier. Try Run audit again in a moment.
+        </p>
+      )}
 
       {verifyMessage && (
         <p role="status" className={verifyMessage.tone} style={{ marginTop: 'var(--space-4)' }}>

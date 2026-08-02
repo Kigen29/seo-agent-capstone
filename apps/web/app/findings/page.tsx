@@ -1,6 +1,8 @@
 import type { FindingListItem } from '@seo/api-client'
 import Link from 'next/link'
+import { ApiAsleep } from '@/components/api-asleep'
 import { AppNav } from '@/components/app-nav'
+import { SeverityBadge } from '@/components/severity'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -15,23 +17,6 @@ const AXIS_LABEL: Record<string, string> = {
   local: 'Local',
   ai_visibility: 'AI visibility',
   agent_readiness: 'Agent readiness',
-}
-
-const SEV_LABEL: Record<string, string> = {
-  critical: 'Critical',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  info: 'Info',
-}
-
-/** Severity tints, following the design: accent for critical/high, neutral for the rest. */
-const SEV_STYLE: Record<string, { background: string; color: string }> = {
-  critical: { background: 'var(--color-accent-100)', color: 'var(--color-accent-800)' },
-  high: { background: 'var(--color-accent-100)', color: 'var(--color-accent-700)' },
-  medium: { background: 'var(--color-neutral-100)', color: 'var(--color-neutral-800)' },
-  low: { background: 'var(--color-neutral-100)', color: 'var(--color-neutral-700)' },
-  info: { background: 'var(--color-neutral-100)', color: 'var(--color-neutral-600)' },
 }
 
 const FILTERS = ['all', 'critical', 'fixable', 'input'] as const
@@ -56,12 +41,22 @@ export default async function FindingsPage({
   const { filter: raw } = await searchParams
   const filter: Filter = FILTERS.includes(raw as Filter) ? (raw as Filter) : 'all'
 
-  let findings: FindingListItem[] = []
+  /**
+   * The one place this app used to lie.
+   *
+   * This caught the error, called `handleApiError`, and then carried on with an empty array, so a
+   * sleeping API rendered "Nothing out of true here. Run an audit and findings will land here" to
+   * a user who may have had forty open findings. Every other page in the product renders the
+   * waking notice; this one quietly reported a fact it had no evidence for, which is precisely
+   * what the honesty principle exists to prevent.
+   */
+  let findings: FindingListItem[]
   try {
     findings = await api.listFindings()
   } catch (error) {
-    // Returns for the API-is-waking case; rethrows (or redirects) otherwise.
+    // Returns only for the API-is-waking case; redirects or rethrows otherwise.
     handleApiError(error)
+    return <ApiAsleep />
   }
 
   const counts = {
@@ -90,13 +85,11 @@ export default async function FindingsPage({
 
   return (
     <>
-      <AppNav active="findings" />
+      <AppNav />
 
-      <div className="wrap">
+      <main id="main" className="wrap">
         <div className="card-kicker">Findings</div>
-        <h1 style={{ fontWeight: 400, marginBottom: 'var(--space-4)' }}>
-          Everything out of true, in one list.
-        </h1>
+        <h1 className="mb-4">Everything out of true, in one list.</h1>
 
         <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
           <span className="seg">
@@ -140,29 +133,26 @@ export default async function FindingsPage({
             </p>
           </div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Finding</th>
-                <th>Site</th>
-                <th>Axis</th>
-                <th>Severity</th>
-                <th>Type</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((f) => {
-                const sev = SEV_STYLE[f.severity] ?? SEV_STYLE.medium
-                return (
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Finding</th>
+                  <th>Site</th>
+                  <th>Axis</th>
+                  <th>Severity</th>
+                  <th>Type</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((f) => (
                   <tr key={f.rowId}>
                     <td>{f.title}</td>
-                    <td style={{ opacity: 0.7 }}>{hostOf(f.siteUrl)}</td>
+                    <td className="text-muted">{hostOf(f.siteUrl)}</td>
                     <td>{AXIS_LABEL[f.axis] ?? f.axis}</td>
                     <td>
-                      <span className="tag" style={sev}>
-                        {SEV_LABEL[f.severity] ?? f.severity}
-                      </span>
+                      <SeverityBadge severity={f.severity} />
                     </td>
                     <td>
                       <span className={`tag ${f.fixable ? 'tag-outline' : 'tag-neutral'}`}>
@@ -173,12 +163,12 @@ export default async function FindingsPage({
                       <Link href={`/dashboard/findings/${f.rowId}`}>View &rarr;</Link>
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </main>
     </>
   )
 }

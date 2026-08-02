@@ -35,29 +35,10 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section
-        style={{
-          maxWidth: 1120,
-          margin: '0 auto',
-          padding: '72px var(--space-4) 56px',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 0.9fr)',
-          gap: 'var(--space-8)',
-          alignItems: 'center',
-        }}
-      >
+      <section className="mx-auto grid max-w-[1120px] items-center gap-8 px-4 pt-12 pb-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:pt-[72px] md:pb-14">
         <div>
-          <div className="card-kicker" style={{ marginBottom: 'var(--space-3)' }}>
-            The SEO agent that ships the fix
-          </div>
-          <h1
-            style={{
-              fontWeight: 400,
-              fontSize: 54,
-              lineHeight: 1.05,
-              marginBottom: 'var(--space-4)',
-            }}
-          >
+          <div className="card-kicker mb-3">The SEO agent that ships the fix</div>
+          <h1 className="display mb-4 leading-[1.05]">
             Most SEO tools hand you a report.{' '}
             <span style={{ color: 'var(--color-accent-700)' }}>
               We hand your repo a pull request.
@@ -142,7 +123,7 @@ export default function Home() {
         >
           The gap
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="grid gap-4 md:grid-cols-3 md:gap-0">
           <div
             style={{ padding: '0 var(--space-4)', borderRight: '1px solid var(--color-divider)' }}
           >
@@ -175,14 +156,7 @@ export default function Home() {
         >
           How it works
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: 'var(--space-4)',
-            textAlign: 'center',
-          }}
-        >
+        <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-3 lg:grid-cols-5">
           {STEPS.map((s) => (
             <div key={s.n}>
               <div
@@ -227,9 +201,7 @@ export default function Home() {
           Eight scores, never one. The axes move independently, and a single number hides
           everything.
         </p>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}
-        >
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {AXES.map((a) => (
             <div
               key={a}
@@ -252,7 +224,7 @@ export default function Home() {
           <div className="card-kicker" style={{ marginBottom: 'var(--space-3)' }}>
             Honest to a fault
           </div>
-          <h2 style={{ fontWeight: 400, maxWidth: '22ch', margin: '0 auto var(--space-4)' }}>
+          <h2 className="mx-auto mb-4 max-w-[22ch]">
             When a fix does not move the needle, we are the ones who tell you.
           </h2>
           <Link href="/login" className="btn btn-primary">

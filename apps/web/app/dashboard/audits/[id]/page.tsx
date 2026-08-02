@@ -9,6 +9,20 @@ import { getClient } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Deliberately no `loading.tsx` on this route, and it is worth knowing why before adding one.
+ *
+ * A `loading.tsx` wraps the route in a Suspense boundary, which makes Next stream the response:
+ * the shell goes out with HTTP 200 the moment the boundary renders, and a status code cannot be
+ * changed after the headers have flushed. This page calls `notFound()` for an audit belonging to
+ * another tenant, and that 404 is not cosmetic: ADR-0009 refuses to distinguish "does not exist"
+ * from "is not yours" precisely so nobody can enumerate audit ids across the platform, and the
+ * e2e suite asserts the status. Adding a skeleton here silently downgraded that to a 200.
+ *
+ * The list routes (`/dashboard`, `/findings`) cannot 404, so they keep their skeletons. Here the
+ * cold-start case is covered by `<ApiAsleep />` instead.
+ */
+
 export default async function AuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const api = await getClient()
@@ -25,9 +39,9 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
   const findings = [...audit.findings].sort((a, b) => priorityScore(b) - priorityScore(a))
 
   return (
-    <main className="wrap">
+    <main id="main" className="wrap">
       <div className="card-kicker">Audit</div>
-      <h1 style={{ fontWeight: 400, margin: 0 }}>{audit.siteUrl}</h1>
+      <h1 className="m-0">{audit.siteUrl}</h1>
       <p style={{ marginTop: 'var(--space-1)', fontSize: 13, opacity: 0.6 }}>
         {audit.pagesCrawled} pages crawled &middot; {new Date(audit.startedAt).toLocaleString()}
       </p>
@@ -81,44 +95,46 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             {findings.length === 0 ? (
               <p className="note note-ok">Nothing to report. Every check we ran passed.</p>
             ) : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Finding</th>
-                    <th>Severity</th>
-                    <th>Effort</th>
-                    <th>Impact</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {findings.map((finding) => (
-                    <tr key={finding.rowId}>
-                      <td>
-                        <div>{finding.title}</div>
-                        <div style={{ fontSize: 12, opacity: 0.55 }}>
-                          {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
-                          {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
-                          {finding.fixable && (
-                            <span style={{ color: 'var(--color-accent-700)' }}>
-                              {' '}
-                              &middot; we can write the fix
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <SeverityBadge severity={finding.severity} />
-                      </td>
-                      <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
-                      <td className="tnum">{finding.estimatedImpact}/100</td>
-                      <td>
-                        <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
-                      </td>
+              <div className="table-scroll">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Finding</th>
+                      <th>Severity</th>
+                      <th>Effort</th>
+                      <th>Impact</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {findings.map((finding) => (
+                      <tr key={finding.rowId}>
+                        <td>
+                          <div>{finding.title}</div>
+                          <div style={{ fontSize: 12, opacity: 0.55 }}>
+                            {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
+                            {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
+                            {finding.fixable && (
+                              <span style={{ color: 'var(--color-accent-700)' }}>
+                                {' '}
+                                &middot; we can write the fix
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <SeverityBadge severity={finding.severity} />
+                        </td>
+                        <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
+                        <td className="tnum">{finding.estimatedImpact}/100</td>
+                        <td>
+                          <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>
