@@ -9,6 +9,20 @@ import { getClient } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Deliberately no `loading.tsx` on this route, and it is worth knowing why before adding one.
+ *
+ * A `loading.tsx` wraps the route in a Suspense boundary, which makes Next stream the response:
+ * the shell goes out with HTTP 200 the moment the boundary renders, and a status code cannot be
+ * changed after the headers have flushed. This page calls `notFound()` for an audit belonging to
+ * another tenant, and that 404 is not cosmetic: ADR-0009 refuses to distinguish "does not exist"
+ * from "is not yours" precisely so nobody can enumerate audit ids across the platform, and the
+ * e2e suite asserts the status. Adding a skeleton here silently downgraded that to a 200.
+ *
+ * The list routes (`/dashboard`, `/findings`) cannot 404, so they keep their skeletons. Here the
+ * cold-start case is covered by `<ApiAsleep />` instead.
+ */
+
 export default async function AuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const api = await getClient()

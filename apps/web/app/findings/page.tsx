@@ -1,5 +1,6 @@
 import type { FindingListItem } from '@seo/api-client'
 import Link from 'next/link'
+import { ApiAsleep } from '@/components/api-asleep'
 import { AppNav } from '@/components/app-nav'
 import { SeverityBadge } from '@/components/severity'
 import { handleApiError } from '@/lib/api-error'
@@ -40,12 +41,22 @@ export default async function FindingsPage({
   const { filter: raw } = await searchParams
   const filter: Filter = FILTERS.includes(raw as Filter) ? (raw as Filter) : 'all'
 
-  let findings: FindingListItem[] = []
+  /**
+   * The one place this app used to lie.
+   *
+   * This caught the error, called `handleApiError`, and then carried on with an empty array, so a
+   * sleeping API rendered "Nothing out of true here. Run an audit and findings will land here" to
+   * a user who may have had forty open findings. Every other page in the product renders the
+   * waking notice; this one quietly reported a fact it had no evidence for, which is precisely
+   * what the honesty principle exists to prevent.
+   */
+  let findings: FindingListItem[]
   try {
     findings = await api.listFindings()
   } catch (error) {
-    // Returns for the API-is-waking case; rethrows (or redirects) otherwise.
+    // Returns only for the API-is-waking case; redirects or rethrows otherwise.
     handleApiError(error)
+    return <ApiAsleep />
   }
 
   const counts = {
