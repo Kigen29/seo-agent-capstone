@@ -50,7 +50,9 @@ export function ThemeToggle() {
   }
 
   return (
-    <div className="seg" role="group" aria-label="Colour theme">
+    // `self-start`, or the control stretches to its flex parent's width and the three options
+    // leave a fourth, empty cell hanging off the end that looks like a missing button.
+    <div className="seg self-start" role="group" aria-label="Colour theme">
       {OPTIONS.map((option) => (
         <button
           key={option.value}

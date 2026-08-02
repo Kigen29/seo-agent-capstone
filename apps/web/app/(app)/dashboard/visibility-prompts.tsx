@@ -94,8 +94,13 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
   }
 
   if (!open) {
+    /**
+     * `items-start`, so the trigger is the width of its own label. Inside the site card, which is
+     * itself a flex column, a stretched child made this button span the whole card and centre its
+     * text, so it read as a heading rather than a control.
+     */
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+      <div className="flex flex-col items-start gap-1">
         <button type="button" className="btn btn-ghost" onClick={toggle} disabled={pending}>
           {pending ? 'Loading...' : 'AI visibility prompts'}
         </button>

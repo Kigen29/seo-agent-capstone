@@ -57,8 +57,21 @@ export function Sidebar({ sites }: { sites: SidebarSite[] }) {
       {/*
         The mobile trigger. The sidebar is a fixed column from `md` and a disclosure below it,
         because a 240px column on a 360px screen leaves 120px for the actual product.
+
+        Deliberately NOT using the `.nav` class, which was the first attempt and was wrong in a way
+        worth recording. `.classical .nav` sets `display: flex` at specificity (0,2,0); Tailwind's
+        `md:hidden` sets `display: none` at (0,1,0). The lower-specificity rule loses regardless of
+        the media query, so this bar stayed visible on desktop, and because it is a flex child of
+        the row below it also took a slice of the sidebar's width. The result was a stray brand and
+        Menu button floating mid-page and a sidebar half again as wide as it should be.
+
+        Any hand-written component class carries this hazard against a utility. Layout here is
+        utilities only.
       */}
-      <div className="nav md:hidden">
+      <div
+        className="flex items-center justify-between gap-4 border-b px-4 py-3 md:hidden"
+        style={{ borderColor: 'var(--color-divider)' }}
+      >
         <Link href="/dashboard" className="nav-brand" style={{ color: 'inherit' }}>
           RankWright
         </Link>
@@ -75,7 +88,7 @@ export function Sidebar({ sites }: { sites: SidebarSite[] }) {
 
       <div
         id="app-sidebar"
-        className={`${open ? 'flex' : 'hidden'} w-full shrink-0 flex-col gap-6 border-b p-4 md:flex md:h-dvh md:w-60 md:border-r md:border-b-0 md:sticky md:top-0`}
+        className={`${open ? 'flex' : 'hidden'} w-full shrink-0 flex-col gap-6 border-b p-4 md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:self-start md:overflow-y-auto md:border-r md:border-b-0`}
         style={{ borderColor: 'var(--color-divider)' }}
       >
         <Link href="/dashboard" className="nav-brand hidden md:block" style={{ color: 'inherit' }}>

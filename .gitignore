@@ -13,6 +13,9 @@ coverage/
 /crawls/
 playwright-report/
 test-results/
+# Screenshots from the manual visual check (apps/web/e2e/screens.manual.ts). Worth looking at,
+# not worth versioning: they are regenerated on demand and would churn on every UI change.
+apps/web/screens/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
