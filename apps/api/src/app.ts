@@ -1,6 +1,9 @@
 import cors from '@fastify/cors'
+import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
 import {
   getAudit,
+  getAuditProgress,
+  MAX_PAGE_SIZE,
   getFinding,
   getVisibilitySettings,
   listFindings,
@@ -470,10 +473,42 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       return { sites: await listSites(db, request.tenantId) }
     })
 
-    /** The findings inbox: the tenant's current findings, most important first. */
-    protectedRoutes.withTypeProvider<ZodTypeProvider>().get('/findings', async (request) => {
-      return { findings: await listFindings(db, request.tenantId) }
-    })
+    /**
+     * The findings inbox: one page of the tenant's current findings, most important first.
+     *
+     * This took no parameters at all and returned every finding the tenant had. The web app then
+     * filtered the whole downloaded list in the browser, which meant clicking a filter chip
+     * re-fetched everything and discarded most of it. Filtering, sorting and paging now happen in
+     * SQL against an indexed, stored priority score.
+     *
+     * Every parameter is validated and bounded here rather than trusted: `pageSize` is capped so a
+     * caller cannot ask for the unpaginated behaviour this replaced by passing `pageSize=100000`.
+     */
+    protectedRoutes.withTypeProvider<ZodTypeProvider>().get(
+      '/findings',
+      {
+        schema: {
+          querystring: z.object({
+            siteId: z.string().uuid().optional(),
+            axis: axisSchema.optional(),
+            severity: severitySchema.optional(),
+            status: findingStatusSchema.optional(),
+            fixable: z.enum(['true', 'false']).optional(),
+            q: z.string().max(200).optional(),
+            sort: z.enum(['priority', 'severity', 'title', 'axis']).optional(),
+            page: z.coerce.number().int().min(1).optional(),
+            pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+          }),
+        },
+      },
+      async (request) => {
+        const { fixable, ...rest } = request.query
+        return listFindings(db, request.tenantId, {
+          ...rest,
+          ...(fixable === undefined ? {} : { fixable: fixable === 'true' }),
+        })
+      },
+    )
 
     protectedRoutes.withTypeProvider<ZodTypeProvider>().post(
       '/sites',
@@ -515,6 +550,22 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
         if (!audit) return notFound(reply)
         return { audit }
+      })
+
+    /**
+     * Two scalars, for the poll that runs every two seconds while a crawl is in flight.
+     *
+     * The audit page was polling `GET /audits/:id`, which returns every finding with its full
+     * evidence, baseline and verification JSON, to read a status and a page count. On a large
+     * crawl that is megabytes re-serialised twice a minute per open tab.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .get('/audits/:id/progress', { schema: { params: uuidParam } }, async (request, reply) => {
+        const progress = await getAuditProgress(db, request.tenantId, request.params.id)
+
+        if (!progress) return notFound(reply)
+        return progress
       })
 
     protectedRoutes

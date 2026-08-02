@@ -1,4 +1,4 @@
-import { buildScorecard, type Finding, type Scorecard } from '@seo/core'
+import { buildScorecard, priorityScore, type Finding, type Scorecard } from '@seo/core'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import {
@@ -356,6 +356,12 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
             affectedUrls: finding.affectedUrls,
             estimatedEffort: finding.estimatedEffort,
             estimatedImpact: finding.estimatedImpact,
+            /**
+             * Computed here, with the same exported function the UI sorts by, so the column and
+             * the formula cannot disagree. Storing it is what lets the API order and paginate the
+             * inbox in SQL instead of loading every finding to discover the first twenty.
+             */
+            priorityScore: priorityScore(finding),
             falsification: finding.falsification,
             fixable: finding.fixable,
             status: finding.status,

@@ -12,6 +12,7 @@ import {
 } from '@seo/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { priorityScore } from '@seo/core'
 import { getAudit, listSites } from '../src/queries.js'
 import { runAudit } from '../src/run.js'
 
@@ -107,6 +108,34 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
     expect(audit?.pagesCrawled).toBeGreaterThan(0)
     expect(audit?.completedAt).toBeTruthy()
     expect(audit?.error).toBeNull()
+  })
+
+  it('stores a priority score matching the formula, for every finding it writes', async () => {
+    /**
+     * The guard on a denormalised column, placed on the path that actually writes it.
+     *
+     * `priority_score` exists so the inbox can order and paginate in SQL, and it is filled in by
+     * `runAudit` at insert time. If it ever diverges from `priorityScore()`, the backlog is sorted
+     * wrongly, permanently, and nothing else in the system would notice: the number still looks
+     * like a number and the page still renders.
+     */
+    const rows = await withTenant(db, tenantId, (tx) =>
+      tx
+        .select({
+          stored: findings.priorityScore,
+          severity: findings.severity,
+          confidence: findings.confidence,
+          estimatedImpact: findings.estimatedImpact,
+          estimatedEffort: findings.estimatedEffort,
+        })
+        .from(findings)
+        .where(eq(findings.auditId, auditId)),
+    )
+
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      expect(row.stored).toBeCloseTo(priorityScore(row), 4)
+    }
   })
 
   it('stores the eight-axis scorecard whole, blanks included', async () => {

@@ -1,4 +1,5 @@
 import { decryptToken, signState } from '@seo/connectors'
+import { priorityScore } from '@seo/core'
 import {
   apiTokens,
   asOwner,
@@ -931,18 +932,27 @@ describe.skipIf(!shouldRun)('the API', () => {
   })
 
   describe('the findings inbox', () => {
-    it('lists the tenant findings from the latest audit, most important first', async () => {
-      const fsiteId = await withTenant(db, tenantId, async (tx) => {
+    let findingsSiteId: string
+
+    /**
+     * Hoisted out of the first test so every case here shares one fixture, and, more importantly,
+     * so `priority_score` is set. Written directly, these rows would default to 0, every one would
+     * tie, and the "most important first" assertion would be passing on the UUID tie-break rather
+     * than on the ordering it claims to test.
+     */
+    beforeAll(async () => {
+      findingsSiteId = await withTenant(db, tenantId, async (tx) => {
         const [s] = await tx
           .insert(sites)
           .values({ tenantId, url: 'https://findings.example.com' })
           .returning()
         return s!.id
       })
+
       const auditId = await withTenant(db, tenantId, async (tx) => {
         const [a] = await tx
           .insert(audits)
-          .values({ tenantId, siteId: fsiteId, status: 'complete' })
+          .values({ tenantId, siteId: findingsSiteId, status: 'complete' })
           .returning()
         return a!.id
       })
@@ -955,55 +965,120 @@ describe.skipIf(!shouldRun)('the API', () => {
         observedAt: '2026-07-17T00:00:00.000Z',
         source: 'crawler' as const,
       }
+
+      const blocked = {
+        severity: 'critical' as const,
+        confidence: 1,
+        estimatedImpact: 88,
+        estimatedEffort: 'trivial' as const,
+      }
+      const thin = {
+        severity: 'low' as const,
+        confidence: 0.5,
+        estimatedImpact: 20,
+        estimatedEffort: 'large' as const,
+      }
+
       await withTenant(db, tenantId, (tx) =>
         tx.insert(findings).values([
           {
             tenantId,
-            siteId: fsiteId,
+            siteId: findingsSiteId,
             auditId,
             ruleId: 'TECH-002',
             key: 'TECH-002#0',
             axis: 'crawl_health',
-            severity: 'critical',
-            confidence: 1,
             title: 'AI crawler blocked',
             evidence,
             affectedUrls: ['https://findings.example.com/'],
-            estimatedEffort: 'trivial',
-            estimatedImpact: 88,
             falsification: 'still blocked after merge',
             fixable: true,
             status: 'open',
+            ...blocked,
+            priorityScore: priorityScore(blocked),
           },
           {
             tenantId,
-            siteId: fsiteId,
+            siteId: findingsSiteId,
             auditId,
             ruleId: 'CONT-004',
             key: 'CONT-004#0',
             axis: 'content',
-            severity: 'low',
-            confidence: 0.5,
             title: 'Thin content on a page',
             evidence,
             affectedUrls: [],
-            estimatedEffort: 'large',
-            estimatedImpact: 20,
             falsification: 'still thin after merge',
             fixable: false,
             status: 'open',
+            ...thin,
+            priorityScore: priorityScore(thin),
           },
         ]),
       )
+    })
 
-      const res = await get('/findings', token)
+    it('lists the tenant findings from the latest audit, most important first', async () => {
+      const res = await get(`/findings?siteId=${findingsSiteId}`, token)
       expect(res.statusCode).toBe(200)
 
-      const list = res.json().findings as { ruleId: string; fixable: boolean; siteUrl: string }[]
-      const mine = list.filter((f) => f.siteUrl === 'https://findings.example.com')
+      const body = res.json() as {
+        findings: { ruleId: string; fixable: boolean }[]
+        total: number
+        page: number
+        pageSize: number
+      }
+
+      // A page now, not a bare array: it carries the total so the UI can show a real count and
+      // page numbers without downloading everything to work them out.
+      expect(body).toMatchObject({ page: 1 })
+      expect(body.total).toBe(2)
+
       // The cheap critical outranks the expensive low-impact one.
-      expect(mine[0]).toMatchObject({ ruleId: 'TECH-002', fixable: true })
-      expect(mine.find((f) => f.ruleId === 'CONT-004')).toMatchObject({ fixable: false })
+      expect(body.findings[0]).toMatchObject({ ruleId: 'TECH-002', fixable: true })
+      expect(body.findings.find((f) => f.ruleId === 'CONT-004')).toMatchObject({ fixable: false })
+    })
+
+    it('bounds a page and never returns more than asked for', async () => {
+      const res = await get(`/findings?siteId=${findingsSiteId}&pageSize=1`, token)
+
+      expect(res.json().findings).toHaveLength(1)
+      expect(res.json().pageSize).toBe(1)
+      // The total still describes the whole match, not the page.
+      expect(res.json().total).toBe(2)
+    })
+
+    it('refuses a page size that would restore the unpaginated behaviour', async () => {
+      // Without an upper bound, `?pageSize=100000` is the old endpoint wearing a query string and
+      // the payload problem comes straight back.
+      expect((await get('/findings?pageSize=100000', token)).statusCode).toBe(400)
+    })
+
+    it.each([
+      ['severity', 'severity=critical', 1],
+      ['axis', 'axis=content', 1],
+      ['status', 'status=open', 2],
+      ['fixable', 'fixable=true', 1],
+      ['search', 'q=TECH-002', 1],
+    ])('filters by %s on the server', async (_name, query, expected) => {
+      const res = await get(`/findings?siteId=${findingsSiteId}&${query}`, token)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().total).toBe(expected)
+    })
+
+    it('rejects a filter value that is not a real enum member', async () => {
+      // Validated at the boundary, so a bad value is a 400 naming the field rather than a 500.
+      expect((await get('/findings?severity=catastrophic', token)).statusCode).toBe(400)
+      expect((await get('/findings?axis=vibes', token)).statusCode).toBe(400)
+    })
+
+    it('sends a count of affected pages, not the whole array', async () => {
+      const res = await get(`/findings?siteId=${findingsSiteId}`, token)
+      const first = res.json().findings[0]
+
+      // The array was serialised into every inbox response for a column the list never rendered.
+      expect(first).toHaveProperty('affectedUrlCount')
+      expect(first).not.toHaveProperty('affectedUrls')
     })
   })
 

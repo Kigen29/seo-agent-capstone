@@ -1,8 +1,24 @@
 export { runAudit } from './run.js'
 export type { AuditResult, RunAuditOptions } from './run.js'
 
-export { getAudit, getFinding, listSites, listFindings } from './queries.js'
-export type { AuditDetail, SiteSummary, FindingListItem } from './queries.js'
+export {
+  getAudit,
+  getAuditProgress,
+  getFinding,
+  listSites,
+  listFindings,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from './queries.js'
+export type {
+  AuditDetail,
+  AuditProgress,
+  SiteSummary,
+  FindingListItem,
+  FindingFilters,
+  FindingPage,
+  FindingSort,
+} from './queries.js'
 
 export {
   getVisibilitySettings,

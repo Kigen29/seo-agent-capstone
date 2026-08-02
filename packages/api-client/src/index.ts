@@ -44,9 +44,16 @@ export interface Site {
   latestAudit?: AuditSummary
 }
 
-/** One row of the findings inbox. Matches the API's list-findings shape. */
+/**
+ * One row of the findings inbox. Matches the API's list-findings shape.
+ *
+ * `affectedUrls` used to be here as a full array and is now a count. It was serialised into every
+ * inbox response for a column the list never rendered, which on a real tenant is megabytes to
+ * draw a table of titles.
+ */
 export interface FindingListItem {
   rowId: string
+  siteId: string
   siteUrl: string
   ruleId: string
   axis: Axis
@@ -56,7 +63,37 @@ export interface FindingListItem {
   status: FindingStatus
   estimatedImpact: number
   estimatedEffort: Effort
-  affectedUrls: string[]
+  affectedUrlCount: number
+}
+
+/** What the inbox can be narrowed and ordered by. All optional; the API validates and bounds them. */
+export interface FindingQuery {
+  siteId?: string
+  axis?: Axis
+  severity?: Severity
+  status?: FindingStatus
+  fixable?: boolean
+  q?: string
+  sort?: 'priority' | 'severity' | 'title' | 'axis'
+  page?: number
+  pageSize?: number
+}
+
+/** One page of findings, plus the total so the UI can render page numbers and a real count. */
+export interface FindingPage {
+  findings: FindingListItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** Two scalars, for the poll that runs while a crawl is in flight. */
+export interface AuditProgress {
+  id: string
+  status: string
+  pagesCrawled: number
+  /** True once there is nothing left to poll for, so the client can stop. */
+  finished: boolean
 }
 
 export interface Audit {
@@ -185,11 +222,29 @@ export function createApiClient(options: ApiClientOptions) {
         })
       ).site,
 
-    /** The findings inbox: the tenant's current findings, most important first. */
-    listFindings: async () =>
-      (await request<{ findings: FindingListItem[] }>('/findings')).findings,
+    /**
+     * One page of the findings inbox, filtered and sorted by the server.
+     *
+     * This took no arguments and returned everything; the browser then filtered the full list.
+     * Every parameter here is applied in SQL against an indexed priority score, so a filter click
+     * fetches one page instead of re-downloading the tenant's entire backlog.
+     */
+    listFindings: async (query: FindingQuery = {}) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      const suffix = params.size > 0 ? `?${params.toString()}` : ''
+      return request<FindingPage>(`/findings${suffix}`)
+    },
 
     getAudit: async (id: string) => (await request<{ audit: Audit }>(`/audits/${id}`)).audit,
+
+    /**
+     * Status and page count only, for the two-second poll during a crawl. The full `getAudit`
+     * carries every finding with its evidence, which is not something to re-fetch twice a minute.
+     */
+    getAuditProgress: async (id: string) => request<AuditProgress>(`/audits/${id}/progress`),
 
     /** Queue an audit for a site. Returns the new audit's id; the crawl runs on the worker. */
     startAudit: async (siteId: string) =>

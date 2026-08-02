@@ -1,28 +1,25 @@
-import type { FindingListItem } from '@seo/api-client'
+import type { FindingPage } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { AppNav } from '@/components/app-nav'
 import { SeverityBadge } from '@/components/severity'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { Pagination } from '@/components/ui/pagination'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { FilterBar } from './filter-bar'
+import { AXIS_LABEL, STATUS_LABEL } from './labels'
 
 export const dynamic = 'force-dynamic'
 
-const AXIS_LABEL: Record<string, string> = {
-  crawl_health: 'Crawl health',
-  performance: 'Performance',
-  content: 'Content',
-  structure: 'Structure',
-  authority: 'Authority',
-  local: 'Local',
-  ai_visibility: 'AI visibility',
-  agent_readiness: 'Agent readiness',
-}
-
-const FILTERS = ['all', 'critical', 'fixable', 'input'] as const
-type Filter = (typeof FILTERS)[number]
+/** Columns the table offers to sort by, and what each is called in the header. */
+const SORTS = [
+  { key: 'priority', label: 'Priority' },
+  { key: 'severity', label: 'Severity' },
+  { key: 'title', label: 'Finding' },
+  { key: 'axis', label: 'Axis' },
+] as const
 
 function hostOf(url: string): string {
   try {
@@ -35,134 +32,187 @@ function hostOf(url: string): string {
 export default async function FindingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { filter: raw } = await searchParams
-  const filter: Filter = FILTERS.includes(raw as Filter) ? (raw as Filter) : 'all'
+  const params = await searchParams
+  const sort = SORTS.some((s) => s.key === params.sort) ? (params.sort as string) : 'priority'
+  const page = Number(params.page) > 0 ? Number(params.page) : 1
 
   /**
-   * The one place this app used to lie.
+   * One page, filtered and sorted by the server.
    *
-   * This caught the error, called `handleApiError`, and then carried on with an empty array, so a
-   * sleeping API rendered "Nothing out of true here. Run an audit and findings will land here" to
-   * a user who may have had forty open findings. Every other page in the product renders the
-   * waking notice; this one quietly reported a fact it had no evidence for, which is precisely
-   * what the honesty principle exists to prevent.
+   * This used to call `listFindings()` with no arguments, receive every finding the tenant had,
+   * and filter it in the browser. Every one of these parameters is now applied in SQL against an
+   * indexed priority score, so a filter click costs one page rather than the whole backlog.
    */
-  let findings: FindingListItem[]
+  let result: FindingPage
+  let sites: { id: string; url: string }[]
   try {
-    findings = await api.listFindings()
+    ;[result, sites] = await Promise.all([
+      api.listFindings({
+        ...(params.siteId ? { siteId: params.siteId } : {}),
+        ...(params.axis ? { axis: params.axis as never } : {}),
+        ...(params.severity ? { severity: params.severity as never } : {}),
+        ...(params.status ? { status: params.status as never } : {}),
+        ...(params.fixable ? { fixable: params.fixable === 'true' } : {}),
+        ...(params.q ? { q: params.q } : {}),
+        sort: sort as never,
+        page,
+      }),
+      api.listSites(),
+    ])
   } catch (error) {
-    // Returns only for the API-is-waking case; redirects or rethrows otherwise.
+    // Returns only for the API-is-waking case; redirects or rethrows otherwise. Rendering an
+    // empty table here would tell the user they have no findings when the API is merely asleep.
     handleApiError(error)
     return <ApiAsleep />
   }
 
-  const counts = {
-    all: findings.length,
-    critical: findings.filter((f) => f.severity === 'critical').length,
-    fixable: findings.filter((f) => f.fixable).length,
-    input: findings.filter((f) => !f.fixable).length,
+  /** Keeps every active filter when changing sort or page. Only the named key moves. */
+  const urlWith = (changes: Record<string, string | number | undefined>): string => {
+    const search = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+      if (value) search.set(key, value)
+    }
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === undefined) search.delete(key)
+      else search.set(key, String(value))
+    }
+    return `/findings?${search.toString()}`
   }
 
-  const shown = findings.filter((f) =>
-    filter === 'critical'
-      ? f.severity === 'critical'
-      : filter === 'fixable'
-        ? f.fixable
-        : filter === 'input'
-          ? !f.fixable
-          : true,
+  const hasFilters = Boolean(
+    params.q || params.siteId || params.axis || params.severity || params.status || params.fixable,
   )
-
-  const segments: { key: Filter; label: string }[] = [
-    { key: 'all', label: `All ${counts.all}` },
-    { key: 'critical', label: `Critical ${counts.critical}` },
-    { key: 'fixable', label: `Fixable in code ${counts.fixable}` },
-    { key: 'input', label: `Needs input ${counts.input}` },
-  ]
 
   return (
     <>
       <AppNav />
 
       <main id="main" className="wrap">
-        <PageHeader kicker="Findings" title="Everything out of true, in one list." />
+        <PageHeader
+          kicker="Findings"
+          title="Everything out of true, in one list."
+          description="Sorted by impact over effort, so the top of the list is what to do on Monday."
+        />
 
-        <div className="mb-4 flex gap-2">
-          <span className="seg">
-            {segments.map((s) => (
-              <Link
-                key={s.key}
-                href={`/findings?filter=${s.key}`}
-                className={`seg-opt${filter === s.key ? ' is-active' : ''}`}
-              >
-                <span>{s.label}</span>
-              </Link>
-            ))}
-          </span>
-        </div>
+        <FilterBar siteOptions={sites.map((site) => ({ id: site.id, url: site.url }))} />
 
-        {shown.length === 0 ? (
+        {result.findings.length === 0 ? (
           <EmptyState
             figure="0"
             title="Nothing out of true here"
             action={
-              counts.all === 0 ? (
-                <Link href="/dashboard" className="btn btn-primary">
-                  Run an audit
+              hasFilters ? (
+                <Link href="/findings" className="btn btn-secondary">
+                  Clear the filters
                 </Link>
               ) : (
-                <Link href="/findings" className="btn btn-secondary">
-                  Clear the filter
+                <Link href="/dashboard" className="btn btn-primary">
+                  Run an audit
                 </Link>
               )
             }
           >
-            {counts.all === 0
-              ? 'Run an audit and findings will land here, sorted by impact over effort.'
-              : 'No findings match this filter.'}
+            {hasFilters
+              ? 'No findings match these filters.'
+              : 'Run an audit and findings will land here, sorted by impact over effort.'}
           </EmptyState>
         ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Finding</th>
-                  <th>Site</th>
-                  <th>Axis</th>
-                  <th>Severity</th>
-                  <th>Type</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((f) => (
-                  <tr key={f.rowId}>
-                    <td>{f.title}</td>
-                    <td className="text-muted">{hostOf(f.siteUrl)}</td>
-                    <td>{AXIS_LABEL[f.axis] ?? f.axis}</td>
-                    <td>
-                      <SeverityBadge severity={f.severity} />
-                    </td>
-                    <td>
-                      <span className={`tag ${f.fixable ? 'tag-outline' : 'tag-neutral'}`}>
-                        {f.fixable ? 'Fixable in code' : 'Needs input'}
-                      </span>
-                    </td>
-                    <td>
-                      <Link href={`/dashboard/findings/${f.rowId}`}>View &rarr;</Link>
-                    </td>
+          <>
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    {SORTS.filter((column) => column.key !== 'priority').map((column) => (
+                      <th key={column.key} aria-sort={sort === column.key ? 'descending' : 'none'}>
+                        {/*
+                          Sortable headers, which this table did not have: the order was fixed by
+                          priority score with no way to ask for anything else.
+                        */}
+                        <SortLink
+                          href={urlWith({ sort: column.key, page: undefined })}
+                          active={sort === column.key}
+                          label={column.label}
+                        />
+                      </th>
+                    ))}
+                    <th>Site</th>
+                    <th>Status</th>
+                    <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
+                      <SortLink
+                        href={urlWith({ sort: 'priority', page: undefined })}
+                        active={sort === 'priority'}
+                        label="Priority"
+                      />
+                    </th>
+                    <th>Pages</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {result.findings.map((finding) => {
+                    const status = STATUS_LABEL[finding.status]
+                    return (
+                      <tr key={finding.rowId}>
+                        <td>
+                          <span className={finding.fixable ? 'tag tag-outline' : 'tag tag-neutral'}>
+                            {finding.fixable ? 'Fixable' : 'Needs input'}
+                          </span>
+                        </td>
+                        <td>
+                          <SeverityBadge severity={finding.severity} />
+                        </td>
+                        <td>{finding.title}</td>
+                        <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
+                        <td className="text-muted">{hostOf(finding.siteUrl)}</td>
+                        <td>
+                          {/*
+                            Status was fetched and never rendered, so a finding with a pull request
+                            already open looked exactly like one nobody had touched. In a triage
+                            list that is the difference between work to do and work in flight.
+                          */}
+                          <span className={status.className}>{status.label}</span>
+                        </td>
+                        <td className="tnum text-muted">{finding.estimatedImpact}</td>
+                        <td className="tnum text-muted">{finding.affectedUrlCount}</td>
+                        <td>
+                          <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              hrefFor={(next) => urlWith({ page: next })}
+            />
+          </>
         )}
       </main>
     </>
+  )
+}
+
+/** A column header that is also the control for sorting by it. */
+function SortLink({ href, active, label }: { href: string; active: boolean; label: string }) {
+  return (
+    <Link
+      href={href}
+      style={{ color: active ? 'var(--color-accent-700)' : 'inherit' }}
+      aria-label={`Sort by ${label}`}
+    >
+      {label}
+      {active ? ' ↓' : ''}
+    </Link>
   )
 }
