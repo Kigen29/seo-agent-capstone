@@ -135,7 +135,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                         </td>
                         <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
                         <td className="tnum">{finding.estimatedImpact}/100</td>
-                        <td>
+                        <td className="whitespace-nowrap">
                           <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
                         </td>
                       </tr>

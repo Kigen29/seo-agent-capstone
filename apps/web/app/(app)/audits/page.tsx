@@ -103,7 +103,7 @@ export default async function AuditsPage({
                     </td>
                     <td className="tnum text-muted">{audit.pagesCrawled}</td>
                     <td className="text-muted">{new Date(audit.startedAt).toLocaleString()}</td>
-                    <td>
+                    <td className="whitespace-nowrap">
                       <Link href={`/audits/${audit.id}`}>View &rarr;</Link>
                     </td>
                   </tr>

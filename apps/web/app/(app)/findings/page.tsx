@@ -176,7 +176,7 @@ export default async function FindingsPage({
                       </td>
                       <td className="tnum text-muted">{finding.estimatedImpact}</td>
                       <td className="tnum text-muted">{finding.affectedUrlCount}</td>
-                      <td>
+                      <td className="whitespace-nowrap">
                         <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
                       </td>
                     </tr>

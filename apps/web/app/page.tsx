@@ -220,11 +220,15 @@ export default function Home() {
       </section>
 
       <section style={{ maxWidth: 1120, margin: '0 auto', padding: '0 var(--space-4) 72px' }}>
-        <div className="card elev-sm" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
-          <div className="card-kicker" style={{ marginBottom: 'var(--space-3)' }}>
-            Honest to a fault
-          </div>
-          <h2 className="mx-auto mb-4 max-w-[22ch]">
+        {/*
+          `items-center` matters here. `.card` is a flex column and its default `align-items:
+          stretch` made every child full width: the heading sat left-aligned inside a 22ch box that
+          `mx-auto` could not centre, and the call to action rendered as a bar spanning the whole
+          card rather than a button.
+        */}
+        <div className="card elev-sm items-center p-8 text-center">
+          <div className="card-kicker mb-3">Honest to a fault</div>
+          <h2 className="mb-4 max-w-[22ch]">
             When a fix does not move the needle, we are the ones who tell you.
           </h2>
           <Link href="/login" className="btn btn-primary">

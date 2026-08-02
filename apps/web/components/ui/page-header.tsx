@@ -24,12 +24,19 @@ export function PageHeader({
 }) {
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
+      {/*
+        `flex-1` on the text, `shrink-0` on the actions. Without it the text block sizes to its own
+        content, and a description capped at 68ch is wide enough that the actions had nowhere to go
+        but a second line, where they sat right-aligned under the paragraph looking like they
+        belonged to nothing. With it the text takes whatever is left and the two share a row until
+        the screen is genuinely too narrow, which is when wrapping is the right answer.
+      */}
+      <div className="min-w-0 flex-1">
         {kicker && <div className="card-kicker">{kicker}</div>}
         <h1 className="m-0">{title}</h1>
         {description && <p className="text-muted mt-2 mb-0 max-w-[68ch] text-sm">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
 }
