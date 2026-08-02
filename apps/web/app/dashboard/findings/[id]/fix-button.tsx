@@ -1,6 +1,4 @@
-'use client'
-
-import { useFormStatus } from 'react-dom'
+import { SubmitButton } from '@/components/ui/submit-button'
 import { openFixPr } from './actions'
 
 /**
@@ -12,25 +10,12 @@ import { openFixPr } from './actions'
  * product, it triggers a server action that talks to GitHub and can take seconds, and a user who
  * gets no acknowledgement clicks it again, which is exactly the input the idempotency guard in
  * ADR-0012 exists to survive rather than an input we should be provoking.
- *
- * `useFormStatus` has to read from inside the form element, which is why the button is its own
- * component rather than a few lines in the page.
  */
-function SubmitButton() {
-  const { pending } = useFormStatus()
-
-  return (
-    <button type="submit" className="btn btn-primary" disabled={pending} aria-busy={pending}>
-      {pending ? 'Opening the pull request...' : 'Open a pull request'}
-    </button>
-  )
-}
-
 export function FixButton({ findingId }: { findingId: string }) {
   return (
     <form action={openFixPr}>
       <input type="hidden" name="findingId" value={findingId} />
-      <SubmitButton />
+      <SubmitButton pendingLabel="Opening the pull request...">Open a pull request</SubmitButton>
     </form>
   )
 }

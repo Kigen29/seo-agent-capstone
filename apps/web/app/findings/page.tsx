@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { AppNav } from '@/components/app-nav'
 import { SeverityBadge } from '@/components/severity'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -88,10 +90,9 @@ export default async function FindingsPage({
       <AppNav />
 
       <main id="main" className="wrap">
-        <div className="card-kicker">Findings</div>
-        <h1 className="mb-4">Everything out of true, in one list.</h1>
+        <PageHeader kicker="Findings" title="Everything out of true, in one list." />
 
-        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+        <div className="mb-4 flex gap-2">
           <span className="seg">
             {segments.map((s) => (
               <Link
@@ -106,32 +107,25 @@ export default async function FindingsPage({
         </div>
 
         {shown.length === 0 ? (
-          <div
-            className="card elev-sm"
-            style={{
-              padding: 'var(--space-8)',
-              textAlign: 'center',
-              maxWidth: '520px',
-              margin: 'var(--space-8) auto 0',
-            }}
+          <EmptyState
+            figure="0"
+            title="Nothing out of true here"
+            action={
+              counts.all === 0 ? (
+                <Link href="/dashboard" className="btn btn-primary">
+                  Run an audit
+                </Link>
+              ) : (
+                <Link href="/findings" className="btn btn-secondary">
+                  Clear the filter
+                </Link>
+              )
+            }
           >
-            <div
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '40px',
-                color: 'var(--color-accent-700)',
-                marginBottom: 'var(--space-3)',
-              }}
-            >
-              0
-            </div>
-            <h4 style={{ marginBottom: 'var(--space-2)' }}>Nothing out of true here</h4>
-            <p style={{ fontSize: '14px', opacity: 0.8, margin: 0 }}>
-              {counts.all === 0
-                ? 'Run an audit and findings will land here, sorted by impact over effort.'
-                : 'No findings match this filter.'}
-            </p>
-          </div>
+            {counts.all === 0
+              ? 'Run an audit and findings will land here, sorted by impact over effort.'
+              : 'No findings match this filter.'}
+          </EmptyState>
         ) : (
           <div className="table-scroll">
             <table className="table">

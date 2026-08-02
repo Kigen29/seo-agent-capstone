@@ -2,6 +2,8 @@ import type { Evidence } from '@seo/core'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { SeverityBadge } from '@/components/severity'
+import { Note, type NoteTone } from '@/components/ui/note'
+import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { FixButton } from './fix-button'
@@ -22,13 +24,13 @@ const EFFORT_LABEL: Record<string, string> = {
 }
 
 /** The banner shown after an Open-a-pull-request click, keyed on the ?fix= status. */
-const FIX_MESSAGE: Record<string, { tone: string; text: string }> = {
+const FIX_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
   queued: {
-    tone: 'note note-ok',
+    tone: 'ok',
     text: 'The agent is opening a pull request that fixes this. It will appear here as an open PR shortly.',
   },
   failed: {
-    tone: 'note note-error',
+    tone: 'error',
     text: 'Could not open a pull request. Connect a repository to this site, or check that no PR is already open, then try again.',
   },
 }
@@ -58,17 +60,11 @@ export default async function FindingPage({
 
   return (
     <main id="main" className="wrap-narrow">
-      <Link href={`/dashboard/audits/${finding.auditId}`} style={{ fontSize: 13 }}>
+      <Link href={`/dashboard/audits/${finding.auditId}`} className="text-[13px]">
         &larr; Back to the audit
       </Link>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 'var(--space-2)',
-          margin: 'var(--space-4) 0 var(--space-3)',
-        }}
-      >
+      <div className="mt-4 mb-3 flex flex-wrap gap-2">
         <SeverityBadge severity={finding.severity} />
         <span className="tag tag-neutral">{finding.ruleId}</span>
         {finding.fixable && <span className="tag tag-outline">Fixable in code</span>}
@@ -82,49 +78,41 @@ export default async function FindingPage({
           href={finding.prUrl}
           target="_blank"
           rel="noreferrer"
-          className="note note-ok"
-          style={{ display: 'block', marginBottom: 'var(--space-6)' }}
+          className="note note-ok mb-6 block"
         >
           A pull request that fixes this is open. Review and merge it &rarr;
         </a>
       ) : finding.status === 'merged' ? (
-        <p className="note note-ok" style={{ marginBottom: 'var(--space-6)' }}>
+        <Note tone="ok" className="mb-6">
           The fix has been merged. It verifies once the change is deployed and re-crawled.
-        </p>
+        </Note>
       ) : finding.status === 'verified' ? (
-        <p className="note note-ok" style={{ marginBottom: 'var(--space-6)' }}>
+        <Note tone="ok" className="mb-6">
           &#10003; Verified fixed. A re-audit no longer finds this.
-        </p>
+        </Note>
       ) : finding.status === 'rejected' ? (
-        <p className="note note-error" style={{ marginBottom: 'var(--space-6)' }}>
+        <Note tone="error" className="mb-6">
           The fix was merged, but a re-audit still finds this. It did not work; the finding stands.
-        </p>
+        </Note>
       ) : (
-        <div style={{ marginBottom: 'var(--space-6)' }}>
+        <div className="mb-6">
           {fixMessage && (
-            <p role="status" className={fixMessage.tone} style={{ marginBottom: 'var(--space-3)' }}>
+            <Note tone={fixMessage.tone} className="mb-3">
               {fixMessage.text}
-            </p>
+            </Note>
           )}
           {finding.fixable &&
             (connections.github.connected ? (
               <FixButton findingId={finding.rowId} />
             ) : (
-              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              <p className="text-muted m-0 text-[13px]">
                 Connect a repository to this site to open a fix pull request.
               </p>
             ))}
         </div>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 'var(--space-3)',
-          marginBottom: 'var(--space-6)',
-        }}
-      >
+      <StatRow>
         <Stat
           label="Effort"
           value={EFFORT_LABEL[finding.estimatedEffort] ?? finding.estimatedEffort}
@@ -132,7 +120,7 @@ export default async function FindingPage({
         <Stat label="Impact" value={`${finding.estimatedImpact}/100`} />
         <Stat label="Confidence" value={`${Math.round(finding.confidence * 100)}%`} />
         <Stat label="Fixable" value={finding.fixable ? 'We can write it' : 'Needs a human'} />
-      </div>
+      </StatRow>
 
       {/*
         The falsification condition, first and largest, because it is the thing that separates
@@ -186,15 +174,6 @@ export default async function FindingPage({
         </div>
       </section>
     </main>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card" style={{ gap: 'var(--space-1)', padding: 'var(--space-3)' }}>
-      <div className="card-kicker">{label}</div>
-      <div style={{ fontSize: 15 }}>{value}</div>
-    </div>
   )
 }
 
