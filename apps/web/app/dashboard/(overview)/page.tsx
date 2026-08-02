@@ -2,6 +2,10 @@ import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleConnection } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Note, type NoteTone } from '@/components/ui/note'
+import { PageHeader } from '@/components/ui/page-header'
+import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { startAudit, verifySite } from '../actions'
@@ -12,17 +16,17 @@ import { VisibilityPrompts } from '../visibility-prompts'
 export const dynamic = 'force-dynamic'
 
 /** The banner shown after a Verify-with-a-PR click, keyed on the ?verify= status. */
-const VERIFY_MESSAGE: Record<string, { tone: string; text: string }> = {
+const VERIFY_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
   queued: {
-    tone: 'note note-ok',
+    tone: 'ok',
     text: 'Verification queued. The agent is opening a pull request that adds the meta tag; it will appear on the site shortly.',
   },
   precondition: {
-    tone: 'note note-warn',
+    tone: 'warn',
     text: 'Connect a repository and Google Search Console to this site first.',
   },
   failed: {
-    tone: 'note note-error',
+    tone: 'error',
     text: 'Could not queue verification. Try again shortly.',
   },
 }
@@ -57,24 +61,12 @@ export default async function Dashboard({
 
   return (
     <main id="main" className="wrap">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 'var(--space-4)',
-        }}
-      >
-        <div>
-          <div className="card-kicker">Level</div>
-          <h1 className="m-0">Your sites</h1>
-        </div>
-        <Link href="/findings">All findings &rarr;</Link>
-      </div>
-      <p style={{ marginTop: 'var(--space-2)', fontSize: 14, opacity: 0.75, maxWidth: '60ch' }}>
-        Add a site and run an audit. The crawl runs on the worker and this page shows its progress
-        live.
-      </p>
+      <PageHeader
+        kicker="Sites"
+        title="Your sites"
+        description="Add a site and run an audit. The crawl runs on the worker and this page shows its progress live."
+        actions={<Link href="/findings">All findings &rarr;</Link>}
+      />
 
       <GoogleConnection connection={connections.google} callback={googleCallback} />
 
@@ -87,24 +79,24 @@ export default async function Dashboard({
         button appeared to do nothing at all.
       */}
       {asleep && (
-        <p role="status" className="note note-warn" style={{ marginTop: 'var(--space-4)' }}>
+        <Note tone="warn" className="mt-4">
           The API was waking up, so the audit was not queued. It sleeps after about fifteen minutes
           idle on the free tier. Try Run audit again in a moment.
-        </p>
+        </Note>
       )}
 
       {verifyMessage && (
-        <p role="status" className={verifyMessage.tone} style={{ marginTop: 'var(--space-4)' }}>
+        <Note tone={verifyMessage.tone} className="mt-4">
           {verifyMessage.text}
-        </p>
+        </Note>
       )}
 
       <AddSite />
 
       {sites.length === 0 ? (
-        <p style={{ marginTop: 'var(--space-8)', fontSize: 14, opacity: 0.7 }}>
-          No sites yet. Add one above to run your first audit.
-        </p>
+        <EmptyState figure="0" title="No sites yet">
+          Add one above to run your first audit. Everything else in RankWright hangs off a site.
+        </EmptyState>
       ) : (
         <div style={{ marginTop: 'var(--space-8)', display: 'grid', gap: 'var(--space-3)' }}>
           {sites.map((site) => {
@@ -146,21 +138,19 @@ export default async function Dashboard({
                       (site.gscVerificationStatus ?? 'none') === 'none' && (
                         <form action={verifySite}>
                           <input type="hidden" name="siteId" value={site.id} />
-                          <button type="submit" className="btn btn-primary">
-                            Verify with a PR
-                          </button>
+                          <SubmitButton pendingLabel="Queueing...">Verify with a PR</SubmitButton>
                         </form>
                       )}
 
                     <form action={startAudit}>
                       <input type="hidden" name="siteId" value={site.id} />
-                      <button
-                        type="submit"
-                        disabled={Boolean(running)}
+                      <SubmitButton
                         className="btn btn-secondary"
+                        pendingLabel="Queueing..."
+                        disabled={Boolean(running)}
                       >
                         {running ? 'Running...' : 'Run audit'}
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </div>

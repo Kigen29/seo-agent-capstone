@@ -4,6 +4,7 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
 import { SeverityBadge } from '@/components/severity'
+import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -40,19 +41,24 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main id="main" className="wrap">
-      <div className="card-kicker">Audit</div>
-      <h1 className="m-0">{audit.siteUrl}</h1>
-      <p style={{ marginTop: 'var(--space-1)', fontSize: 13, opacity: 0.6 }}>
-        {audit.pagesCrawled} pages crawled &middot; {new Date(audit.startedAt).toLocaleString()}
-      </p>
+      <PageHeader
+        kicker="Audit"
+        title={audit.siteUrl}
+        description={`${audit.pagesCrawled} pages crawled · ${new Date(audit.startedAt).toLocaleString()}`}
+        actions={
+          <Link href="/findings" className="btn btn-secondary btn-sm">
+            All findings
+          </Link>
+        }
+      />
 
       <LiveProgress status={audit.status} pagesCrawled={audit.pagesCrawled} />
 
       {audit.status === 'failed' && (
-        <div className="note note-error" style={{ marginTop: 'var(--space-6)' }}>
-          <p style={{ margin: 0, fontWeight: 600 }}>This audit failed</p>
-          <p style={{ margin: 'var(--space-2) 0 0', fontSize: 14 }}>{audit.error}</p>
-          <p style={{ margin: 'var(--space-2) 0 0', fontSize: 12, opacity: 0.75 }}>
+        <div className="note note-error mt-6">
+          <p className="m-0 font-semibold">This audit failed</p>
+          <p className="mt-2 mb-0 text-sm">{audit.error}</p>
+          <p className="mt-2 mb-0 text-xs opacity-80">
             Nothing was scored. We do not publish a scorecard for a site we could not reach: no data
             is not the same as no problems.
           </p>
