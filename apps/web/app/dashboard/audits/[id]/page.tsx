@@ -25,9 +25,9 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
   const findings = [...audit.findings].sort((a, b) => priorityScore(b) - priorityScore(a))
 
   return (
-    <main className="wrap">
+    <main id="main" className="wrap">
       <div className="card-kicker">Audit</div>
-      <h1 style={{ fontWeight: 400, margin: 0 }}>{audit.siteUrl}</h1>
+      <h1 className="m-0">{audit.siteUrl}</h1>
       <p style={{ marginTop: 'var(--space-1)', fontSize: 13, opacity: 0.6 }}>
         {audit.pagesCrawled} pages crawled &middot; {new Date(audit.startedAt).toLocaleString()}
       </p>
@@ -81,44 +81,46 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             {findings.length === 0 ? (
               <p className="note note-ok">Nothing to report. Every check we ran passed.</p>
             ) : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Finding</th>
-                    <th>Severity</th>
-                    <th>Effort</th>
-                    <th>Impact</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {findings.map((finding) => (
-                    <tr key={finding.rowId}>
-                      <td>
-                        <div>{finding.title}</div>
-                        <div style={{ fontSize: 12, opacity: 0.55 }}>
-                          {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
-                          {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
-                          {finding.fixable && (
-                            <span style={{ color: 'var(--color-accent-700)' }}>
-                              {' '}
-                              &middot; we can write the fix
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <SeverityBadge severity={finding.severity} />
-                      </td>
-                      <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
-                      <td className="tnum">{finding.estimatedImpact}/100</td>
-                      <td>
-                        <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
-                      </td>
+              <div className="table-scroll">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Finding</th>
+                      <th>Severity</th>
+                      <th>Effort</th>
+                      <th>Impact</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {findings.map((finding) => (
+                      <tr key={finding.rowId}>
+                        <td>
+                          <div>{finding.title}</div>
+                          <div style={{ fontSize: 12, opacity: 0.55 }}>
+                            {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
+                            {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
+                            {finding.fixable && (
+                              <span style={{ color: 'var(--color-accent-700)' }}>
+                                {' '}
+                                &middot; we can write the fix
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <SeverityBadge severity={finding.severity} />
+                        </td>
+                        <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
+                        <td className="tnum">{finding.estimatedImpact}/100</td>
+                        <td>
+                          <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>

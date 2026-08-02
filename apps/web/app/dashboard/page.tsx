@@ -55,7 +55,7 @@ export default async function Dashboard({
   }
 
   return (
-    <main className="wrap">
+    <main id="main" className="wrap">
       <div
         style={{
           display: 'flex',
@@ -66,7 +66,7 @@ export default async function Dashboard({
       >
         <div>
           <div className="card-kicker">Level</div>
-          <h1 style={{ fontWeight: 400, margin: 0 }}>Your sites</h1>
+          <h1 className="m-0">Your sites</h1>
         </div>
         <Link href="/findings">All findings &rarr;</Link>
       </div>
