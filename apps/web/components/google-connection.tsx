@@ -1,4 +1,4 @@
-import { connectGoogle } from '@/app/dashboard/actions'
+import { connectGoogle } from '@/app/(app)/dashboard/actions'
 
 /**
  * The Search Console connection panel.

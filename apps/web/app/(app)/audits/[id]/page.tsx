@@ -4,6 +4,7 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
 import { SeverityBadge } from '@/components/severity'
+import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
@@ -41,6 +42,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main id="main" className="wrap">
+      <Breadcrumbs trail={[{ label: 'Audits', href: '/audits' }, { label: audit.siteUrl }]} />
       <PageHeader
         kicker="Audit"
         title={audit.siteUrl}
@@ -134,7 +136,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                         <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
                         <td className="tnum">{finding.estimatedImpact}/100</td>
                         <td>
-                          <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
+                          <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
                         </td>
                       </tr>
                     ))}

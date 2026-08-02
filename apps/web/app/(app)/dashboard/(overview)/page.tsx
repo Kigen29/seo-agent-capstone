@@ -126,7 +126,7 @@ export default async function Dashboard({
                     }}
                   >
                     {site.latestAudit && (
-                      <Link href={`/dashboard/audits/${site.latestAudit.id}`}>
+                      <Link href={`/audits/${site.latestAudit.id}`}>
                         {running ? 'View progress' : 'View audit'}
                       </Link>
                     )}

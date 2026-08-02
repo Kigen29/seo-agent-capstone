@@ -53,7 +53,7 @@ test('shows the eight axes, and leaves the four we did not measure blank', async
   // is the artefact this entire product exists to replace, and it would be trivially easy to
   // ship one by accident right here.
   await signIn(page)
-  await page.goto(`/dashboard/audits/${AUDIT}`)
+  await page.goto(`/audits/${AUDIT}`)
 
   const measured = [
     'Crawl health',
@@ -84,7 +84,7 @@ test('never shows a single overall score', async ({ page }) => {
   // CLAUDE.md: "Never ship a single SEO score out of 100." The axes move independently, and a
   // site can have immaculate crawl health while being invisible to every AI engine on the web.
   await signIn(page)
-  await page.goto(`/dashboard/audits/${AUDIT}`)
+  await page.goto(`/audits/${AUDIT}`)
 
   await expect(page.getByText(/overall score/i)).toHaveCount(0)
   await expect(page.getByText(/total score/i)).toHaveCount(0)
@@ -93,7 +93,7 @@ test('never shows a single overall score', async ({ page }) => {
 
 test('leads the backlog with the critical finding, not the cheap one', async ({ page }) => {
   await signIn(page)
-  await page.goto(`/dashboard/audits/${AUDIT}`)
+  await page.goto(`/audits/${AUDIT}`)
 
   const first = page.locator('table tbody tr').filter({ hasText: 'TECH-' }).first()
 
@@ -106,7 +106,7 @@ test('opens a finding and shows how we would know we were wrong', async ({ page 
   // finding from an opinion, and if it is not on the screen the user has been handed an
   // opinion.
   await signIn(page)
-  await page.goto(`/dashboard/findings/${BLOCKED_FINDING}`)
+  await page.goto(`/findings/${BLOCKED_FINDING}`)
 
   await expect(page.getByText('How you would know we were wrong')).toBeVisible()
   await expect(page.getByText(/Re-fetch robots.txt and evaluate OAI-SearchBot/)).toBeVisible()
@@ -129,8 +129,54 @@ test('gives another tenant a 404, not a permission error', async ({ page }) => {
 
   await expect(page.getByText('No sites yet')).toBeVisible()
 
-  const response = await page.goto(`/dashboard/audits/${AUDIT}`)
+  const response = await page.goto(`/audits/${AUDIT}`)
 
   expect(response?.status()).toBe(404)
   await expect(page.getByText(/permission|forbidden|not allowed/i)).toHaveCount(0)
+})
+
+test('keeps an old bookmarked finding URL working', async ({ page }) => {
+  // A finding moved from /dashboard/findings/:id to /findings/:id. Anyone holding the old link,
+  // in a bookmark or a Slack message, should land on the page rather than a 404.
+  await signIn(page)
+  await page.goto(`/dashboard/findings/${BLOCKED_FINDING}`)
+
+  await expect(page).toHaveURL(new RegExp(`/findings/${BLOCKED_FINDING}$`))
+  await expect(page.getByText('How you would know we were wrong')).toBeVisible()
+})
+
+test('offers a way back to the inbox, not only to the audit', async ({ page }) => {
+  // The only link off this page used to be "Back to the audit", which is a page most people
+  // reaching a finding have never seen: the inbox is the main route in. A back link that goes
+  // somewhere you have not been is worse than none, because it looks like it should return you.
+  await signIn(page)
+  await page.goto(`/findings/${BLOCKED_FINDING}`)
+
+  const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' })
+  await expect(crumbs.getByRole('link', { name: 'Findings' })).toBeVisible()
+  await crumbs.getByRole('link', { name: 'Findings' }).click()
+  await expect(page).toHaveURL(/\/findings$/)
+})
+
+test('filters the inbox on the server, and says how many matched', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/findings')
+
+  // The inbox had four hardcoded chips applied in the browser to the whole downloaded backlog.
+  // `exact`, because the sortable column header is also labelled "Sort by Severity" and a
+  // substring match finds both. Two controls that mention the same word is not ambiguity in the
+  // UI, only in the locator.
+  await page.getByRole('combobox', { name: 'Severity', exact: true }).selectOption('critical')
+
+  await expect(page).toHaveURL(/severity=critical/)
+  await expect(page.getByRole('navigation', { name: 'Pagination' })).toBeVisible()
+  await expect(page.locator('table tbody tr')).toHaveCount(1)
+})
+
+test('shows which findings already have a pull request open', async ({ page }) => {
+  // `status` was fetched and never rendered, so work in flight looked exactly like work to do.
+  await signIn(page)
+  await page.goto('/findings')
+
+  await expect(page.locator('table thead')).toContainText('Status')
 })

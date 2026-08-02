@@ -1,7 +1,6 @@
 import type { FindingPage } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
-import { AppNav } from '@/components/app-nav'
 import { SeverityBadge } from '@/components/severity'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -89,117 +88,113 @@ export default async function FindingsPage({
   )
 
   return (
-    <>
-      <AppNav />
+    <main id="main" className="wrap">
+      <PageHeader
+        kicker="Findings"
+        title="Everything out of true, in one list."
+        description="Sorted by impact over effort, so the top of the list is what to do on Monday."
+      />
 
-      <main id="main" className="wrap">
-        <PageHeader
-          kicker="Findings"
-          title="Everything out of true, in one list."
-          description="Sorted by impact over effort, so the top of the list is what to do on Monday."
-        />
+      <FilterBar siteOptions={sites.map((site) => ({ id: site.id, url: site.url }))} />
 
-        <FilterBar siteOptions={sites.map((site) => ({ id: site.id, url: site.url }))} />
-
-        {result.findings.length === 0 ? (
-          <EmptyState
-            figure="0"
-            title="Nothing out of true here"
-            action={
-              hasFilters ? (
-                <Link href="/findings" className="btn btn-secondary">
-                  Clear the filters
-                </Link>
-              ) : (
-                <Link href="/dashboard" className="btn btn-primary">
-                  Run an audit
-                </Link>
-              )
-            }
-          >
-            {hasFilters
-              ? 'No findings match these filters.'
-              : 'Run an audit and findings will land here, sorted by impact over effort.'}
-          </EmptyState>
-        ) : (
-          <>
-            <div className="table-scroll">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    {SORTS.filter((column) => column.key !== 'priority').map((column) => (
-                      <th key={column.key} aria-sort={sort === column.key ? 'descending' : 'none'}>
-                        {/*
+      {result.findings.length === 0 ? (
+        <EmptyState
+          figure="0"
+          title="Nothing out of true here"
+          action={
+            hasFilters ? (
+              <Link href="/findings" className="btn btn-secondary">
+                Clear the filters
+              </Link>
+            ) : (
+              <Link href="/dashboard" className="btn btn-primary">
+                Run an audit
+              </Link>
+            )
+          }
+        >
+          {hasFilters
+            ? 'No findings match these filters.'
+            : 'Run an audit and findings will land here, sorted by impact over effort.'}
+        </EmptyState>
+      ) : (
+        <>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  {SORTS.filter((column) => column.key !== 'priority').map((column) => (
+                    <th key={column.key} aria-sort={sort === column.key ? 'descending' : 'none'}>
+                      {/*
                           Sortable headers, which this table did not have: the order was fixed by
                           priority score with no way to ask for anything else.
                         */}
-                        <SortLink
-                          href={urlWith({ sort: column.key, page: undefined })}
-                          active={sort === column.key}
-                          label={column.label}
-                        />
-                      </th>
-                    ))}
-                    <th>Site</th>
-                    <th>Status</th>
-                    <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
                       <SortLink
-                        href={urlWith({ sort: 'priority', page: undefined })}
-                        active={sort === 'priority'}
-                        label="Priority"
+                        href={urlWith({ sort: column.key, page: undefined })}
+                        active={sort === column.key}
+                        label={column.label}
                       />
                     </th>
-                    <th>Pages</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.findings.map((finding) => {
-                    const status = STATUS_LABEL[finding.status]
-                    return (
-                      <tr key={finding.rowId}>
-                        <td>
-                          <span className={finding.fixable ? 'tag tag-outline' : 'tag tag-neutral'}>
-                            {finding.fixable ? 'Fixable' : 'Needs input'}
-                          </span>
-                        </td>
-                        <td>
-                          <SeverityBadge severity={finding.severity} />
-                        </td>
-                        <td>{finding.title}</td>
-                        <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
-                        <td className="text-muted">{hostOf(finding.siteUrl)}</td>
-                        <td>
-                          {/*
+                  ))}
+                  <th>Site</th>
+                  <th>Status</th>
+                  <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
+                    <SortLink
+                      href={urlWith({ sort: 'priority', page: undefined })}
+                      active={sort === 'priority'}
+                      label="Priority"
+                    />
+                  </th>
+                  <th>Pages</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {result.findings.map((finding) => {
+                  const status = STATUS_LABEL[finding.status]
+                  return (
+                    <tr key={finding.rowId}>
+                      <td>
+                        <span className={finding.fixable ? 'tag tag-outline' : 'tag tag-neutral'}>
+                          {finding.fixable ? 'Fixable' : 'Needs input'}
+                        </span>
+                      </td>
+                      <td>
+                        <SeverityBadge severity={finding.severity} />
+                      </td>
+                      <td>{finding.title}</td>
+                      <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
+                      <td className="text-muted">{hostOf(finding.siteUrl)}</td>
+                      <td>
+                        {/*
                             Status was fetched and never rendered, so a finding with a pull request
                             already open looked exactly like one nobody had touched. In a triage
                             list that is the difference between work to do and work in flight.
                           */}
-                          <span className={status.className}>{status.label}</span>
-                        </td>
-                        <td className="tnum text-muted">{finding.estimatedImpact}</td>
-                        <td className="tnum text-muted">{finding.affectedUrlCount}</td>
-                        <td>
-                          <Link href={`/dashboard/findings/${finding.rowId}`}>View &rarr;</Link>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        <span className={status.className}>{status.label}</span>
+                      </td>
+                      <td className="tnum text-muted">{finding.estimatedImpact}</td>
+                      <td className="tnum text-muted">{finding.affectedUrlCount}</td>
+                      <td>
+                        <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
 
-            <Pagination
-              page={result.page}
-              pageSize={result.pageSize}
-              total={result.total}
-              hrefFor={(next) => urlWith({ page: next })}
-            />
-          </>
-        )}
-      </main>
-    </>
+          <Pagination
+            page={result.page}
+            pageSize={result.pageSize}
+            total={result.total}
+            hrefFor={(next) => urlWith({ page: next })}
+          />
+        </>
+      )}
+    </main>
   )
 }
 

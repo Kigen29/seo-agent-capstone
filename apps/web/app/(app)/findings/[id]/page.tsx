@@ -1,7 +1,7 @@
 import type { Evidence } from '@seo/core'
-import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { SeverityBadge } from '@/components/severity'
+import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { Note, type NoteTone } from '@/components/ui/note'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
@@ -60,9 +60,13 @@ export default async function FindingPage({
 
   return (
     <main id="main" className="wrap-narrow">
-      <Link href={`/dashboard/audits/${finding.auditId}`} className="text-[13px]">
-        &larr; Back to the audit
-      </Link>
+      <Breadcrumbs
+        trail={[
+          { label: 'Findings', href: '/findings' },
+          { label: 'Audit', href: `/audits/${finding.auditId}` },
+          { label: finding.ruleId },
+        ]}
+      />
 
       <div className="mt-4 mb-3 flex flex-wrap gap-2">
         <SeverityBadge severity={finding.severity} />

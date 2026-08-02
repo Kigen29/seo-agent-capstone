@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { fetchAuditProgress } from '@/app/dashboard/audits/[id]/progress-action'
+import { fetchAuditProgress } from '@/app/(app)/audits/[id]/progress-action'
 
 /**
  * Live progress, not a spinner. The story asks for this by name.
