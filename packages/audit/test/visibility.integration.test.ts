@@ -104,13 +104,34 @@ describe.skipIf(!shouldRun)('measureVisibility', () => {
     })
   }
 
+  /**
+   * A fixed "today" for every test in this file.
+   *
+   * The seeded days below are absolute dates, and the window they are read through is computed
+   * backwards from the current time (`VISIBILITY_WINDOW_DAYS`). Left to the real clock, these
+   * tests pass while the dates are fresh and then rot, which is exactly what happened: written
+   * on 1 August against days in late July, they aged out of the fourteen-day window around 13
+   * August. One then failed loudly, and the other kept passing for the wrong reason, because
+   * "no checks in the window" and "too few checks in the window" both produce `measured: false`.
+   * A green test asserting nothing is the worse of the two outcomes.
+   *
+   * Pinning `now` is the fix rather than making the seeded days relative, because these tests
+   * are about specific windows and boundaries, and a date arithmetic helper in the fixture would
+   * reimplement the very calculation under test.
+   */
+  const NOW = new Date('2026-08-01T12:00:00Z')
+
   const measure = () =>
-    measureVisibility(db, {
-      tenantId,
-      siteId,
-      domain: DOMAIN,
-      competitors: ['rivalsafaris.example'],
-    })
+    measureVisibility(
+      db,
+      {
+        tenantId,
+        siteId,
+        domain: DOMAIN,
+        competitors: ['rivalsafaris.example'],
+      },
+      NOW,
+    )
 
   it('says which kind of nothing it is looking at when no prompts are configured', async () => {
     const result = await measure()
@@ -176,7 +197,7 @@ describe.skipIf(!shouldRun)('measureVisibility', () => {
     const result = await measureVisibility(
       db,
       { tenantId, siteId, domain: DOMAIN, competitors: ['rivalsafaris.example'] },
-      new Date('2026-08-01T12:00:00Z'),
+      NOW,
     )
 
     expect(result.measured).toBe(true)
@@ -209,7 +230,7 @@ describe.skipIf(!shouldRun)('measureVisibility', () => {
     const result = await measureVisibility(
       db,
       { tenantId, siteId, domain: DOMAIN, competitors: ['rivalsafaris.example'] },
-      new Date('2026-08-01T12:00:00Z'),
+      NOW,
     )
 
     expect(result.measured).toBe(true)

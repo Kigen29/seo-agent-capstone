@@ -24,7 +24,7 @@ See `docs/adr/` for the decisions and their rationale. This file is the map.
     │          │          │          │          │
 ┌───▼────┐┌────▼─────┐┌───▼────┐┌────▼───┐┌─────▼──────┐
 │crawler ││  rules   ││connect-││ fixers ││   agent    │
-│Playwr- ││ ~40 pure ││  ors   ││ + vcs  ││ LLM orch.  │
+│Playwr- ││ 23 pure  ││  ors   ││ + vcs  ││ LLM orch.  │
 │ight    ││ functions││ GSC/PSI││ GitHub ││ skills     │
 │        ││ ZERO LLM ││ CrUX...││  App   ││ fast/smart │
 └────────┘└──────────┘└────────┘└────────┘└─────┬──────┘
