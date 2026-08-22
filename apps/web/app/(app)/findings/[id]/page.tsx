@@ -1,5 +1,5 @@
-import type { Evidence } from '@seo/core'
 import { ApiAsleep } from '@/components/api-asleep'
+import { EvidenceBlock } from '@/components/evidence'
 import { SeverityBadge } from '@/components/severity'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { Note, type NoteTone } from '@/components/ui/note'
@@ -179,100 +179,4 @@ export default async function FindingPage({
       </section>
     </main>
   )
-}
-
-/**
- * Evidence is a discriminated union, and each kind has something different worth showing.
- * Rendering a JSON blob would be technically complete and useless: the point is that a human
- * can look at this and check it themselves.
- */
-function EvidenceBlock({ evidence }: { evidence: Evidence }) {
-  const pre = (text: string) => <pre className="mono">{text}</pre>
-  const caption = (text: string) => (
-    <p
-      style={{ margin: 'var(--space-2) 0 0', fontSize: 12, opacity: 0.55, wordBreak: 'break-all' }}
-    >
-      {text}
-    </p>
-  )
-
-  switch (evidence.kind) {
-    case 'http':
-      return pre(
-        [
-          `${evidence.url}`,
-          `status: ${evidence.status}`,
-          evidence.redirectChain.length > 0
-            ? `redirects: ${evidence.redirectChain.join(' -> ')}`
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      )
-
-    case 'markup':
-      return (
-        <>
-          {/* An empty snippet means the element was absent, which is usually the finding. */}
-          {pre(evidence.snippet === '' ? '(the element was not there)' : evidence.snippet)}
-          {caption(`${evidence.url} @ ${evidence.locator}`)}
-        </>
-      )
-
-    case 'metric':
-      return (
-        <>
-          {pre(`${evidence.metric}: ${evidence.value}${evidence.unit}`)}
-          {/*
-            Core Web Vitals mean nothing without their percentile: they are defined at the
-            75th of real Chrome users over 28 days. Printing a bare number invites a lab
-            measurement to be read as a field one, which is the single most common way an
-            SEO report misleads. If we know the percentile, we say it.
-          */}
-          {evidence.percentile !== undefined &&
-            caption(`at the ${evidence.percentile}th percentile of real users`)}
-        </>
-      )
-
-    case 'file':
-      return (
-        <>
-          {pre(evidence.excerpt)}
-          {caption(`${evidence.path}${evidence.line !== undefined ? `:${evidence.line}` : ''}`)}
-        </>
-      )
-
-    case 'graph':
-      return (
-        <>
-          {pre(
-            [
-              `inbound internal links: ${evidence.inboundInternalLinks}`,
-              `click depth from the homepage: ${evidence.clickDepth ?? 'unreachable by crawling'}`,
-            ].join('\n'),
-          )}
-          {caption(evidence.url)}
-        </>
-      )
-
-    case 'search':
-      return (
-        <>
-          {pre(
-            [
-              evidence.query ? `query: "${evidence.query}"` : undefined,
-              `average position: ${evidence.position.toFixed(1)}`,
-              `impressions: ${evidence.impressions.toLocaleString()}`,
-              `clicks: ${evidence.clicks.toLocaleString()}`,
-              `click-through rate: ${(evidence.ctr * 100).toFixed(1)}%`,
-            ]
-              .filter(Boolean)
-              .join('\n'),
-          )}
-          {caption(
-            `Real Search Console data over ${evidence.startDate} to ${evidence.endDate}. Position is the average rank across those impressions; Search Console lags two to three days.`,
-          )}
-        </>
-      )
-  }
 }

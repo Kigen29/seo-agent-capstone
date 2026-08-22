@@ -8,6 +8,14 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    // The web app and the API, together, because a dashboard with nothing to call is not a
+    // running product. Never cached and never exiting: a dev server's whole job is to keep
+    // going, and a cache hit on one would mean handing back a log instead of a server.
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
     "test": {
       "dependsOn": ["^build"],
       // Turborepo runs tasks in a filtered environment by default, so a variable set in the

@@ -8,8 +8,11 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @seo/web e2e",
+    "db:migrate": "pnpm --filter @seo/db db:migrate",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

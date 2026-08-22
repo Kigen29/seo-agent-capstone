@@ -38,21 +38,32 @@ Then: `crawl -> diagnose -> prioritise -> open a PR -> human merges -> verify in
 
 ## Getting started
 
+Node 24 and pnpm 9. `DATABASE_URL` is the only variable you need to run the tests; the rest of
+`.env.example` turns on the connectors, and every one of them degrades to an honestly unmeasured
+axis when its key is absent.
+
 ```bash
 pnpm install
-cp .env.example .env      # then fill it in
+cp .env.example .env      # then fill it in; DATABASE_URL is the one that matters
 pnpm db:migrate
-pnpm dev
+pnpm dev                  # the Next dashboard and the Fastify API together
 ```
 
 ## Testing
 
 ```bash
-pnpm test           # unit (Vitest) - the rule engine, 100% deterministic
-pnpm test:int       # integration - API clients against mocks
-pnpm test:e2e       # Playwright
-pnpm eval           # LLM eval harness: precision, recall, hallucination rate
+pnpm test           # the whole suite: unit, integration, and contract tests
+pnpm test:e2e       # Playwright, against the real app and a real database
+pnpm lint           # includes the architectural rules (see below)
 ```
+
+`pnpm test` is the full run, not just the unit tests. Integration and contract tests live beside
+the unit tests in each package and are part of the same command; the ones that touch Postgres
+need `DATABASE_URL` and are the reason CI runs a Postgres service container.
+
+The LLM evaluation harness (precision, recall, and hallucination rate against a golden dataset)
+is designed but not built. See section 4.5 of the design and testing document for the method and
+why the `judge` role must be a different model family than the model under test.
 
 ## The one architectural law
 
