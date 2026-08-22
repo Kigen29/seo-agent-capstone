@@ -1,4 +1,4 @@
-import type { Evidence, Finding } from '@seo/core'
+import { evidenceToText, type Finding } from '@seo/core'
 
 /**
  * The pull-request body, and the enforcement point for CLAUDE.md rule 4.
@@ -36,69 +36,6 @@ export function buildPrTitle(finding: Finding): string {
 }
 
 /**
- * Render one piece of evidence into a human-readable line. The evidence type is a discriminated
- * union, so every branch is a real observation rather than prose: a status code we saw, markup
- * we parsed, a number we measured. Whatever the fixer changed, the reviewer sees what we
- * actually observed to justify it.
- */
-function renderEvidence(evidence: Evidence): string {
-  switch (evidence.kind) {
-    case 'http':
-      return (
-        `HTTP ${evidence.status} at ${evidence.url}` +
-        (evidence.redirectChain.length > 0
-          ? ` (redirect chain: ${evidence.redirectChain.join(' -> ')})`
-          : '')
-      )
-    case 'markup':
-      return (
-        `At ${evidence.url}, ${evidence.locator}: ` +
-        (evidence.snippet ? `\`${evidence.snippet}\`` : 'the element was absent')
-      )
-    case 'metric':
-      return (
-        `${evidence.metric} = ${evidence.value}${evidence.unit === 'score' ? '' : ' ' + evidence.unit}` +
-        (evidence.percentile ? ` at the ${evidence.percentile}th percentile` : '') +
-        (evidence.url ? ` (${evidence.url})` : '')
-      )
-    case 'file':
-      return (
-        `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}` +
-        (evidence.excerpt ? ` -> \`${evidence.excerpt}\`` : '')
-      )
-    case 'graph':
-      return (
-        `${evidence.url}: ${evidence.inboundInternalLinks} inbound internal link(s), ` +
-        `click depth ${evidence.clickDepth ?? 'unreachable'}`
-      )
-    case 'search':
-      return (
-        `${evidence.query ? `"${evidence.query}"` : evidence.url}: ` +
-        `position ${evidence.position}, ${evidence.impressions} impressions, ` +
-        `${evidence.clicks} clicks (${evidence.startDate} to ${evidence.endDate})`
-      )
-    // The sample is the evidence here, not the verdict: "cited twice" means nothing without the
-    // number of checks and the days they span, so the line leads with all three.
-    case 'citation':
-      return (
-        `"${evidence.prompt}": cited in ${evidence.citedCount} of ${evidence.pollsRun} checks ` +
-        `across ${evidence.daysPolled} days on ${evidence.engines.join(', ') || 'no engine'}` +
-        (evidence.citedCompetitors.length > 0
-          ? `; also cited: ${evidence.citedCompetitors.join(', ')}`
-          : '') +
-        (evidence.matchedSources.length > 0
-          ? `; matched ${evidence.matchedSources.join(', ')}`
-          : '') +
-        (evidence.consensus
-          ? `; the answers agreed on ${evidence.consensus.currency} ` +
-            `${evidence.consensus.low.toLocaleString('en-US')} to ` +
-            `${evidence.consensus.high.toLocaleString('en-US')}`
-          : '')
-      )
-  }
-}
-
-/**
  * Build the full PR body. Throws IncompletePullRequestError if any of the five required
  * sections would be empty, so the check runs before any branch or commit is created.
  */
@@ -127,7 +64,7 @@ export function buildPrBody(content: PullRequestContent): string {
     '',
     `This is what we actually observed, not a guess:`,
     '',
-    `> ${renderEvidence(finding.evidence)}`,
+    `> ${evidenceToText(finding.evidence)}`,
     '',
     `## Expected effect`,
     '',

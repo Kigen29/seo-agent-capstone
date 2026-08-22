@@ -29,6 +29,8 @@ export type {
   SearchEvidence,
 } from './evidence.js'
 
+export { evidenceToText } from './evidence-text.js'
+
 export {
   metricSnapshotSchema,
   verificationOutcomeSchema,

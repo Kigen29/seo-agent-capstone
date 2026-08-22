@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "seo-agent": {
+      "command": "node",
+      "args": ["apps/mcp/dist/server.js"],
+      "env": {
+        "SEO_API_URL": "${SEO_API_URL:-https://seo-agent-capstone.onrender.com}",
+        "SEO_API_TOKEN": "${SEO_API_TOKEN}",
+        "SEO_MCP_ALLOW_WRITES": "${SEO_MCP_ALLOW_WRITES:-0}",
+        "SEO_MCP_MAX_PRS": "${SEO_MCP_MAX_PRS:-3}"
+      }
+    }
+  }
+}

@@ -65,6 +65,29 @@ The LLM evaluation harness (precision, recall, and hallucination rate against a 
 is designed but not built. See section 4.5 of the design and testing document for the method and
 why the `judge` role must be a different model family than the model under test.
 
+## Use it from your editor (MCP)
+
+The agent is also an [MCP](https://modelcontextprotocol.io) server, so Claude Code, Cursor or
+any MCP client can drive it directly. Five read tools (`list_sites`, `list_findings`,
+`get_finding`, `get_audit`, `audit_status`) and three write tools (`run_audit`, `fix_finding`,
+`verify_site`).
+
+`fix_finding` is the one that matters. Every other SEO MCP server hands your agent a list of
+problems; this one opens the pull request that fixes it.
+
+```bash
+pnpm build
+pnpm --filter @seo/api mint-token my-tenant     # prints a token, once
+export SEO_API_TOKEN=seo_...
+export SEO_MCP_ALLOW_WRITES=1                   # writes are off by default
+```
+
+The repo ships a `.mcp.json`, so Claude Code picks the server up inside this project. Writes
+stay off unless `SEO_MCP_ALLOW_WRITES=1`, and a single server process will open at most
+`SEO_MCP_MAX_PRS` pull requests (default 3) before it refuses: nothing here can reach your
+default branch, but a model in a loop can still flood a reviewer. See
+[ADR-0020](docs/adr/0020-mcp-server-as-a-second-door.md).
+
 ## The one architectural law
 
 **Deterministic detection first, LLM second.** A parser finds the issue. The LLM only explains it and writes the fix. See [ADR-0001](docs/adr/0001-deterministic-first-llm-second.md).

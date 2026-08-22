@@ -5,14 +5,18 @@ See `docs/adr/` for the decisions and their rationale. This file is the map.
 ## System diagram
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  apps/web  (Next.js 15, App Router)          Vercel Hobby, free  │
-│  Dashboard · Scorecard · Findings inbox · PR review · Reports    │
-└───────────────────────────┬──────────────────────────────────────┘
-                            │ REST + SSE
-┌───────────────────────────▼──────────────────────────────────────┐
+┌───────────────────────────────────┐┌─────────────────────────────┐
+│  apps/web  (Next.js 15)           ││  apps/mcp  (stdio, local)   │
+│  Vercel Hobby, free               ││  Claude Code / Cursor       │
+│  Dashboard · Scorecard · Findings ││  5 read + 3 write tools     │
+│  inbox · PR review · Reports      ││  fix_finding opens the PR   │
+└───────────────────────────┬───────┘└──────────┬──────────────────┘
+                            │ REST + SSE        │ REST (ADR-0020)
+                            └─────────┬─────────┘
+┌────────────────────────────────────▼─────────────────────────────┐
 │  apps/api  (Fastify)                    Render free web service  │
 │  Auth · Tenancy · Job enqueue · Budget guard · Audit log         │
+│  Two doors in, one door out. Nothing else touches Postgres.      │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ 1. enqueue in pg-boss (Postgres)
                             │ 2. fire repository_dispatch
@@ -68,3 +72,4 @@ Never move detection across that line. ADR-0001.
 | Saga | AI visibility 3-day poll; CWV 28-day verification window | Long-horizon stateful workflows that outlive any process |
 | Registry | `packages/rules/src/registry.ts` | Rules self-register; adding a rule touches one file |
 | Guard | `@seo/budget`: a per-tenant cap checked before every paid call, LLM and SERP alike | Cost blowout is the #1 operational risk in an LLM product. Checked before the spend and failing closed, so the worst case is a dark axis rather than a bill. ADR-0017 |
+| Facade | `apps/mcp`: eight tools over the REST API, for agents rather than browsers | The write path is the product's differentiator and was reachable only from the dashboard. The facade holds no database handle, which ESLint enforces rather than trusts, and its write half is unregistered unless asked for and capped when it is. ADR-0020 |
