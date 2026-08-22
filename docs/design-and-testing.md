@@ -431,5 +431,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0017 | The cost guard is enforced before the spend, per tenant, in its own package | Accepted |
 | 0018 | The authority axis leads with mentions, not links | Accepted |
 | 0019 | `llms.txt` is agent-readiness infrastructure, never a ranking claim | Accepted |
+| 0020 | The MCP server is a second door, and it goes through the API | Accepted |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.
