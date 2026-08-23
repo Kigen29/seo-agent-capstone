@@ -1,4 +1,4 @@
-import type { Finding } from '@seo/core'
+import type { Finding, SearchMetrics } from '@seo/core'
 import {
   createGscClient,
   decryptToken,
@@ -7,6 +7,8 @@ import {
   refreshAccessToken,
   type GscProperty,
   type OAuthConfig,
+  type SearchAnalyticsQuery,
+  type SearchAnalyticsRow,
 } from '@seo/connectors'
 import { oauthCredentials, withTenant, type Database } from '@seo/db'
 import { eq } from 'drizzle-orm'
@@ -17,6 +19,41 @@ export interface SearchResult {
   measured: boolean
   /** A coverage note for the content axis, when quick-wins ran. */
   note?: string
+  /** Clicks, impressions, CTR and position for the window. Absent when the totals call failed. */
+  metrics?: SearchMetrics
+}
+
+/**
+ * Site totals for the window, from a query with no dimensions.
+ *
+ * A second call rather than summing the per-query rows we already have, and the difference is not
+ * pedantic. Google anonymises long-tail queries, so the rows returned for `dimensions: ['query']`
+ * omit a real share of the traffic: summing them understates clicks, often badly. Putting that
+ * figure on a dashboard labelled "clicks" would be a quiet misstatement of the kind this product
+ * exists to avoid, and a dimensionless query returns the true totals in one row.
+ *
+ * It costs one extra request against a 50,000-per-day quota, and it is allowed to fail on its own:
+ * the quick-wins findings are the valuable half and must not be lost because a totals call errored.
+ */
+async function siteTotals(
+  gsc: { searchAnalytics: (p: string, q: SearchAnalyticsQuery) => Promise<SearchAnalyticsRow[]> },
+  property: string,
+  window: { startDate: string; endDate: string },
+): Promise<SearchMetrics | undefined> {
+  try {
+    const [totals] = await gsc.searchAnalytics(property, { ...window, dimensions: [], rowLimit: 1 })
+    if (!totals) return undefined
+
+    return {
+      clicks: totals.clicks,
+      impressions: totals.impressions,
+      ctr: totals.ctr,
+      position: totals.position,
+      ...window,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export interface MeasureSearchOptions {
@@ -92,6 +129,7 @@ export async function measureSearch(
     return {
       findings,
       measured: true,
+      metrics: await siteTotals(gsc, property, window),
       note:
         `Search Console quick wins included, from real search performance over the 28 days ` +
         `from ${window.startDate} to ${window.endDate}. Search Console lags two to three days, ` +

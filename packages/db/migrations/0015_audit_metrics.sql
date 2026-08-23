@@ -1,0 +1,25 @@
+-- Keep the numbers each axis measured, not only the sentence it wrote about them.
+--
+-- Three axes had the same bug. `measureAuthority` works out referring domains, earned-media
+-- domains, and the exact list of publications that mention the brand without linking to it, then
+-- persists a paragraph in the scorecard's coverage note. `measureSearch` queries Search Console,
+-- keeps the findings, and drops the clicks, impressions, CTR and position. `measureVisibility`
+-- computes per-prompt citation rates and share of voice and keeps a sentence.
+--
+-- The result was a product that measures a great deal and can display almost none of it, because
+-- prose is not something a page can render as a number. Three sidebar links against a competitor's
+-- eleven was the symptom; this is the cause.
+--
+-- One jsonb column rather than a column per axis, stored beside the scorecard which is kept whole
+-- for exactly the same reason: the shape is "what this run measured", and axes keep arriving. A
+-- column per axis would mean a migration per axis, and a nullable integer per figure would lose
+-- the distinction the authority axis is built on.
+--
+-- Nullable, and old audits stay null. Backfilling is impossible by definition: the numbers were
+-- never written down, and the paid API calls that produced them are not worth re-making to
+-- reconstruct history. The UI renders an audit with no metrics as unmeasured, which is true.
+--
+-- Visibility deliberately does NOT go in here. Its checks accumulate in visibility_checks every
+-- day, between audits, so a snapshot frozen at audit time would be stale by design. That axis is
+-- recomputed live from the checks table instead.
+ALTER TABLE "audits" ADD COLUMN "metrics" jsonb;

@@ -1,4 +1,4 @@
-import type { AxisCoverage, Finding } from '@seo/core'
+import type { AuthorityMetrics, AxisCoverage, Finding } from '@seo/core'
 import {
   classifyMentions,
   evaluateAuthority,
@@ -24,6 +24,15 @@ export interface AuthorityResult {
   /** True only when the mention query actually ran and returned. */
   measured: boolean
   coverage: AxisCoverage
+  /**
+   * The figures, kept rather than only described in the coverage note.
+   *
+   * Absent when nothing was measured. Present, it always carries `referringDomains`, which is
+   * null when no backlink index is configured: that null is the difference between a site with no
+   * backlinks and a deployment that never looked, and collapsing the two is the one thing this
+   * axis must not do (ADR-0018).
+   */
+  metrics?: AuthorityMetrics
 }
 
 /** The axis's honest state when we did not, or could not, measure it. */
@@ -147,6 +156,13 @@ export async function measureAuthority(
     return {
       findings: report.findings,
       measured: true,
+      metrics: {
+        referringDomains: links ? links.total : null,
+        ...(links ? { referringDomainsSampled: links.domains.length } : {}),
+        earnedDomains: report.earnedCount,
+        selfPublishedDomains: footprint.selfPublishedDomains.length,
+        ...(report.unlinkedMentions ? { unlinkedMentions: report.unlinkedMentions } : {}),
+      },
       coverage: {
         // One check per thing we actually looked at: the brand, each rival that answered, and the
         // link index when it was consulted.
