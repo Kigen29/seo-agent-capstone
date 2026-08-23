@@ -1,3 +1,4 @@
+import { canFixFinding } from '@seo/fixers'
 import { buildScorecard, priorityScore, type Finding } from '@seo/core'
 import { apiTokens, asOwner, audits, createDb, findings, sites, tenants, withTenant } from '@seo/db'
 import { ruleCoverage } from '@seo/rules'
@@ -54,7 +55,24 @@ const draft = (over: Partial<Finding>): Finding => ({
     source: 'crawler',
     url: `${E2E.siteUrl}/robots.txt`,
     locator: '/robots.txt',
-    snippet: 'User-agent: OAI-SearchBot\nDisallow: /',
+    /**
+     * The line the rule actually writes, not a hand-drawn robots.txt.
+     *
+     * This was `User-agent: OAI-SearchBot\nDisallow: /`, which reads like the file the crawler
+     * found and is not what TECH-002 records. The rule writes one
+     * `Disallowed: <token> (<operator>). <consequence>` line per blocked agent, and
+     * `UnblockAiCrawlersFixer` parses exactly that to learn which agents to unblock. So the seeded
+     * finding rendered "Fixable in code" and no fixer would have accepted it: the demo advertised
+     * a capability its own data could not exercise.
+     *
+     * Seed fixtures are the only findings anyone sees before a real crawl runs, which makes
+     * "invented, but plausible" the worst thing they can be. Copied from
+     * packages/crawler/src/robots/agents.ts, and pinned by test/seed.test.ts, which fails if a
+     * later rewrite of this string leaves it in a shape no fixer recognises.
+     */
+    snippet:
+      'Disallowed: OAI-SearchBot (OpenAI). CRITICAL: you cannot be cited in ChatGPT search ' +
+      'results. You have removed yourself from the answer.',
   },
   affectedUrls: [`${E2E.siteUrl}/`],
   estimatedEffort: 'trivial',
@@ -65,6 +83,35 @@ const draft = (over: Partial<Finding>): Finding => ({
   status: 'open',
   ...over,
 })
+
+/**
+ * The findings the e2e fixture writes.
+ *
+ * `fixable` is derived here, exactly as `runAudit` derives it, rather than inherited from
+ * `draft()`. It used to be a hard-coded `true` on both, and TECH-006 has no fixer, so the seeded
+ * inbox advertised "we can write the fix" on a finding nothing could write. Seed fixtures are the
+ * only findings anyone sees before a real crawl runs, and every screenshot and demo is taken
+ * against them, which makes a plausible lie here more expensive than a plausible lie anywhere
+ * else in the product.
+ *
+ * Exported so `seed.test.ts` can hold the fixtures to the same standard as the rules.
+ */
+export function e2eDrafts(): Finding[] {
+  return [
+    draft({}),
+    draft({
+      id: 'TECH-006#0',
+      ruleId: 'TECH-006',
+      axis: 'crawl_health',
+      severity: 'low',
+      title: `${E2E.siteUrl}/ has no canonical tag`,
+      estimatedImpact: 25,
+      estimatedEffort: 'small',
+      falsification:
+        'Re-fetch the page and look for link[rel="canonical"] in the rendered head. If one is present, this was wrong.',
+    }),
+  ].map((finding) => ({ ...finding, fixable: canFixFinding(finding) }))
+}
 
 export async function seedE2E(): Promise<void> {
   /**
@@ -104,20 +151,7 @@ export async function seedE2E(): Promise<void> {
       ])
     })
 
-    const drafts = [
-      draft({}),
-      draft({
-        id: 'TECH-006#0',
-        ruleId: 'TECH-006',
-        axis: 'crawl_health',
-        severity: 'low',
-        title: `${E2E.siteUrl}/ has no canonical tag`,
-        estimatedImpact: 25,
-        estimatedEffort: 'small',
-        falsification:
-          'Re-fetch the page and look for link[rel="canonical"] in the rendered head. If one is present, this was wrong.',
-      }),
-    ]
+    const drafts = e2eDrafts()
 
     const scorecard = buildScorecard({
       siteId: E2E.siteId,
