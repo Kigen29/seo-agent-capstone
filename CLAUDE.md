@@ -22,6 +22,11 @@ crawl -> diagnose -> prioritise -> open a PR that fixes it -> human merges -> ve
 
 Full research and rationale: `docs/research-dossier.md`. Read it once, then trust this file.
 
+**Picking this up after a break: read `docs/state-of-play.md` first.** This file says what we are
+building and the laws it must obey. That one says what is actually true today, including the parts
+that are not finished, the constraints that are permanent rather than bugs, and the traps that have
+already cost time.
+
 ---
 
 ## Non-negotiable rules
@@ -110,6 +115,7 @@ packages/
   agent/        LLM orchestration, skill loading, prompt templates
   db/           Drizzle schema + migrations
 docs/
+  state-of-play.md      Where we are, what constrains us, what is left. Read first.
   research-dossier.md   The full SEO/AEO/GEO/LLMO research. Source of truth.
   architecture.md
   sprint-1-backlog.md
