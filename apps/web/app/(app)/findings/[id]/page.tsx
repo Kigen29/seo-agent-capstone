@@ -169,7 +169,9 @@ export default async function FindingPage({
       </section>
 
       <section style={{ marginBottom: 'var(--space-6)' }}>
-        <h5 style={{ marginBottom: 'var(--space-2)' }}>What we actually observed</h5>
+        <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
+          What we actually observed
+        </h2>
         <p style={{ margin: '0 0 var(--space-2)', fontSize: 14, opacity: 0.7 }}>
           Not an opinion, and not a guess from a language model. A parser saw this.
         </p>
@@ -178,9 +180,9 @@ export default async function FindingPage({
       </section>
 
       <section>
-        <h5 style={{ marginBottom: 'var(--space-3)' }}>
+        <h2 className="h-section" style={{ marginBottom: 'var(--space-3)' }}>
           Affected pages ({finding.affectedUrls.length})
-        </h5>
+        </h2>
 
         <div className="card elev-sm" style={{ gap: 0, padding: 0 }}>
           {finding.affectedUrls.map((url, i) => (
