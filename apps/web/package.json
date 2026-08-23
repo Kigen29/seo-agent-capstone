@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "screens": "playwright test --config=playwright.screens.config.ts"
   },
   "dependencies": {
     "next": "^15.1.3",

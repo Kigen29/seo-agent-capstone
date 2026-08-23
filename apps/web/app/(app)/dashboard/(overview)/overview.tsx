@@ -1,6 +1,8 @@
 import type { Audit, Site, VisibilityReport } from '@seo/api-client'
 import type { Severity } from '@seo/core'
 import Link from 'next/link'
+import { severityLabel } from '@/components/severity'
+import { AXIS_LABEL } from '@/app/(app)/findings/labels'
 
 /**
  * The overview: what this site's state actually is, before anything asks you to do something.
@@ -85,13 +87,14 @@ export function Overview({
             {SEVERITIES.filter((severity) => (totals[severity] ?? 0) > 0).map((severity) => (
               <Row
                 key={severity}
-                label={severity}
+                label={severityLabel(severity)}
                 value={(totals[severity] ?? 0).toLocaleString('en-US')}
               />
             ))}
             {scorecard.worstAxes.length > 0 && (
               <p className="text-muted m-0 text-[13px]">
-                Look at first: {scorecard.worstAxes.join(', ')}.
+                Look at first:{' '}
+                {scorecard.worstAxes.map((axis) => AXIS_LABEL[axis] ?? axis).join(', ')}.
               </p>
             )}
           </>
