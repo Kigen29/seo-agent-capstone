@@ -8,9 +8,12 @@ import {
   drainPollAi,
   drainVerify,
   drainVerifyFix,
+  enqueueConfirmVerify,
+  enqueueVerifyFix,
 } from '@seo/queue'
 import { enqueueDuePolls, runPollAi } from './poll.js'
 import { runFix } from './fix.js'
+import { reconcilePullRequests } from './reconcile.js'
 import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
@@ -54,6 +57,30 @@ try {
   console.log('worker: draining the fix queue')
   const fixed = await drainFix(queue, (job) => runFix(db, job))
   console.log(`worker: fixes done. ${fixed.completed} completed, ${fixed.failed} failed.`)
+
+  /**
+   * Then catch up on any pull request whose outcome we never heard.
+   *
+   * The webhook is the fast path and is not a reliable one. GitHub allows a delivery ten seconds
+   * and does not keep retrying, and the API spins down after fifteen minutes of quiet with a
+   * half-minute cold start, so a merge landing in that window is never heard and nothing asks
+   * again. Two records were stuck exactly this way when this was written: a fix PR merged with its
+   * finding still `pr_open`, and a site whose verification PR merged three weeks earlier and whose
+   * Search Console verification therefore never completed.
+   *
+   * Before the verify drains on purpose, so a merge discovered here is verified in the same run
+   * rather than waiting another fifteen minutes for the next one.
+   */
+  console.log('worker: reconciling pull requests we are still waiting on')
+  const reconciled = await reconcilePullRequests(db, {
+    verifyFix: (job) => enqueueVerifyFix(queue, job),
+    confirmVerify: (job) => enqueueConfirmVerify(queue, job),
+  })
+  console.log(
+    `worker: reconciled ${reconciled.checked} PR(s). ${reconciled.merged} newly merged, ` +
+      `${reconciled.reopened} closed unmerged, ${reconciled.unchanged} unchanged, ` +
+      `${reconciled.unreadable} unreadable.`,
+  )
 
   // Then verify any merged fixes: a re-audit per site, reconciling every finding awaiting
   // verification against the fresh crawl. A crawl failure here fails only its own job.

@@ -1,4 +1,5 @@
-import { asOwner, findings, sites } from '@seo/db'
+import { applyFixPrOutcome, applyVerifyPrOutcome } from '@seo/audit'
+import { asOwner, sites } from '@seo/db'
 import { SIGNATURE_HEADER, verifyWebhookSignature } from '@seo/vcs'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -98,22 +99,11 @@ export async function githubWebhookRoutes(app: FastifyInstance, deps: RouteDeps)
               .limit(1),
           )
 
-          if (site && payload.pull_request?.merged) {
-            await asOwner(db, (tx) =>
-              tx.update(sites).set({ gscVerificationStatus: 'merged' }).where(eq(sites.id, siteId)),
-            )
-            if (options.enqueueConfirmVerify) {
-              await options.enqueueConfirmVerify({ tenantId: site.tenantId, siteId })
-            }
-          } else if (site && site.status === 'pr_open') {
-            // Closed without merging: undo, so a fresh Verify can start cleanly.
-            await asOwner(db, (tx) =>
-              tx
-                .update(sites)
-                .set({ gscVerificationStatus: 'none', gscVerificationPrUrl: null })
-                .where(eq(sites.id, siteId)),
-            )
+          const outcome = {
+            merged: Boolean(payload.pull_request?.merged),
+            closed: true, // this handler only runs for action === 'closed'
           }
+          if (site) await applyVerifyPrOutcome(db, siteId, outcome, options.enqueueConfirmVerify)
         }
 
         // A fix PR closing drives its finding's status. The finding is matched by the PR URL we
@@ -124,35 +114,12 @@ export async function githubWebhookRoutes(app: FastifyInstance, deps: RouteDeps)
         //   closed -> if a PR was open, reset to open so the finding can be fixed again.
         const prUrl = payload.pull_request?.html_url
         if (prUrl) {
-          const [finding] = await asOwner(db, (tx) =>
-            tx
-              .select({
-                id: findings.id,
-                tenantId: findings.tenantId,
-                siteId: findings.siteId,
-                status: findings.status,
-              })
-              .from(findings)
-              .where(eq(findings.prUrl, prUrl))
-              .limit(1),
+          await applyFixPrOutcome(
+            db,
+            prUrl,
+            { merged: Boolean(payload.pull_request?.merged), closed: true },
+            options.enqueueVerifyFix,
           )
-
-          if (finding && payload.pull_request?.merged) {
-            await asOwner(db, (tx) =>
-              tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id)),
-            )
-            if (options.enqueueVerifyFix) {
-              await options.enqueueVerifyFix({ tenantId: finding.tenantId, siteId: finding.siteId })
-            }
-          } else if (finding && finding.status === 'pr_open') {
-            // Closed without merging: undo, so the finding can be fixed again cleanly.
-            await asOwner(db, (tx) =>
-              tx
-                .update(findings)
-                .set({ status: 'open', prUrl: null })
-                .where(eq(findings.id, finding.id)),
-            )
-          }
         }
       }
 

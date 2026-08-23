@@ -204,6 +204,24 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
         const match = data.find((pr) => pr.head.ref.startsWith(prefix))
         return match ? { url: match.html_url, number: match.number, branch: match.head.ref } : null
       },
+
+      async getPullRequest(number) {
+        const octokit = await octokitFor(ctx.installationId)
+        try {
+          const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+            owner,
+            repo,
+            pull_number: number,
+          })
+          return { merged: Boolean(data.merged_at), closed: data.state === 'closed' }
+        } catch (error) {
+          // A 404 is an answer, not a failure: the PR was deleted, or the App lost access to the
+          // repo. Returning null lets the caller leave the record alone rather than guess, which
+          // matters because the alternative guess would reopen a finding that may be fixed.
+          if ((error as { status?: number }).status === 404) return null
+          throw error
+        }
+      },
     }
   }
 

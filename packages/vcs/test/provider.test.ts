@@ -18,6 +18,7 @@ class FakeGitHubApi implements GitHubApi {
   createdBranch?: { branch: string; fromSha: string }
   puts: Array<{ branch: string; path: string; content: string; sha?: string }> = []
   prInput?: { head: string; base: string; title: string; body: string }
+  prOutcomes = new Map<number, { merged: boolean; closed: boolean }>()
 
   async getDefaultBranch() {
     this.calls.push('getDefaultBranch')
@@ -47,6 +48,10 @@ class FakeGitHubApi implements GitHubApi {
   async findOpenPullRequestByHeadPrefix(prefix: string) {
     this.calls.push(`find:${prefix}`)
     return this.existingPr
+  }
+  async getPullRequest(number: number) {
+    this.calls.push(`getPullRequest:${number}`)
+    return this.prOutcomes.get(number) ?? null
   }
 }
 
@@ -162,5 +167,34 @@ describe('GitHubProvider.getFile', () => {
 
     expect(file?.content).toBe('User-agent: *')
     expect(api.calls).toContain('getFile:main:robots.txt')
+  })
+})
+
+/**
+ * Reading a pull request back.
+ *
+ * The reconciler in the worker exists because the webhook loses deliveries, and it is only as
+ * good as this call. A null must mean "we could not read it" and never be confused with "it was
+ * closed unmerged", because those lead to opposite actions: leave the finding alone, or reopen it.
+ */
+describe('getPullRequest', () => {
+  it('reports a merged pull request', async () => {
+    const api = new FakeGitHubApi()
+    api.prOutcomes.set(24, { merged: true, closed: true })
+
+    expect(await providerWith(api).getPullRequest(ctx, 24)).toEqual({ merged: true, closed: true })
+  })
+
+  it('reports one closed without merging', async () => {
+    const api = new FakeGitHubApi()
+    api.prOutcomes.set(24, { merged: false, closed: true })
+
+    expect(await providerWith(api).getPullRequest(ctx, 24)).toEqual({ merged: false, closed: true })
+  })
+
+  it('returns null for a pull request that is gone, rather than inventing an outcome', async () => {
+    // Deleted, or the App lost access to the repo. The caller must be able to tell this apart
+    // from "closed unmerged": one leaves the finding untouched, the other reopens it.
+    expect(await providerWith(new FakeGitHubApi()).getPullRequest(ctx, 999)).toBeNull()
   })
 })
