@@ -117,7 +117,14 @@ docs/
 .claude/
   agents/       Sub-agent definitions
   commands/     Slash commands
+  skills/       Design skills. web-design-guidelines is the UI review checklist; taste and
+                image-to-code generate UI and are overridden to read docs/DESIGN.md first,
+                so they produce Classical rather than generic SaaS.
 ```
+
+`docs/DESIGN.md` is the design system as a plain-text document an agent reads before writing UI.
+It exists because a generative skill will otherwise reach for Inter, a violet primary and 16px
+radii, which is competent and is not this product.
 
 ---
 
