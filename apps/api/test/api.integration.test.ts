@@ -1,4 +1,4 @@
-import { decryptToken, signState } from '@seo/connectors'
+import { decryptToken, DEFAULT_KEYWORD_LIMIT, KeywordBudgetError, signState } from '@seo/connectors'
 import { priorityScore } from '@seo/core'
 import {
   apiTokens,
@@ -1445,6 +1445,107 @@ describe.skipIf(!shouldRun)('the API', () => {
 
     it('needs a token like everything else', async () => {
       expect((await get(`/sites/${siteId}/visibility`)).statusCode).toBe(401)
+    })
+  })
+
+  describe('GET /keywords/ideas', () => {
+    it('answers with a note and no data when no provider is configured', async () => {
+      // The app under test is built without one. An unconfigured paid surface must be empty and
+      // say why, never an error and never a zero: no keyword data is not the same as no demand.
+      const response = await get('/keywords/ideas?seed=kenya%20safari', token)
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { ideas: unknown[]; note?: string }
+      expect(body.ideas).toEqual([])
+      expect(body.note).toMatch(/not configured/i)
+    })
+
+    it('requires a token like every other route', async () => {
+      expect((await get('/keywords/ideas?seed=x')).statusCode).toBe(401)
+    })
+
+    it('rejects a missing seed rather than querying for nothing', async () => {
+      expect((await get('/keywords/ideas', token)).statusCode).toBe(400)
+    })
+
+    it('rejects a limit above the ceiling, because rows are most of the bill', async () => {
+      expect((await get('/keywords/ideas?seed=x&limit=5000', token)).statusCode).toBe(400)
+    })
+
+    describe('with a provider configured', () => {
+      let configured: Awaited<ReturnType<typeof buildApp>>
+      let seen: { seed: string; options?: { country?: string; limit?: number } }[]
+      let askedFor: string[]
+      let refuse: boolean
+
+      beforeAll(async () => {
+        seen = []
+        askedFor = []
+        refuse = false
+
+        configured = await buildApp({
+          db,
+          // A fake, so the route is exercised with no key, no network and no spend. What is under
+          // test here is our wiring and our bounds, not the vendor.
+          keywords: (forTenant) => {
+            askedFor.push(forTenant)
+            return {
+              name: 'fake',
+              ideas: async (seed, options) => {
+                if (refuse) throw new KeywordBudgetError('the tenant is over its monthly budget')
+                seen.push({ seed, ...(options ? { options } : {}) })
+                return [{ keyword: `${seed} cost`, searchVolume: 2400, competition: 0.4, cpc: 1.2 }]
+              },
+            }
+          },
+        })
+      })
+
+      afterAll(async () => {
+        await configured?.close()
+      })
+
+      const ask = (query: string, bearer = token) =>
+        configured.inject({
+          method: 'GET',
+          url: `/keywords/ideas?${query}`,
+          headers: { authorization: `Bearer ${bearer}` },
+        })
+
+      it('returns the ideas and passes the market through', async () => {
+        const response = await ask('seed=kenya%20safari&country=ke')
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toMatchObject({
+          seed: 'kenya safari',
+          ideas: [{ keyword: 'kenya safari cost', searchVolume: 2400 }],
+        })
+        // Search volume is per-market; dropping the country would confidently measure the wrong one.
+        expect(seen.at(-1)?.options?.country).toBe('ke')
+      })
+
+      it('applies a default limit rather than the vendor default, which costs more', async () => {
+        await ask('seed=safari')
+        expect(seen.at(-1)?.options?.limit).toBe(DEFAULT_KEYWORD_LIMIT)
+      })
+
+      it("builds the provider against the caller's own tenant, never a shared one", async () => {
+        // The budget guard is per-tenant (ADR-0017), so a provider built for the wrong tenant
+        // would spend somebody else's allowance and refuse the wrong caller.
+        await ask('seed=safari', otherToken)
+        expect(askedFor.at(-1)).toBe(otherTenantId)
+      })
+
+      it('reports a tenant over its cap as 429, not as a broken system', async () => {
+        refuse = true
+        const response = await ask('seed=safari')
+        refuse = false
+
+        // A quota answer about a working system. A 500 would send somebody debugging the vendor.
+        expect(response.statusCode).toBe(429)
+        expect(response.json()).toMatchObject({ error: 'Too Many Requests' })
+        expect((response.json() as { message: string }).message).toMatch(/next calendar month/)
+      })
     })
   })
 

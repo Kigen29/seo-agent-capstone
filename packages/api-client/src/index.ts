@@ -136,6 +136,35 @@ export interface VisibilitySettings {
   brand: string | null
 }
 
+/** One keyword idea, with the numbers the vendor reports for it. */
+export interface KeywordIdea {
+  keyword: string
+  /** Average monthly searches. Null when the vendor reports none, which is not the same as zero. */
+  searchVolume: number | null
+  /**
+   * Paid competition, 0 to 1. An **advertising** metric: how many advertisers bid on the term,
+   * not how hard it is to rank for organically. The industry routinely renders this as "keyword
+   * difficulty" and lets readers believe the second thing.
+   */
+  competition: number | null
+  cpc: number | null
+}
+
+export interface KeywordIdeasResult {
+  seed: string
+  ideas: KeywordIdea[]
+  /** Present only when nothing was measured, explaining why. */
+  note?: string
+}
+
+export interface KeywordIdeasQuery {
+  seed: string
+  /** ISO country, e.g. 'ke'. Search volume is per-market, so this changes the answer. */
+  country?: string
+  language?: string
+  limit?: number
+}
+
 export interface ApiClientOptions {
   baseUrl: string
   token: string
@@ -305,6 +334,21 @@ export function createApiClient(options: ApiClientOptions) {
      */
     verifySite: async (siteId: string) =>
       request<{ status: string }>(`/sites/${siteId}/verify`, { method: 'POST' }),
+
+    /**
+     * Keyword ideas for a seed term.
+     *
+     * The only read in this client that costs money. It passes the tenant's budget guard on the
+     * server, so a caller over its cap gets a 429 rather than a bill, and an unconfigured
+     * deployment gets an empty list with a note rather than an error.
+     */
+    keywordIdeas: async (query: KeywordIdeasQuery) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      return request<KeywordIdeasResult>(`/keywords/ideas?${params.toString()}`)
+    },
 
     /** The questions this site's AI visibility is measured on, and the rivals it is measured against. */
     getVisibility: async (siteId: string) =>

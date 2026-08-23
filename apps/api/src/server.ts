@@ -1,4 +1,10 @@
-import { googleOAuthConfigFromEnv } from '@seo/connectors'
+import { createBudgetGuard, recordSpend } from '@seo/budget'
+import {
+  budgetedKeywords,
+  createDataForSeoKeywords,
+  dataForSeoFromEnv,
+  googleOAuthConfigFromEnv,
+} from '@seo/connectors'
 import {
   createQueue,
   enqueueAudit,
@@ -69,11 +75,49 @@ const github = (() => {
   }
 })()
 
+/**
+ * Keyword research is optional in the same way, and off by default.
+ *
+ * The credentials are read once at boot; the provider is built per request, because the budget
+ * guard it is wrapped in belongs to a tenant and the tenant is not known until a caller has
+ * authenticated. Without credentials this is undefined and the route answers "not configured"
+ * rather than erroring, which is the posture every paid surface here takes (ADR-0016, ADR-0021).
+ */
+const keywordCredentials = dataForSeoFromEnv()
+if (!keywordCredentials) {
+  console.warn('DataForSEO is not configured; keyword research and backlink data are disabled.')
+}
+
+const keywordCostMicros = (() => {
+  const usd = Number(process.env.KEYWORD_COST_PER_QUERY_USD)
+  // The vendor's published rate at the default row count, rounded up. Errs high when unset,
+  // which is the safe direction for a cost guard.
+  return Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.02) * 1_000_000)
+})()
+
 const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   google,
   github,
+  keywords: keywordCredentials
+    ? (tenantId, db) => {
+        const guard = createBudgetGuard(db)
+
+        return budgetedKeywords(createDataForSeoKeywords(keywordCredentials), {
+          tenantId,
+          checkBudget: guard.checkBudget,
+          recordSpend: (id, entry) =>
+            recordSpend(db, id, {
+              kind: 'serp',
+              provider: entry.provider,
+              model: entry.model,
+              micros: entry.micros,
+            }),
+          costPerQueryMicros: keywordCostMicros,
+        })
+      }
+    : undefined,
   enqueue: async (job) => {
     await enqueueAudit(queue, job)
     await dispatch()

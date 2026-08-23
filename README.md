@@ -68,9 +68,9 @@ why the `judge` role must be a different model family than the model under test.
 ## Use it from your editor (MCP)
 
 The agent is also an [MCP](https://modelcontextprotocol.io) server, so Claude Code, Cursor or
-any MCP client can drive it directly. Five read tools (`list_sites`, `list_findings`,
-`get_finding`, `get_audit`, `audit_status`) and three write tools (`run_audit`, `fix_finding`,
-`verify_site`).
+any MCP client can drive it directly. Six read tools (`list_sites`, `list_findings`,
+`get_finding`, `get_audit`, `audit_status`, `keyword_ideas`) and three write tools (`run_audit`,
+`fix_finding`, `verify_site`).
 
 `fix_finding` is the one that matters. Every other SEO MCP server hands your agent a list of
 problems; this one opens the pull request that fixes it.

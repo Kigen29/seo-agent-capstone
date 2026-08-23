@@ -61,8 +61,30 @@ export { aiOverviewEngine } from './visibility/ai-overview.js'
 
 export { classifyMentions, mentionQuery } from './authority/mentions.js'
 export type { MentionFootprint } from './authority/mentions.js'
-export { evaluateAuthority, THIN_FOOTPRINT } from './authority/evaluate.js'
+export { evaluateAuthority, THIN_FOOTPRINT, MIN_UNLINKED_MENTIONS } from './authority/evaluate.js'
 export type { AuthorityInput, AuthorityReport } from './authority/evaluate.js'
+
+export { dataForSeoFromEnv, DataForSeoError } from './dataforseo/request.js'
+export type { DataForSeoCredentials } from './dataforseo/request.js'
+
+export {
+  createDataForSeoBacklinks,
+  DEFAULT_LIMIT as DEFAULT_BACKLINK_LIMIT,
+} from './backlinks/dataforseo.js'
+export { budgetedBacklinks } from './backlinks/budgeted.js'
+export type { BudgetedBacklinkOptions } from './backlinks/budgeted.js'
+export { BacklinkBudgetError, BacklinkRequestError } from './backlinks/types.js'
+export type { BacklinkProvider, ReferringDomain, ReferringDomains } from './backlinks/types.js'
+
+export {
+  createDataForSeoKeywords,
+  DEFAULT_LIMIT as DEFAULT_KEYWORD_LIMIT,
+  MAX_LIMIT as MAX_KEYWORD_LIMIT,
+} from './keywords/dataforseo.js'
+export { budgetedKeywords } from './keywords/budgeted.js'
+export type { BudgetedKeywordOptions } from './keywords/budgeted.js'
+export { KeywordBudgetError } from './keywords/types.js'
+export type { KeywordIdea, KeywordOptions, KeywordProvider } from './keywords/types.js'
 
 export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
 export {

@@ -3,9 +3,13 @@ import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/craw
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import {
   budgeted,
+  budgetedBacklinks,
+  createDataForSeoBacklinks,
   createSerpApiProvider,
+  dataForSeoFromEnv,
   googleOAuthConfigFromEnv,
   QUICK_WIN_CHECKS,
+  type BacklinkProvider,
   type OAuthConfig,
   type SerpProvider,
 } from '@seo/connectors'
@@ -62,6 +66,36 @@ function serpFromEnv(db: Database, tenantId: string): SerpProvider | undefined {
   )
 }
 
+/**
+ * A budget-guarded backlink index from the environment, or undefined when none is configured.
+ *
+ * The second paid dependency, and off by default like the first. Absent, the authority axis
+ * behaves exactly as it did before it existed: mentions lead, referring domains are reported as
+ * unmeasured rather than as a zero (ADR-0018, ADR-0021).
+ */
+function backlinksFromEnv(db: Database, tenantId: string): BacklinkProvider | undefined {
+  const credentials = dataForSeoFromEnv()
+  if (!credentials) return undefined
+
+  const guard = createBudgetGuard(db)
+  const usd = Number(process.env.BACKLINK_COST_PER_QUERY_USD)
+
+  return budgetedBacklinks(createDataForSeoBacklinks(credentials), {
+    tenantId,
+    checkBudget: guard.checkBudget,
+    recordSpend: (id, entry) =>
+      recordSpend(db, id, {
+        kind: 'serp',
+        provider: entry.provider,
+        model: entry.model,
+        micros: entry.micros,
+      }),
+    // The vendor's published rate for a live referring-domains request at the default row limit,
+    // rounded up. Errs high when unset, which is the safe direction for a cost guard.
+    costPerQueryMicros: Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.03) * 1_000_000),
+  })
+}
+
 export interface RunAuditOptions {
   tenantId: string
   siteId: string
@@ -86,6 +120,12 @@ export interface RunAuditOptions {
    * and no spend.
    */
   serp?: SerpProvider
+  /**
+   * Backlink index for the authority axis's second signal. Falls back to one built from the env,
+   * and to no measurement at all when there are no credentials. Injectable so a test can drive
+   * the finding with a fake and no spend.
+   */
+  backlinks?: BacklinkProvider
 }
 
 export interface AuditResult {
@@ -300,6 +340,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         competitors: site?.competitors ?? [],
       },
       options.serp ?? serpFromEnv(db, tenantId),
+      options.backlinks ?? backlinksFromEnv(db, tenantId),
     )
 
     const found = [

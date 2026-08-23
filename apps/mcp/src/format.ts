@@ -1,4 +1,4 @@
-import type { Audit, AuditProgress, FindingPage, Site } from '@seo/api-client'
+import type { Audit, AuditProgress, FindingPage, KeywordIdeasResult, Site } from '@seo/api-client'
 import { AXES, evidenceToText, type Finding, type Scorecard, type Severity } from '@seo/core'
 
 /**
@@ -182,6 +182,42 @@ export function formatAudit(audit: Audit): string {
       : '\n\nNo findings.'
 
   return head + scorecard + findings
+}
+
+/**
+ * Keyword ideas, highest volume first.
+ *
+ * `competition` is printed as "ad competition" rather than the industry's "difficulty", because it
+ * is an advertising metric and calling it difficulty invites a reader to plan organic work around
+ * how many people bid on a term. A null is a dash, never a zero: the vendor not reporting a volume
+ * and a keyword having no searches are different facts.
+ */
+export function formatKeywordIdeas(result: KeywordIdeasResult): string {
+  if (result.note) return result.note
+  if (result.ideas.length === 0) {
+    return `No keyword ideas for "${result.seed}". The seed may be too narrow or too unusual.`
+  }
+
+  const num = (value: number | null, suffix = ''): string =>
+    value === null ? '-' : `${value.toLocaleString('en-US')}${suffix}`
+
+  const rows = [...result.ideas]
+    .sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1))
+    .map(
+      (idea) =>
+        `  ${pad(String(num(idea.searchVolume)), 10)}` +
+        `${pad(idea.competition === null ? '-' : idea.competition.toFixed(2), 7)}` +
+        `${pad(idea.cpc === null ? '-' : `$${idea.cpc.toFixed(2)}`, 9)}${idea.keyword}`,
+    )
+
+  return [
+    `${result.ideas.length} keyword idea(s) for "${result.seed}", by monthly searches:`,
+    '',
+    `  ${pad('searches', 10)}${pad('ad comp', 7)}${pad('cpc', 9)}keyword`,
+    ...rows,
+    '',
+    'Ad competition is how many advertisers bid on the term, not how hard it is to rank for.',
+  ].join('\n')
 }
 
 export function formatProgress(progress: AuditProgress): string {

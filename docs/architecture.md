@@ -63,7 +63,7 @@ Never move detection across that line. ADR-0001.
 
 | Pattern | Where | Why |
 |---|---|---|
-| Strategy / Adapter | `VersionControlProvider`, `@seo/llm` providers, `SerpProvider` | Swap GitHub for GitLab, or one model vendor for another, or SerpApi for DataForSEO, without touching call sites |
+| Strategy / Adapter | `VersionControlProvider`, `@seo/llm` providers, `SerpProvider`, `BacklinkProvider`, `KeywordProvider` | Swap GitHub for GitLab, or one model vendor for another, or SerpApi for DataForSEO, without touching call sites. One interface per **product line**, not per vendor: SerpApi sells SERP data and no backlinks, so an interface covering both would force it to implement a method it cannot honour. ADR-0021 |
 | Role-based indirection | `@seo/llm`: code asks for `fast` / `smart` / `embed` / `judge` / `poll` | No vendor or model name appears in application code. Swapping a model is a `.env` edit, enforced by an ESLint rule that confines vendor SDKs to `providers.ts`. ADR-0005 |
 | Decorator | `budgeted(provider)` around a `SerpProvider` | The cap wraps the vendor rather than living inside it, so every future adapter arrives already capped and the adapter stays a pure translation of one vendor's shape. ADR-0016 |
 | Chain of responsibility | The per-role fallback chain, e.g. `LLM_SMART=openai:gpt-4.1,google:gemini-2.5-pro` | Falls through on 429, quota, or 5xx. Targets whose API key is absent are dropped silently, so the free tier degrades instead of breaking |
