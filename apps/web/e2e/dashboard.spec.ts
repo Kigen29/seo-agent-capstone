@@ -65,14 +65,23 @@ test('shows the eight axes, and leaves the four we did not measure blank', async
   ]
   const blank = ['Performance', 'Authority']
 
+  /**
+   * Scoped to `main`, which is what this assertion always meant.
+   *
+   * The sidebar now has links named "Authority" and "AI visibility", so an unscoped `getByText`
+   * matches the navigation as well as the scorecard and resolves to two elements. The nav is not
+   * what this test is about: it is about what the scorecard says for an axis nobody measured.
+   */
+  const scorecard = page.locator('main')
+
   for (const axis of [...measured, ...blank]) {
-    await expect(page.getByText(axis, { exact: true })).toBeVisible()
+    await expect(scorecard.getByText(axis, { exact: true })).toBeVisible()
   }
 
   // `exact`, because the coverage notes themselves open with "Not measured. Core Web Vitals
   // come from CrUX...", and a substring match happily counts those too. The status label and
   // the explanation are different claims and the test should not conflate them.
-  await expect(page.getByText('Not measured', { exact: true })).toHaveCount(blank.length)
+  await expect(scorecard.getByText('Not measured', { exact: true })).toHaveCount(blank.length)
   await expect(page.getByText('--', { exact: true })).toHaveCount(blank.length)
 
   // And it says WHY each one is blank, naming the data source that would fill it. An axis
