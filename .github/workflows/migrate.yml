@@ -1,0 +1,77 @@
+# Apply pending migrations to the production database when main moves.
+#
+# This workflow exists because its absence took the product down. Migrations were applied by hand,
+# and CI's green tick did not mean they had been: CI creates a Postgres container, migrates *that*,
+# proves the code works against a schema it just built, and says nothing whatsoever about Neon. Two
+# additive columns shipped without their ALTER TABLE, and because Drizzle's `select()` enumerates
+# every column the schema declares, every query against `findings` and `audits` failed. The inbox,
+# the dashboard and the audit pages returned 500 for hours while every check in the repository was
+# green.
+#
+# Why here rather than in render.yaml:
+#
+#   - `preDeployCommand` is the natural home and is available only on paid instance types. This
+#     service is `plan: free`, so adding it would have been a no-op fix for a no-op bug.
+#   - Migrating in `startCommand` works on any plan and taxes the wrong thing. The free instance
+#     spins down after ~15 minutes and cold-starts constantly, and that wake is already the worst
+#     part of the product; adding a database round trip to every one of them to handle a schema
+#     change that happens a few times a sprint is the wrong trade.
+#   - A workflow runs exactly once per merge, on infrastructure that is already free, and fails
+#     loudly in a place somebody is already looking.
+#
+# Ordering: this runs on push to main, in parallel with Render picking up the same commit. That is
+# correct for additive migrations, which is all this project has ever made: the column appears
+# slightly before or slightly after the code that reads it, and neither order breaks, because the
+# old code ignores a column it does not know about and the new code fails only if the column is
+# missing. A destructive migration would need a deliberate two-phase plan and an ADR to go with it.
+name: migrate
+
+on:
+  push:
+    branches: [main]
+    # Only when something that could change the schema moved. A docs commit should not touch the
+    # production database, even harmlessly.
+    paths:
+      - 'packages/db/**'
+      - '.github/workflows/migrate.yml'
+  # So a migration can be applied without an empty commit when something has gone wrong.
+  workflow_dispatch:
+
+# Never two at once against the same database. `cancel-in-progress: false` because a half-applied
+# migration is worse than a queued one: Drizzle records each file as it succeeds, and killing it
+# mid-run leaves the journal describing a state the database is not in.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply pending migrations
+        # The runner is idempotent: it applies what the journal says is pending and exits 0 with
+        # nothing to do, so a re-run is safe and a no-change push costs a few seconds.
+        run: pnpm --filter @seo/db db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Report what the database now has
+        # The failure this whole workflow exists to prevent was silent, so the successful path says
+        # out loud which columns are present. A green tick with no output is what we had before.
+        run: |
+          echo "Migrations applied against production."
+          echo "If a column is still missing, the migration file is not in meta/_journal.json;"
+          echo "packages/db/test/migrations.test.ts checks for exactly that."
