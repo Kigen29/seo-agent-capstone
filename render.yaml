@@ -16,6 +16,17 @@ services:
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     startCommand: node apps/api/dist/server.js
 
+    # Migrations are NOT run here, and that is deliberate rather than an omission.
+    #
+    # `preDeployCommand` is where they belong and is available only on paid instance types; on
+    # `plan: free` it is ignored, which would make it a fix that looks applied and does nothing.
+    # Putting them in `startCommand` works on any plan and taxes the wrong thing: this instance
+    # spins down after ~15 minutes and cold-starts constantly, and a database round trip on every
+    # wake is a poor price for a schema change that happens a few times a sprint.
+    #
+    # They run in .github/workflows/migrate.yml instead, once per merge to main. See that file for
+    # the outage that put it there.
+
     # Render polls this. It must not require a token, or the service is marked unhealthy and
     # restarted forever.
     healthCheckPath: /health
