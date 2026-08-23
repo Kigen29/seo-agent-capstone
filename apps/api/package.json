@@ -23,7 +23,8 @@
     "zod": "^3.23.0",
     "@seo/queue": "workspace:*",
     "@seo/connectors": "workspace:*",
-    "@seo/vcs": "workspace:*"
+    "@seo/vcs": "workspace:*",
+    "@seo/budget": "workspace:*"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

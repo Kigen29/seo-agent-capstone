@@ -118,7 +118,8 @@ The ceilings were accepted deliberately, not overlooked, and each has a document
 | Neon free tier is ~0.5 GB | approaching the limit | Prune harder (keep only the latest crawl per site), then a paid Neon tier or self-hosted Postgres, still only `DATABASE_URL`. |
 | Render free service cold-starts after fifteen minutes idle | the cold start hurts the product | An always-on paid instance, or ECS (see section 3). The dashboard already handles the cold start honestly rather than showing a broken page. |
 | Refresh tokens in Google Testing mode expire after seven days | onboarding real clients | Submit the OAuth consent screen for Google verification. |
-| No backlink index, so referring domains are unmeasured | a paying client who needs link data | A paid backlink index (Ahrefs, DataForSEO). Mentions carry the axis meanwhile, and the research says mentions are the better signal anyway (1.14). |
+| ~~No backlink index, so referring domains are unmeasured~~ **Trigger pulled (ADR-0021).** A `BacklinkProvider` seam with a DataForSEO adapter now measures referring domains when credentials are configured, and reports them unmeasured when they are not. Mentions still lead the axis. | — | — |
+| Rank tracking is not built, so positions over time are unmeasured | a client who needs daily position data | A `tracked_keywords` table, a `rank_checks` table and a daily poll saga. Deliberately deferred: it is the one workflow with a per-keyword-per-day cost that never stops, so it breaks the zero-cost-by-default posture in a way the per-audit paid calls do not (ADR-0021). |
 
 ### 1.9 The write path is deterministic too, and the LLM is on a short leash (ADR-0011)
 
@@ -432,5 +433,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0018 | The authority axis leads with mentions, not links | Accepted |
 | 0019 | `llms.txt` is agent-readiness infrastructure, never a ranking claim | Accepted |
 | 0020 | The MCP server is a second door, and it goes through the API | Accepted |
+| 0021 | A seam per product line, not per vendor; links are a second signal | Accepted |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

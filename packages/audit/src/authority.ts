@@ -4,6 +4,7 @@ import {
   evaluateAuthority,
   mentionQuery,
   SerpBudgetError,
+  type BacklinkProvider,
   type SerpProvider,
 } from '@seo/connectors'
 
@@ -46,6 +47,18 @@ const unmeasured = (note: string): AuthorityResult => ({
  * ADR-0017). Running out of budget mid-measurement is not an error: it degrades the axis to
  * unmeasured with a note, which is the same posture a missing key gets.
  */
+/**
+ * How referring domains are described when there is no backlink index configured.
+ *
+ * One sentence, in one place, because it appears on three different paths out of this function and
+ * three copies would drift the moment one of them was updated. It is also the sentence this
+ * product has been deliberately saying since Sprint 3, and it stays exactly as it was for any
+ * operator who has not configured an index (ADR-0018).
+ */
+const NO_BACKLINK_INDEX =
+  'Referring domains are NOT measured, because no backlink index is configured ' +
+  '(set DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD); that is an absence of data, not a zero.'
+
 export async function measureAuthority(
   options: {
     siteId: string
@@ -56,13 +69,17 @@ export async function measureAuthority(
     competitors: readonly string[]
   },
   provider?: SerpProvider,
+  /**
+   * A backlink index, when one is configured. Optional, and the axis works without it exactly as
+   * it did before: links are a second signal here, never the lead (ADR-0018).
+   */
+  backlinks?: BacklinkProvider,
 ): Promise<AuthorityResult> {
   if (!provider) {
     return unmeasured(
       'Not measured. Brand mentions come from a SERP data source, which is the one paid ' +
-        'dependency in the product and is off by default (set SERPAPI_API_KEY). Referring ' +
-        'domains need a backlink index we do not have, and are reported as unmeasured rather ' +
-        'than as zero, because a zero and an absence look identical and mean opposite things.',
+        'dependency in the product and is off by default (set SERPAPI_API_KEY). ' +
+        NO_BACKLINK_INDEX,
     )
   }
 
@@ -108,27 +125,47 @@ export async function measureAuthority(
       )
       .map((entry) => entry.value)
 
+    /**
+     * The link index, when there is one, and never at the cost of the axis when there is not.
+     *
+     * Settled rather than awaited directly: mentions are the lead signal and they have already
+     * succeeded by this point, so a backlink vendor being down must degrade links to unmeasured
+     * rather than throw away a measurement we have paid for and hold.
+     */
+    const links = backlinks
+      ? await backlinks.referringDomains(options.domain).catch(() => undefined)
+      : undefined
+
     const report = evaluateAuthority({
       siteId: options.siteId,
       brand,
       footprint,
       competitors,
+      ...(links ? { backlinks: links } : {}),
     })
 
     return {
       findings: report.findings,
       measured: true,
       coverage: {
-        // One check per thing we actually looked at: the brand, plus each rival that answered.
-        checksRun: 1 + competitors.length,
+        // One check per thing we actually looked at: the brand, each rival that answered, and the
+        // link index when it was consulted.
+        checksRun: 1 + competitors.length + (links ? 1 : 0),
         note:
           `Measured from web mentions of "${brand}": ${report.earnedCount} distinct earned-media ` +
           `domain(s), plus ${footprint.selfPublishedDomains.length} self-published platform(s), ` +
           `counted by domain rather than by result because ten pages on one news site is one ` +
           `publication. Mentions lead this axis on purpose: they correlate 0.664 with AI ` +
           `Overview visibility where backlinks correlate 0.218, and 84% of AI citations come ` +
-          `from earned media. Referring domains are NOT measured, because we have no backlink ` +
-          `index; that is an absence of data, not a zero.`,
+          `from earned media. ` +
+          (links
+            ? `Referring domains are a second signal, not the lead: ${links.total} domain(s) ` +
+              `link to ${links.target}` +
+              (report.unlinkedMentions && report.unlinkedMentions.length > 0
+                ? `, and ${report.unlinkedMentions.length} domain(s) mention the brand without ` +
+                  `linking to it, which is the cheapest link work available here.`
+                : `, and every earned-media domain that mentions the brand already links to it.`)
+            : NO_BACKLINK_INDEX),
       },
     }
   } catch (error) {
@@ -141,8 +178,11 @@ export async function measureAuthority(
         : 'the SERP request failed'
 
     return unmeasured(
-      `Not measured this run: ${why}. The rest of the audit is unaffected. Referring domains ` +
-        'remain unmeasured in any case, because we have no backlink index.',
+      `Not measured this run: ${why}. The rest of the audit is unaffected. ` +
+        (backlinks
+          ? 'Referring domains were not reached either: this axis leads with mentions, and ' +
+            'without them there is nothing for a link count to be a second signal to.'
+          : NO_BACKLINK_INDEX),
     )
   }
 }

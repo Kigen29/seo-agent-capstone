@@ -69,6 +69,7 @@ describe('the tool surface', () => {
       'audit_status',
       'get_audit',
       'get_finding',
+      'keyword_ideas',
       'list_findings',
       'list_sites',
     ])
@@ -134,6 +135,58 @@ describe('read tools', () => {
     expect(text).toContain('head > meta[name="robots"]')
     expect(text).toContain('How we would know this fix failed')
     expect(text).toContain('https://example.com/pricing')
+  })
+
+  it('renders keyword ideas by volume, and names competition as an ad metric', async () => {
+    const { client } = await connect({})
+    const { text } = await call(client, 'keyword_ideas', { seed: 'kenya safari', country: 'ke' })
+
+    expect(text).toContain('kenya safari cost')
+    expect(text).toContain('2,400')
+    // "difficulty" would let a reader plan organic work around how many people bid on a term.
+    expect(text).toContain('Ad competition')
+    expect(text).not.toMatch(/difficulty/i)
+  })
+
+  it('shows a missing volume as a dash, never as zero', async () => {
+    const { client } = await connect({
+      api: {
+        keywordIdeas: async () => ({
+          seed: 'x',
+          ideas: [{ keyword: 'unknown demand', searchVolume: null, competition: null, cpc: null }],
+        }),
+      },
+    })
+
+    const { text } = await call(client, 'keyword_ideas', { seed: 'x' })
+    expect(text).toContain('unknown demand')
+    expect(text).not.toMatch(/\b0\b\s+.*unknown demand/)
+  })
+
+  it('passes the note through when keyword research is not configured', async () => {
+    const { client } = await connect({
+      api: {
+        keywordIdeas: async () => ({
+          seed: 'x',
+          ideas: [],
+          note: 'Keyword research is not configured.',
+        }),
+      },
+    })
+
+    const { text } = await call(client, 'keyword_ideas', { seed: 'x' })
+    expect(text).toBe('Keyword research is not configured.')
+  })
+
+  it('marks keyword_ideas as not read-only, because it spends money', async () => {
+    // It modifies nothing, but readOnlyHint is what a client uses to decide what may run
+    // unattended, and MCP has no annotation for "this is billable".
+    const { client } = await connect({})
+    const { tools } = await client.listTools()
+
+    expect(tools.find((tool) => tool.name === 'keyword_ideas')?.annotations?.readOnlyHint).toBe(
+      false,
+    )
   })
 
   it('passes the filters through to the API rather than filtering locally', async () => {

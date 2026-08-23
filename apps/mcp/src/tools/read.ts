@@ -6,6 +6,7 @@ import {
   formatAudit,
   formatFinding,
   formatFindingList,
+  formatKeywordIdeas,
   formatProgress,
   formatSites,
 } from '../format.js'
@@ -101,6 +102,45 @@ export function registerReadTools(server: McpServer, api: ApiClient): void {
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ auditId }) => guard(async () => formatAudit(await api.getAudit(auditId))),
+  )
+
+  server.registerTool(
+    'keyword_ideas',
+    {
+      title: 'Keyword ideas',
+      description:
+        'Keyword ideas related to a seed term, with monthly search volume, advertising ' +
+        'competition and cost per click. Search volume is per-market, so pass the country you ' +
+        'are writing for. Note this is a BILLABLE query against a paid data source, charged per ' +
+        'request and per keyword returned, so ask once with the limit you need rather than ' +
+        'repeatedly with small ones.',
+      inputSchema: {
+        seed: z.string().min(1).max(200).describe('The term to find ideas around.'),
+        country: z
+          .string()
+          .length(2)
+          .optional()
+          .describe("ISO country code, e.g. 'ke'. Defaults to the United States."),
+        language: z.string().min(2).max(5).optional(),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(1000)
+          .optional()
+          .describe('How many ideas. Every row is billed, so this defaults to 50.'),
+      },
+      /**
+       * Not marked read-only, although it modifies nothing.
+       *
+       * `readOnlyHint` is what a client uses to decide which tools are safe to run without asking,
+       * and MCP has no annotation for "this costs money". Of the two available answers, the one
+       * that lets an agent loop a billable query unattended is the worse mistake. The per-tenant
+       * budget cap is the real control; this is the hint that stops it being reached by accident.
+       */
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async (args) => guard(async () => formatKeywordIdeas(await api.keywordIdeas(args))),
   )
 
   server.registerTool(

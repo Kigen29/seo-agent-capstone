@@ -130,6 +130,14 @@ export function createFakeApi(overrides: Partial<ApiClient> = {}): {
       finished: false,
     })),
 
+    keywordIdeas: record('keywordIdeas', async () => ({
+      seed: 'kenya safari',
+      ideas: [
+        { keyword: 'kenya safari cost', searchVolume: 2400, competition: 0.42, cpc: 1.35 },
+        { keyword: 'best kenya safari', searchVolume: 880, competition: null, cpc: null },
+      ],
+    })),
+
     startAudit: record('startAudit', async () => AUDIT_ID),
     fixFinding: record('fixFinding', async () => ({ status: 'queued' })),
     verifySite: record('verifySite', async () => ({ status: 'queued' })),

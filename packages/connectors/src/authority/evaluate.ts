@@ -1,4 +1,6 @@
 import { parseFinding, type Finding } from '@seo/core'
+import type { ReferringDomains } from '../backlinks/types.js'
+import { sameSite } from '../visibility/citation.js'
 import type { MentionFootprint } from './mentions.js'
 
 /**
@@ -32,12 +34,26 @@ export const THIN_FOOTPRINT = 5
  */
 const SELF_PUBLISHED_SHARE = 0.5
 
+/**
+ * The fewest unlinked mentions worth raising as work.
+ *
+ * One or two is noise: a journalist who did not link is not a campaign, and a finding that fires
+ * on a single one would nag every brand the web has ever noticed. Three is where a pattern starts
+ * and where an afternoon of outreach has enough targets to be worth planning.
+ */
+export const MIN_UNLINKED_MENTIONS = 3
+
 export interface AuthorityInput {
   siteId: string
   brand: string
   footprint: MentionFootprint
   /** Competitor footprints, by domain. Empty when none are configured or none were queried. */
   competitors: { domain: string; earnedDomains: number }[]
+  /**
+   * Referring domains, when a backlink index is configured. Optional on purpose: this axis was
+   * built to work without one and still must (ADR-0018). Absent, nothing here changes.
+   */
+  backlinks?: ReferringDomains
   observedAt?: string
 }
 
@@ -45,6 +61,12 @@ export interface AuthorityReport {
   findings: Finding[]
   /** Distinct earned-media domains. The axis's headline number. */
   earnedCount: number
+  /**
+   * Earned-media domains that mention the brand without linking to it, when both signals are
+   * available. Undefined when no backlink index is configured, which is not the same as an empty
+   * array: one means we did not look, the other means we looked and everyone links.
+   */
+  unlinkedMentions?: string[]
 }
 
 /** The research sentence every one of these findings is grounded in. */
@@ -60,6 +82,13 @@ export function evaluateAuthority(input: AuthorityInput): AuthorityReport {
   const earnedCount = input.footprint.earnedDomains.length
   const selfCount = input.footprint.selfPublishedDomains.length
   const total = earnedCount + selfCount
+
+  /**
+   * Left undefined when no backlink index is configured, and that distinction is load-bearing:
+   * an empty array means we compared and everyone links, undefined means we never looked. The
+   * two look identical on a dashboard and mean opposite things.
+   */
+  let unlinked: string[] | undefined
 
   const evidence = (metric: string, value: number) =>
     ({
@@ -157,5 +186,68 @@ export function evaluateAuthority(input: AuthorityInput): AuthorityReport {
     )
   }
 
-  return { findings, earnedCount }
+  /**
+   * AUTH-004: the domains that already wrote about you and did not link.
+   *
+   * The only link-related finding on this axis, and it is deliberately not the one every other
+   * tool raises. "You have few referring domains" is generic advice that sends a client to buy
+   * links; a named list of publications that have *already covered them* is a specific afternoon
+   * of work with a real hit rate, and unlinked-mention reclamation is a recognised tactic rather
+   * than something invented here.
+   *
+   * It is also only computable because this axis leads with mentions. It is the set difference
+   * between a footprint we gather anyway and an index we now fetch, and neither signal produces
+   * it alone. That is the argument of ADR-0018 paying off rather than being softened: links enter
+   * as a second signal that makes the first one more useful.
+   */
+  if (input.backlinks) {
+    const linking = input.backlinks.domains
+
+    unlinked = input.footprint.earnedDomains.filter(
+      (mention) => !linking.some((link) => sameSite(link.domain, mention)),
+    )
+
+    if (unlinked.length >= MIN_UNLINKED_MENTIONS) {
+      const truncated = input.backlinks.total > input.backlinks.limit
+
+      findings.push(
+        parseFinding({
+          ...shared,
+          id: 'AUTH-004#0',
+          ruleId: 'AUTH-004',
+          severity: 'medium',
+          estimatedImpact: 60,
+          // A named list of publications that already covered you is a morning of email, not a
+          // campaign. This is the cheapest real link work on the axis, which is why it outranks
+          // the thin-footprint finding on impact while costing less effort.
+          estimatedEffort: 'medium',
+          title:
+            `${unlinked.length} domain(s) mention ${input.brand} without linking to it, ` +
+            `including ${unlinked.slice(0, 3).join(', ')}`,
+          evidence: evidence(
+            'Earned-media domains mentioning the brand but not linking',
+            unlinked.length,
+          ),
+          falsification:
+            `Ask each of these publications for a link, then re-run this audit. A working effort ` +
+            `moves domains off this list and onto the referring-domain list. This finding was ` +
+            `wrong if any of them already links` +
+            (truncated
+              ? `: the comparison is against the top ${input.backlinks.limit} referring domains ` +
+                `by authority, and this site has ${input.backlinks.total}, so a link from outside ` +
+                `that slice would look like an absence here. Check the named domains before ` +
+                `contacting anyone.`
+              : `, which a human can settle by opening the page. The comparison covered all ` +
+                `${input.backlinks.total} referring domain(s), so it is not a truncation artefact.`) +
+            ` ${RESEARCH}`,
+        }),
+      )
+    }
+  }
+
+  return {
+    findings,
+    earnedCount,
+    ...(unlinked === undefined ? {} : { unlinkedMentions: unlinked }),
+  }
 }
