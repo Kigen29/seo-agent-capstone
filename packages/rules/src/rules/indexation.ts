@@ -53,13 +53,34 @@ export const TECH_005: Rule = {
   },
 }
 
-/** TECH-006: an indexable page with no canonical tag. */
+/**
+ * TECH-006: an indexable page with no canonical tag.
+ *
+ * **Not fixable in code, and that is a finding about canonicals rather than a gap in the fixers.**
+ * A canonical has to be self-referencing per page, and every file the fixers can write a head tag
+ * into is a *shared layout*: `app/layout.tsx`, `header.php`, `baseof.html`, a SPA's single
+ * `index.html`. A static `<link rel="canonical">` in any of those gives every route the same
+ * canonical, which tells Google the whole site is a duplicate of one page. That is materially
+ * worse than the missing tag this rule is reporting.
+ *
+ * Next.js is the one place a framework API looked like an escape, and it is not: its docs are
+ * explicit that a relative `alternates.canonical` resolves against `metadataBase`, not against the
+ * current pathname, so `'./'` in a root layout yields the site root on every route. There is no
+ * static value that self-references.
+ *
+ * A per-route fix is correct and is what a human should write; it needs to map a URL to the source
+ * file that renders it, which the repo reader cannot do (it fetches known paths and cannot list a
+ * directory, which is why HEAD_FILES is a hand-written list). Template-expression canonicals are
+ * the one deterministic path that would work for Hugo, Jekyll, WordPress and Astro, and they are
+ * site-wide, so they are only safe once the rule can say that *every* indexable page lacks a
+ * canonical rather than emitting one finding per page. See ADR-0022.
+ */
 export const TECH_006: Rule = {
   id: 'TECH-006',
   axis: 'crawl_health',
   severity: 'low',
   estimatedEffort: 'trivial',
-  fixable: true,
+  fixable: false,
   description: 'An indexable page declares no canonical URL.',
 
   evaluate: (context) =>
@@ -76,7 +97,10 @@ export const TECH_006: Rule = {
         falsification:
           `Re-fetch ${page.url} and look for link[rel="canonical"] in the head. If one is ` +
           'present, this was wrong. Note that adding a self-referencing canonical will not ' +
-          'move rankings on its own; it only matters once duplicate URLs exist.',
+          'move rankings on its own; it only matters once duplicate URLs exist. ' +
+          'Fix this by hand, per page: the canonical must point at this URL, and a single tag ' +
+          'added to a shared layout would point every page at the same address, which is worse ' +
+          'than the missing tag.',
       })),
 }
 

@@ -64,6 +64,8 @@ export interface FindingListItem {
   estimatedImpact: number
   estimatedEffort: Effort
   affectedUrlCount: number
+  /** Whether the last attempt to fix this failed. The reason is on the finding itself. */
+  fixFailed: boolean
 }
 
 /** What the inbox can be narrowed and ordered by. All optional; the API validates and bounds them. */

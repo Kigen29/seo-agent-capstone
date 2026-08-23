@@ -144,6 +144,9 @@ export function formatFinding(finding: Finding & { rowId: string; auditId?: stri
     `impact: ${finding.estimatedImpact}/100 · effort: ${finding.estimatedEffort} · ` +
       `${finding.fixable ? 'fixable in code' : 'needs a human'}`,
     `status: ${finding.status}${finding.prUrl ? ` · ${finding.prUrl}` : ''}`,
+    // An agent that called fix_finding and got "queued" needs to learn the same way a human does
+    // that the attempt failed, or it will report success it did not achieve.
+    ...(finding.fixError ? ['', `Last fix attempt FAILED: ${finding.fixError}`] : []),
     '',
     'Affected:',
     urls,

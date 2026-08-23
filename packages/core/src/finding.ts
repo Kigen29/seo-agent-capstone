@@ -65,6 +65,16 @@ export const findingSchema = z.object({
   status: findingStatusSchema.default('open'),
   prUrl: z.string().url().optional(),
 
+  /**
+   * Why the last attempt to fix this in code failed, if one did.
+   *
+   * Not a `status`, because a failed attempt does not move the finding along its lifecycle: it is
+   * still open, still needs doing, and trying again is reasonable. What changed is that we owe the
+   * user an explanation, and an explanation is a fact about the finding rather than a stage of it.
+   * Cleared on a successful fix, so it always describes the most recent attempt.
+   */
+  fixError: z.string().optional(),
+
   /** Captured before the fix, so the verifier has something to compare against. */
   baseline: metricSnapshotSchema.optional(),
   verification: verificationResultSchema.optional(),

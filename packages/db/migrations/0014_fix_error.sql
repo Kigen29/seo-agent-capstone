@@ -1,0 +1,17 @@
+-- Tell the user when a fix could not be generated, instead of only telling the job log.
+--
+-- The behaviour this replaces: a user clicks "Open a pull request", the API accepts and returns
+-- 202, the dashboard says "the agent is opening a pull request", and then the worker finds no
+-- fixer that can help, throws, and the error goes to a GitHub Actions log nobody is watching. The
+-- finding stays `open`, indistinguishable in the inbox from one nobody has touched. A promise on
+-- screen and a failure in a log is worse than never having offered the button.
+--
+-- A column rather than a new value on the finding_status enum, for two reasons. A failed attempt
+-- does not move the finding along its lifecycle: it is still open, still needs doing, and trying
+-- again is a reasonable next action, so `open` remains the truthful status. And adding a value to
+-- a Postgres enum is a schema change that later migrations have to work around, where a nullable
+-- text column is additive and reversible.
+--
+-- Null means no attempt has failed. It is cleared on a successful fix, so it always describes the
+-- most recent attempt rather than accumulating history.
+ALTER TABLE "findings" ADD COLUMN "fix_error" text;

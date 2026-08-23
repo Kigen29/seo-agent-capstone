@@ -243,6 +243,21 @@ export const findings = pgTable(
     status: findingStatusEnum('status').notNull().default('open'),
     prUrl: text('pr_url'),
 
+    /**
+     * Why the last attempt to fix this in code failed, or null if none has.
+     *
+     * A column rather than a new `status`, because a failed attempt does not move the finding
+     * along its lifecycle: it is still open, still needs doing, and clicking Fix again is a
+     * perfectly reasonable next action. What changed is that we now owe the user an explanation,
+     * and an explanation is a fact about the finding rather than a stage of it.
+     *
+     * It exists because the alternative was what shipped: the API accepted the request, the
+     * dashboard said "the agent is opening a pull request", the worker threw into a job log, and
+     * the finding sat in the inbox indistinguishable from one nobody had touched. A promise on
+     * screen and a failure in a log is worse than never offering the button.
+     */
+    fixError: text('fix_error'),
+
     /** Captured before the fix, so the verifier has something to compare against. */
     baseline: jsonb('baseline').$type<MetricSnapshot>(),
     verification: jsonb('verification').$type<VerificationResult>(),

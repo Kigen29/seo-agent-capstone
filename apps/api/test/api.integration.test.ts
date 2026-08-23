@@ -1038,6 +1038,44 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(body.findings.find((f) => f.ruleId === 'CONT-004')).toMatchObject({ fixable: false })
     })
 
+    it('reports whether a fix has been attempted and failed', async () => {
+      // Without this the inbox cannot tell a finding whose fix was tried and failed from one
+      // nobody has touched, which is the same mistake as not rendering status at all.
+      const before = await get(`/findings?siteId=${findingsSiteId}`, token)
+      expect((before.json() as { findings: { fixFailed: boolean }[] }).findings[0]).toMatchObject({
+        fixFailed: false,
+      })
+
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ fixError: 'No safe automatic fix could be generated for this finding.' })
+          .where(eq(findings.ruleId, 'TECH-002')),
+      )
+
+      const after = await get(`/findings?siteId=${findingsSiteId}`, token)
+      const row = (after.json() as { findings: { ruleId: string; fixFailed: boolean }[] }).findings
+      expect(row.find((f) => f.ruleId === 'TECH-002')?.fixFailed).toBe(true)
+
+      // A flag in the list, never the message: the same reasoning that took affectedUrls out of
+      // this shape applies to a paragraph of error text on every row of every page.
+      expect(JSON.stringify(row)).not.toContain('No safe automatic fix')
+    })
+
+    it('carries the reason on the finding itself, where there is room to read it', async () => {
+      const listed = (
+        (await get(`/findings?siteId=${findingsSiteId}`, token)).json() as {
+          findings: { rowId: string; ruleId: string }[]
+        }
+      ).findings.find((f) => f.ruleId === 'TECH-002')
+
+      const res = await get(`/findings/${listed?.rowId}`, token)
+      expect(res.statusCode).toBe(200)
+      expect((res.json() as { finding: { fixError?: string } }).finding.fixError).toContain(
+        'No safe automatic fix',
+      )
+    })
+
     it('bounds a page and never returns more than asked for', async () => {
       const res = await get(`/findings?siteId=${findingsSiteId}&pageSize=1`, token)
 
