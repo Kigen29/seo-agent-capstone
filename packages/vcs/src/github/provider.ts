@@ -40,6 +40,21 @@ export interface GitHubApi {
   findOpenPullRequestByHeadPrefix(
     prefix: string,
   ): Promise<{ url: string; number: number; branch: string } | null>
+  /**
+   * What became of a pull request we opened. Null when it no longer exists.
+   *
+   * A read, which is why it belongs on an interface that otherwise grants no power over an
+   * existing branch. It exists because the webhook is not a reliable channel: a delivery to a
+   * service that is asleep, or briefly deploying, is simply lost, and GitHub does not keep
+   * trying. Without a way to ask, a merge that happened is a merge we never learn about.
+   */
+  getPullRequest(number: number): Promise<PullRequestOutcome | null>
+}
+
+/** The only two facts about a closed pull request that change what we do next. */
+export interface PullRequestOutcome {
+  merged: boolean
+  closed: boolean
 }
 
 /** Given a repo context, produce a REST client scoped to that installation and repository. */
@@ -66,6 +81,11 @@ export class GitHubProvider implements VersionControlProvider {
   async findOpenPullRequest(ctx: RepoContext, findingId: string): Promise<PullRequest | null> {
     const api = await this.apiFor(ctx)
     return api.findOpenPullRequestByHeadPrefix(branchPrefixFor(findingId))
+  }
+
+  async getPullRequest(ctx: RepoContext, number: number): Promise<PullRequestOutcome | null> {
+    const api = await this.apiFor(ctx)
+    return api.getPullRequest(number)
   }
 
   async openPullRequest(ctx: RepoContext, input: FixPullRequest): Promise<PullRequest> {

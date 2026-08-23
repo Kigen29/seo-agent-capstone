@@ -41,3 +41,5 @@ export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'
 export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
 
 export { E2E, seedE2E } from './seed.js'
+export { applyFixPrOutcome, applyVerifyPrOutcome, pullRequestNumberFrom } from './pr-outcome.js'
+export type { OutcomeEffect, PullRequestOutcome } from './pr-outcome.js'
