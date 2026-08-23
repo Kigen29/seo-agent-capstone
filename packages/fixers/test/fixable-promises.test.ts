@@ -30,25 +30,6 @@ import { createFixerRegistry } from '../src/registry.js'
  */
 const LLM_FIXABLE = new Set(['TECH-021'])
 
-/**
- * Declared fixable, with no fixer of either kind. Every one of these is a button that fails.
- *
- * Started at twelve. Two got the fixer they were waiting for (`TECH-003` declares the sitemap in
- * robots.txt, `TECH-015` upgrades insecure subresources), and six were honest `false` all along:
- * their fix is a decision rather than an edit, and they now say so on the finding instead of
- * offering a button.
- *
- * The four left are the ones that genuinely want a fixer nobody has written. They are all the
- * same shape, which is why they are the residue: each needs a model to write replacement *text*,
- * so they belong to the content fixer, which covers `TECH-021` and nothing else yet.
- */
-const KNOWN_GAPS = new Set([
-  'TECH-004', // Sitemap lists dead URLs. Removing them is easy; knowing whether the URL or the sitemap is wrong is not.
-  'TECH-011', // Duplicate titles. Needs written replacements: the content fixer's job, and it covers only TECH-021.
-  'TECH-019', // Missing or multiple h1. Needs a heading written, and a judgement about which one is the h1.
-  'TECH-020', // Skipped heading level. Same, one level down.
-])
-
 describe('fixable rules and the fixers that must exist for them', () => {
   const registered = new Set(createFixerRegistry().ruleIds())
   const fixableRules = ALL_RULES.filter((rule) => rule.fixable)
@@ -60,39 +41,24 @@ describe('fixable rules and the fixers that must exist for them', () => {
   })
 
   it.each(fixableRules.map((rule) => [rule.id] as const))(
-    '%s can be fixed, or is a known gap',
+    '%s declares fixable: true, so something can fix it',
     (ruleId) => {
+      /**
+       * No allowance list any more.
+       *
+       * There was one, holding twelve rules that promised a fix nothing could write. Four got a
+       * fixer and eight were honest `false` all along, so the list emptied and was deleted rather
+       * than left as an empty set inviting a new entry. Adding one back is now a visible act:
+       * you would have to reintroduce the machinery, not append a line to it.
+       */
       expect(
-        canBeFixed(ruleId) || KNOWN_GAPS.has(ruleId),
+        canBeFixed(ruleId),
         `${ruleId} declares fixable: true and nothing can fix it. A user will be offered a "Fix ` +
-          'with a PR" button that fails. Register a fixer, set fixable: false, or add it to ' +
-          'KNOWN_GAPS with a note saying which of those it is waiting for.',
+          'with a PR" button, the API will accept, and the worker will fail. Register a fixer, ' +
+          'or set fixable: false and give the finding the guidance the button used to imply.',
       ).toBe(true)
     },
   )
-
-  it('lets the known-gap list shrink but never quietly grow', () => {
-    // The ratchet. A gap that has been closed must leave the list, or the list stops describing
-    // reality and the next person reads it as "these twelve are impossible".
-    for (const ruleId of KNOWN_GAPS) {
-      expect(
-        canBeFixed(ruleId),
-        `${ruleId} is in KNOWN_GAPS and now has a fixer. Remove it from the list.`,
-      ).toBe(false)
-    }
-  })
-
-  it('keeps every known gap pointing at a rule that still exists and still claims fixable', () => {
-    // Otherwise a renamed or retired rule leaves a permanent excuse behind it.
-    const fixableIds = new Set(fixableRules.map((rule) => rule.id))
-
-    for (const ruleId of KNOWN_GAPS) {
-      expect(
-        fixableIds.has(ruleId),
-        `${ruleId} is in KNOWN_GAPS but no rule with that id declares fixable: true any more.`,
-      ).toBe(true)
-    }
-  })
 
   it('registers no fixer for a rule that is not fixable', () => {
     // The other direction, and a different mistake: a fixer nothing can reach, because the API

@@ -13,7 +13,7 @@ export const TECH_011: Rule = {
   axis: 'content',
   severity: 'medium',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'Several indexable pages share the same title tag.',
 
   evaluate: (context) => {
@@ -43,7 +43,10 @@ export const TECH_011: Rule = {
             'Re-crawl and group indexable pages by title. If no title appears twice, this ' +
             'was wrong. After the fix, each of these URLs should carry a distinct title. ' +
             'Note this fixes a cannibalisation risk; it does not by itself guarantee a ' +
-            'ranking change.',
+            'ranking change. Fix this by hand, per page: a title belongs to one page, and it is ' +
+            'written in whichever component renders that route. A tag added to a shared layout ' +
+            'would give every page the same title, which is the duplication this reports, made ' +
+            'worse and site-wide.',
         }
       })
   },

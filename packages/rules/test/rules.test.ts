@@ -874,20 +874,31 @@ describe('LOCAL-001: contact details but no LocalBusiness schema', () => {
  * asserts the two properties that must hold together.
  */
 describe('rules whose fix is a decision, not an edit', () => {
-  it.each(['TECH-001', 'TECH-008', 'TECH-010', 'TECH-013', 'TECH-014', 'TECH-016'])(
-    '%s does not offer a fix it cannot deliver',
+  it.each([
+    // The fix is a judgement: which of two sources is wrong, what a broken link should point at,
+    // which page should link to an orphan.
+    'TECH-001',
+    'TECH-008',
+    'TECH-010',
+    'TECH-013',
+    'TECH-014',
+    'TECH-016',
+    // The fix is per-page source the reader cannot locate, and the only file it *can* write to is
+    // a shared layout, where the edit would apply to every route. For a title that makes the
+    // duplication being reported worse and site-wide; for a heading it is simply the wrong file.
+    'TECH-011',
+    'TECH-019',
+    'TECH-020',
+    // A canonical in a shared layout tells Google the whole site duplicates one page (ADR-0022).
+    'TECH-006',
+  ])('%s does not offer a fix it cannot deliver', (ruleId) => {
+    expect(ruleById(ruleId)?.fixable).toBe(false)
+  })
+
+  it.each(['TECH-003', 'TECH-004', 'TECH-015'])(
+    '%s gained a fixer, so it keeps declaring fixable',
     (ruleId) => {
-      expect(ruleById(ruleId)?.fixable).toBe(false)
+      expect(ruleById(ruleId)?.fixable).toBe(true)
     },
   )
-
-  it.each([
-    ['TECH-003', true],
-    ['TECH-015', true],
-    ['TECH-006', false],
-  ])('%s still declares fixable: %s', (ruleId, fixable) => {
-    // The other side of the same change: two rules gained a fixer in this pass, and TECH-006
-    // stays unfixable for a reason about canonicals rather than about effort.
-    expect(ruleById(ruleId)?.fixable).toBe(fixable)
-  })
 })

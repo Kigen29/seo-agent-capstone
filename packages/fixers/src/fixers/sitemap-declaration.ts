@@ -1,7 +1,7 @@
 import type { Finding } from '@seo/core'
 import type { FixContext, Fixer, FixResult } from '../engine.js'
 import type { ReadRepoFile } from '../framework/detect.js'
-import { ROBOTS_FILES } from '../root-files.js'
+import { GENERATED_SITEMAP_FILES, ROBOTS_FILES, SITEMAP_FILES } from '../root-files.js'
 
 /**
  * TECH-003: robots.txt declares no sitemap, so crawlers have to guess where it is.
@@ -77,29 +77,15 @@ function originOf(finding: Finding): string | null {
 }
 
 /**
- * Files that mean a sitemap will actually be served at `/sitemap.xml`.
+ * Whether a sitemap will actually be served at `/sitemap.xml`.
  *
- * Two kinds, and both are needed. A committed XML file is served as a static asset from whichever
- * directory the framework publishes. A framework source file generates one at build time, and is
- * the only signal available for a Next.js site, whose `app/sitemap.ts` produces `/sitemap.xml`
- * with nothing committed at all.
- *
- * Every entry here resolves to the same public URL, which is why the fixer does not have to work
- * out a path from whichever one matched.
+ * Both kinds count, and both are needed. A committed XML file is served as a static asset. A
+ * framework source generates one at build time, and is the only signal available for a Next.js
+ * site, whose `app/sitemap.ts` produces `/sitemap.xml` with nothing committed at all. Requiring a
+ * static file would decline every Next site, which is most of them.
  */
-const SITEMAP_SOURCES = [
-  'public/sitemap.xml',
-  'static/sitemap.xml',
-  'sitemap.xml',
-  'src/sitemap.xml',
-  'app/sitemap.ts',
-  'app/sitemap.js',
-  'src/app/sitemap.ts',
-  'src/app/sitemap.js',
-] as const
-
 async function sitemapExists(read: ReadRepoFile): Promise<boolean> {
-  for (const path of SITEMAP_SOURCES) {
+  for (const path of [...SITEMAP_FILES, ...GENERATED_SITEMAP_FILES]) {
     if ((await read(path)) !== null) return true
   }
   return false
