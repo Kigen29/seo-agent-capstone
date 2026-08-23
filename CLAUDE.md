@@ -103,7 +103,7 @@ apps/
 packages/
   core/         Domain types: Finding, Audit, Site, Tenant, Severity
   crawler/      Playwright crawler + link graph builder
-  rules/        Deterministic rule engine. 23 checks. Pure functions. Zero LLM.
+  rules/        Deterministic rule engine. 26 checks. Pure functions. Zero LLM.
   fixers/       Framework-aware fix generators (Next.js, WordPress, Astro, ...)
   connectors/   GSC, PSI, CrUX, GA4, DataForSEO, SerpApi clients
   vcs/          VersionControlProvider interface + GitHubProvider

@@ -51,6 +51,25 @@ export interface PageResource {
   resolved?: string
 }
 
+/**
+ * The landmark regions a page declares, counted.
+ *
+ * This is the accessibility tree's skeleton, and it is what an agent or a screen reader uses to
+ * answer "where is the actual content" without heuristics over div soup. Counts rather than
+ * booleans, because the interesting defects are at both ends: no `main` at all, and several `main`
+ * elements, which is just as ambiguous as none.
+ *
+ * Both the element and its ARIA role count. `<main>` and `<div role="main">` are the same
+ * statement to an accessibility tree, and a rule that only accepted the element would nag a site
+ * that did the right thing the older way.
+ */
+export interface Landmarks {
+  main: number
+  nav: number
+  header: number
+  footer: number
+}
+
 export interface PageExtract {
   title: string | null
   metaDescription: string | null
@@ -67,6 +86,15 @@ export interface PageExtract {
   jsonLdErrors: string[]
   hreflang: Hreflang[]
   resources: PageResource[]
+  /** The landmark regions the page declares. See {@link Landmarks}. */
+  landmarks: Landmarks
+  /**
+   * The `lang` attribute on `<html>`, or null when it is absent.
+   *
+   * Null and `''` are both "we do not know what language this is", but they are recorded as null
+   * either way: unlike an image's alt, there is no meaning to declaring an empty language.
+   */
+  lang: string | null
   text: string
   wordCount: number
 }

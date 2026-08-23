@@ -24,6 +24,7 @@ export type { RenderComparison } from './page/render.js'
 export type {
   Heading,
   Hreflang,
+  Landmarks,
   MetaRobots,
   PageExtract,
   PageImage,

@@ -32,9 +32,13 @@ const THIN_COVERAGE: Partial<Record<Axis, string>> = {
     'Partially measured. Titles, descriptions, headings, and thin or duplicate pages are ' +
     'checked. Originality, freshness, and keyword cannibalisation are not.',
   agent_readiness:
-    'Partially measured. We check for llms.txt, the file that helps AI agents navigate the site ' +
-    '(and which Google Search ignores). The accessibility tree and Lighthouse Agentic Browsing ' +
-    'checks are not built yet.',
+    'Measured from the crawl: llms.txt, the file that helps AI agents navigate the site (and ' +
+    'which Google Search ignores), plus the accessibility tree an agent actually reads, which is ' +
+    'the same one a screen reader uses. That means the main landmark that says where the content ' +
+    'is, the language declaration, and images whose alt text is missing rather than deliberately ' +
+    'empty. None of these is a Google ranking factor and we do not present them as one. Not ' +
+    'built: the Lighthouse Agentic Browsing audits and WebMCP, which need a headless run against ' +
+    'the live page rather than the crawl we already have.',
   local:
     'Partially measured. We check the homepage for LocalBusiness structured data when the site ' +
     'shows contact details. Google Business Profile, NAP consistency across external directories, ' +

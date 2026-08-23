@@ -163,3 +163,58 @@ describe('extractPage: text', () => {
     expect(page.wordCount).toBeGreaterThan(10)
   })
 })
+
+describe('landmarks and language', () => {
+  const doc = (attrs: string, body: string) =>
+    `<!doctype html><html${attrs}><head></head><body>${body}</body></html>`
+
+  it('counts the landmark elements a page declares', () => {
+    const extract = extractPage(
+      doc(' lang="en"', '<header>h</header><nav>n</nav><main>m</main><footer>f</footer>'),
+      'https://ex.com/',
+    )
+
+    expect(extract.landmarks).toEqual({ main: 1, nav: 1, header: 1, footer: 1 })
+    expect(extract.lang).toBe('en')
+  })
+
+  it('counts the ARIA role the same as the element', () => {
+    // <main> and <div role="main"> are the same statement to an accessibility tree, so a rule
+    // that only accepted the element would nag a site that did the right thing the older way.
+    const extract = extractPage(
+      doc('', '<div role="main">m</div><div role="navigation">n</div>'),
+      'https://ex.com/',
+    )
+
+    expect(extract.landmarks.main).toBe(1)
+    expect(extract.landmarks.nav).toBe(1)
+  })
+
+  it('counts several landmarks of the same kind, rather than collapsing to a boolean', () => {
+    // Two mains is a real defect and a boolean would hide it: the page has made the claim twice
+    // and an agent still has to choose.
+    const extract = extractPage(doc('', '<main>a</main><main>b</main>'), 'https://ex.com/')
+
+    expect(extract.landmarks.main).toBe(2)
+  })
+
+  it('reports a missing or empty lang as null', () => {
+    // There is no meaning to declaring an empty language, so both cases collapse to "unknown"
+    // rather than making every caller handle two shapes of nothing.
+    expect(extractPage(doc('', '<p>x</p>'), 'https://ex.com/').lang).toBeNull()
+    expect(extractPage(doc(' lang=""', '<p>x</p>'), 'https://ex.com/').lang).toBeNull()
+    expect(extractPage(doc(' lang=" en-GB "', '<p>x</p>'), 'https://ex.com/').lang).toBe('en-GB')
+  })
+
+  it('still sees landmarks on a page whose scripts are stripped for the word count', () => {
+    // The landmarks are read before the DOM is mutated for the text extraction. Reading them
+    // after would work today and break the moment the strip list grows.
+    const extract = extractPage(
+      doc(' lang="en"', '<main>words</main><script>var a = 1</script>'),
+      'https://ex.com/',
+    )
+
+    expect(extract.landmarks.main).toBe(1)
+    expect(extract.text).not.toContain('var a')
+  })
+})

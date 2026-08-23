@@ -188,6 +188,24 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
     })),
   ]
 
+  /**
+   * The accessibility tree's skeleton, read before the DOM is stripped for the word count.
+   *
+   * Element or role, counted together, because `<main>` and `<div role="main">` are the same
+   * statement to an assistive technology or an agent. Reading them here rather than in a rule
+   * keeps the parsing in one place and lets the rules stay pure functions over data.
+   */
+  const landmarks = {
+    main: $('main, [role="main"]').length,
+    nav: $('nav, [role="navigation"]').length,
+    header: $('header, [role="banner"]').length,
+    footer: $('footer, [role="contentinfo"]').length,
+  }
+
+  // Empty is recorded as absent: there is no meaning to declaring an empty language, so the two
+  // cases would only ever be handled identically by a caller.
+  const lang = $('html').attr('lang')?.trim() || null
+
   // Script and style content is not page text. Counting it would inflate the word
   // count of every page with an inline analytics blob and hide genuinely thin content.
   $('script, style, noscript, template').remove()
@@ -207,6 +225,8 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
     jsonLdErrors,
     hreflang,
     resources,
+    landmarks,
+    lang,
     text,
     wordCount,
   }

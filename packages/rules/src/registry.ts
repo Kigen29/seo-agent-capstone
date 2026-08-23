@@ -1,4 +1,4 @@
-import { AGENT_001 } from './rules/agent.js'
+import { AGENT_001, AGENT_002, AGENT_003, AGENT_004 } from './rules/agent.js'
 import { LOCAL_001 } from './rules/local.js'
 import {
   TECH_015,
@@ -48,6 +48,9 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_020,
   TECH_021,
   AGENT_001,
+  AGENT_002,
+  AGENT_003,
+  AGENT_004,
   LOCAL_001,
 ]
 
