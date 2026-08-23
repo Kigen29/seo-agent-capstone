@@ -100,7 +100,30 @@ export default async function VisibilityPage({
         description="Every prompt is polled repeatedly across several days. A citation is only reported when it holds up across the window, because about 45% of citations appear in only one of three checks."
       />
 
-      {report && (
+      {/*
+        Nothing configured is not a measurement, so it does not get a row of figures.
+        "0 of 0 prompts", "0 checks", "0 of 14 days" is four zeros a reader scans before reaching
+        the sentence that explains them, and DESIGN.md says an unmeasured thing renders its reason
+        rather than a zero. This is that rule applied to the page that most needs it.
+
+        Once prompts exist the figures come back even without a verdict, because then they are real
+        progress: three checks over two days is the axis working, not the axis empty.
+      */}
+      {report && report.promptsConfigured === 0 && (
+        <EmptyState
+          figure="?"
+          title="Nobody has said what your customers ask"
+          action={
+            <Link href="/dashboard" className="btn btn-primary">
+              Add prompts
+            </Link>
+          }
+        >
+          {report.note}
+        </EmptyState>
+      )}
+
+      {report && report.promptsConfigured > 0 && (
         <>
           <StatRow>
             <Stat
@@ -122,9 +145,8 @@ export default async function VisibilityPage({
           </StatRow>
 
           {/*
-            The note is present exactly when there is nothing to report, and it says which kind of
-            nothing: no prompts, none polled, or polling but short of a verdict. Rendering a zero
-            here instead would be the single most damaging thing this page could do.
+            Present exactly when there is nothing to report yet, and it says which kind of nothing:
+            configured but never polled, or polling and short of a verdict.
           */}
           {report.note && (
             <Note tone="warn" className="mb-6">
