@@ -16,5 +16,6 @@ export const uuidParam = z.object({ id: z.string().uuid() })
  * returns no rows, so the handler cannot tell "not yours" from "not there" either. The code
  * is honest because it genuinely does not know.
  */
-export const notFound = (reply: { status: (code: number) => { send: (body: unknown) => unknown } }) =>
-  reply.status(404).send({ error: 'Not Found' })
+export const notFound = (reply: {
+  status: (code: number) => { send: (body: unknown) => unknown }
+}) => reply.status(404).send({ error: 'Not Found' })
