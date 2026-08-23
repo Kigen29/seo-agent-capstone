@@ -122,7 +122,10 @@ test('opens a finding and shows how we would know we were wrong', async ({ page 
 
   // The evidence: what a parser actually saw, not what a model guessed.
   await expect(page.getByText('What we actually observed')).toBeVisible()
-  await expect(page.getByText('User-agent: OAI-SearchBot')).toBeVisible()
+  // The line TECH-002 actually records, which is also the line the fixer parses to learn which
+  // agents to unblock. It used to assert a hand-drawn `User-agent: / Disallow:` block, which read
+  // like a robots.txt and was not what any rule writes.
+  await expect(page.getByText(/Disallowed: OAI-SearchBot \(OpenAI\)/)).toBeVisible()
 
   // The affected URLs, the effort, and the impact.
   await expect(page.getByText('Affected pages (1)')).toBeVisible()
