@@ -3,7 +3,9 @@ import { UnblockAiCrawlersFixer } from './fixers/ai-crawlers.js'
 import { CanonicalRedirectFixer } from './fixers/canonical.js'
 import { LlmsTxtFixer } from './fixers/llms-txt.js'
 import { LocalBusinessFixer } from './fixers/local-business.js'
+import { MixedContentFixer } from './fixers/mixed-content.js'
 import { RemoveNoindexFixer } from './fixers/noindex.js'
+import { SitemapDeclarationFixer } from './fixers/sitemap-declaration.js'
 
 /**
  * The built-in fixers, assembled.
@@ -19,5 +21,7 @@ export function createFixerRegistry(): FixerRegistry {
     new RemoveNoindexFixer(),
     new LlmsTxtFixer(),
     new LocalBusinessFixer(),
+    new SitemapDeclarationFixer(),
+    new MixedContentFixer(),
   )
 }

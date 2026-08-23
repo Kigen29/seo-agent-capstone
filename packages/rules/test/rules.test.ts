@@ -859,3 +859,35 @@ describe('LOCAL-001: contact details but no LocalBusiness schema', () => {
     expect(fire('LOCAL-001', context({ pages: [page({ path: '/', html: graph })] }))).toEqual([])
   })
 })
+
+/**
+ * The rules that stopped offering a fix, and what they owe the reader instead.
+ *
+ * Six rules declared `fixable: true` with nothing able to honour it, so the dashboard offered a
+ * button that failed (ADR-0022). Their fix is a decision rather than an edit: which of robots.txt
+ * and the sitemap is wrong, which page should link to an orphan, what a broken link should point
+ * at. None of those is something a parser can settle.
+ *
+ * Taking the button away is only half the fix. The precedent TECH-006 set is that a rule which
+ * stops offering a fix has to carry the guidance the button used to imply, or it has replaced a
+ * broken promise with a dead end. Each rule below is fired by its own describe block above; this
+ * asserts the two properties that must hold together.
+ */
+describe('rules whose fix is a decision, not an edit', () => {
+  it.each(['TECH-001', 'TECH-008', 'TECH-010', 'TECH-013', 'TECH-014', 'TECH-016'])(
+    '%s does not offer a fix it cannot deliver',
+    (ruleId) => {
+      expect(ruleById(ruleId)?.fixable).toBe(false)
+    },
+  )
+
+  it.each([
+    ['TECH-003', true],
+    ['TECH-015', true],
+    ['TECH-006', false],
+  ])('%s still declares fixable: %s', (ruleId, fixable) => {
+    // The other side of the same change: two rules gained a fixer in this pass, and TECH-006
+    // stays unfixable for a reason about canonicals rather than about effort.
+    expect(ruleById(ruleId)?.fixable).toBe(fixable)
+  })
+})

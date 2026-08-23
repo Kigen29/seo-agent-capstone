@@ -17,7 +17,7 @@ export const TECH_001: Rule = {
   axis: 'crawl_health',
   severity: 'critical',
   estimatedEffort: 'trivial',
-  fixable: true,
+  fixable: false,
   description: 'robots.txt blocks Googlebot from a page the sitemap says should be indexed.',
 
   evaluate: (context) => {
@@ -55,7 +55,11 @@ export const TECH_001: Rule = {
         falsification:
           'Fetch robots.txt and evaluate each affected URL against the Googlebot group. ' +
           'If Googlebot is allowed, this finding was wrong. Also confirm in Search Console: ' +
-          'URL Inspection should stop reporting "Blocked by robots.txt".',
+          'URL Inspection should stop reporting "Blocked by robots.txt". ' +
+          'Fix this by hand: robots.txt and the sitemap disagree and only you know which is ' +
+          'right. Either the page should be indexed, and the Disallow goes, or it should not ' +
+          'be, and it comes out of the sitemap. An agent picking one could deindex a page you ' +
+          'meant to rank.',
       },
     ]
   },

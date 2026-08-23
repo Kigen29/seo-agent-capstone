@@ -14,7 +14,7 @@ export const TECH_008: Rule = {
   axis: 'crawl_health',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'A URL redirects more than once before reaching its destination.',
 
   evaluate: (context) =>
@@ -29,7 +29,10 @@ export const TECH_008: Rule = {
         falsification:
           `Request ${page.url} again and count the hops. If it reaches its destination in ` +
           'one hop, this was wrong. After the fix, the chain should collapse to a single ' +
-          `redirect straight to ${page.finalUrl}.`,
+          `redirect straight to ${page.finalUrl}. ` +
+          'Fix this by hand: shortening a chain means editing whichever layer issues the ' +
+          'redirects, a host config, a CDN rule or a middleware, and most of those are not in ' +
+          'the repository the agent can see.',
       })),
 }
 
@@ -91,7 +94,7 @@ export const TECH_010: Rule = {
   axis: 'crawl_health',
   severity: 'high',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'An internal link points at a page that returns an error.',
 
   evaluate: (context) => {
@@ -126,7 +129,10 @@ export const TECH_010: Rule = {
           falsification:
             `Fetch ${target.url}. If it returns 200, this was wrong. After the fix, either ` +
             'the target resolves, or every listed source page no longer links to it. ' +
-            'Re-crawling should find zero internal links to a non-200 URL.',
+            'Re-crawling should find zero internal links to a non-200 URL. ' +
+            'Fix this by hand: the right destination is an editorial decision. An agent could ' +
+            'only guess between removing the link and inventing a target, and both are wrong ' +
+            'in ways a reader notices.',
         },
       ]
     })

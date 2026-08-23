@@ -63,7 +63,7 @@ export const TECH_016: Rule = {
   axis: 'crawl_health',
   severity: 'medium',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'An hreflang annotation is not reciprocated by the page it points at.',
 
   evaluate: (context) => {
@@ -107,7 +107,10 @@ export const TECH_016: Rule = {
           falsification:
             'Fetch each named alternate and look for an hreflang link back to this page. If ' +
             "every one reciprocates, this was wrong. After the fix, Search Console's " +
-            'International Targeting report should stop reporting "no return tags".',
+            'International Targeting report should stop reporting "no return tags". ' +
+            'Fix this by hand: the missing half of the pair lives on the page being pointed ' +
+            'at, which may be another repository entirely, so editing this side alone would ' +
+            'leave the annotation just as broken.',
         },
       ]
     })
