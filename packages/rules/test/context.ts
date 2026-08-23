@@ -26,8 +26,17 @@ export interface PageSpec {
   error?: string
 }
 
+/**
+ * A document that is *correct* unless a test deliberately breaks it.
+ *
+ * `lang` and the `main` landmark are here because the agent-readiness rules read them, and the
+ * suite's most valuable single assertion is "finds nothing on a clean site". A fixture missing
+ * them would make that test fail for a page that has no SEO problem at all, and the usual way
+ * that gets resolved is by weakening the rule rather than the fixture. The fixture is what was
+ * wrong: a page with no declared language and no marked content region is a real finding now.
+ */
 const doc = (body: string, head = '') =>
-  `<!doctype html><html><head>${head}</head><body>${body}</body></html>`
+  `<!doctype html><html lang="en"><head>${head}</head><body><main>${body}</main></body></html>`
 
 export const page = (spec: PageSpec): CrawledPage => {
   const url = u(spec.path)

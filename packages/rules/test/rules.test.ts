@@ -902,3 +902,138 @@ describe('rules whose fix is a decision, not an edit', () => {
     },
   )
 })
+
+/**
+ * The accessibility half of the agent-readiness axis (STORY-028).
+ *
+ * These read the same tree a screen reader does, which is not a coincidence: the accessibility
+ * tree is the interface agents were handed, because it is the only machine-readable description
+ * of a page's meaning the web already had. Every one of them has to stay honest that this is not
+ * SEO, the same way the llms.txt rule does.
+ */
+describe('AGENT-002: the main landmark', () => {
+  const body = (markup: string) =>
+    `<!doctype html><html lang="en"><head></head><body>${markup}</body></html>`
+
+  it('fires when nothing says where the content is', () => {
+    const findings = fire(
+      'AGENT-002',
+      context({ pages: [page({ path: '/', html: body('<h1>Hi</h1><p>Words.</p>') })] }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toContain('no main landmark')
+  })
+
+  it('accepts role="main" as well as the element', () => {
+    // A site that used <div role="main"> before <main> was widely supported did the right thing
+    // the older way, and nagging it would be wrong.
+    expect(
+      fire(
+        'AGENT-002',
+        context({ pages: [page({ path: '/', html: body('<div role="main">Words.</div>') })] }),
+      ),
+    ).toEqual([])
+  })
+
+  it('fires on several main landmarks, which are no better than none', () => {
+    const findings = fire(
+      'AGENT-002',
+      context({ pages: [page({ path: '/', html: body('<main>A</main><main>B</main>') })] }),
+    )
+
+    // The page has made the claim twice and an agent still has to choose.
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toContain('2 main landmarks')
+  })
+
+  it('never sells it as a ranking factor', () => {
+    const [finding] = fire(
+      'AGENT-002',
+      context({ pages: [page({ path: '/', html: body('<p>Words.</p>') })] }),
+    )
+
+    expect(finding?.falsification).toContain('not a ranking factor')
+  })
+})
+
+describe('AGENT-003: the language declaration', () => {
+  it('fires when html carries no lang', () => {
+    const findings = fire(
+      'AGENT-003',
+      context({
+        pages: [
+          page({ path: '/', html: '<!doctype html><html><body><main>Hi</main></body></html>' }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+  })
+
+  it('stays silent when a language is declared', () => {
+    expect(fire('AGENT-003', context({ pages: [page({ path: '/' })] }))).toEqual([])
+  })
+
+  it('treats an empty lang as absent, because it declares nothing', () => {
+    const findings = fire(
+      'AGENT-003',
+      context({
+        pages: [
+          page({
+            path: '/',
+            html: '<!doctype html><html lang=""><body><main>Hi</main></body></html>',
+          }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+  })
+})
+
+describe('AGENT-004: images with no alt attribute', () => {
+  const withImages = (markup: string) =>
+    `<!doctype html><html lang="en"><body><main>${markup}</main></body></html>`
+
+  it('fires on an image with no alt attribute at all', () => {
+    const findings = fire(
+      'AGENT-004',
+      context({ pages: [page({ path: '/', html: withImages('<img src="/a.png">') })] }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toContain('1 image(s)')
+  })
+
+  it('stays silent on alt="", which is correct markup for a decorative image', () => {
+    // The distinction the whole rule turns on. Flagging this would nag people who did exactly
+    // the right thing, which is why the extractor records absent and empty separately.
+    expect(
+      fire(
+        'AGENT-004',
+        context({ pages: [page({ path: '/', html: withImages('<img src="/a.png" alt="">') })] }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent when every image is described', () => {
+    expect(
+      fire(
+        'AGENT-004',
+        context({
+          pages: [page({ path: '/', html: withImages('<img src="/a.png" alt="A cat">') })],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('warns the reader not to invent alt text for decorative images', () => {
+    const [finding] = fire(
+      'AGENT-004',
+      context({ pages: [page({ path: '/', html: withImages('<img src="/a.png">') })] }),
+    )
+
+    expect(finding?.falsification).toContain('do not "fix" those by inventing text')
+  })
+})

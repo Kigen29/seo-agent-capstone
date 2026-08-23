@@ -181,7 +181,11 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
     const audit = await getAudit(db, tenantId, auditId)
     const finding = audit!.findings[0]!
 
-    expect(finding.id).toMatch(/^TECH-\d{3}#\d+$/)
+    // Any rule family, not just TECH. This asserted `/^TECH-\d{3}#\d+$/` and passed only because
+    // the crawl fixture happened to raise TECH findings first; adding the agent-readiness rules
+    // put AGENT-002 at the top and it went red. The property that matters is the *shape* of the
+    // key, which is a rule id and an index, not which family of rule got there first.
+    expect(finding.id).toMatch(/^[A-Z]+-\d{3}#\d+$/)
     expect(finding.rowId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
