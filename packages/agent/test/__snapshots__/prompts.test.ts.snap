@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the content-fix prompt > drops the title line when the head has no title, rather than sending an empty one > prompt without a title 1`] = `
+"Write a meta description for this page.
+URL: https://ex.com/
+Base it only on the URL and the title. If you are unsure what the page offers, describe it in general terms rather than guessing at specifics."
+`;
+
+exports[`the content-fix prompt > is sent verbatim > prompt 1`] = `
+"Write a meta description for this page.
+URL: https://ex.com/
+Page title: Ex Safaris
+Base it only on the URL and the title. If you are unsure what the page offers, describe it in general terms rather than guessing at specifics."
+`;
+
+exports[`the content-fix prompt > is sent verbatim > system 1`] = `"You write meta descriptions for web pages. Return one description of 70 to 160 characters that plainly states what the page offers, in the third person. No clickbait, no all-caps, no emoji, and no invented specifics such as prices, awards, or ratings."`;
+
+exports[`the outreach prompt > is sent verbatim, and carries only the facts it was given > prompt 1`] = `
+"Pitch Ex Safaris (https://ex.com) to travelweekly.example.
+They recently published: A piece on safari pricing
+
+The only facts you may use:
+- Median 7-day safari price across 40 Kenyan operators is $2,410 (source: https://ex.com/data)
+
+Write the subject, the body, and one line explaining why this publication specifically. If the facts do not support a pitch to this publication, say so plainly in the angle rather than inventing a reason."
+`;
+
+exports[`the outreach prompt > is sent verbatim, and carries only the facts it was given > system 1`] = `"You write short digital-PR pitches to journalists and editors. Rules, all of them absolute. Use ONLY the facts given to you; never invent a statistic, an award, a client name, a date, or a quote. Do not flatter the recipient. Do not describe the company as leading, premier, passionate, or world-class. Lead with the one concrete fact that is genuinely useful to their readers, not with a request. Under 200 words. Plain sentences. No em dashes."`;
