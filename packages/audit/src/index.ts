@@ -31,8 +31,8 @@ export {
 } from './prompts.js'
 export type { VisibilitySettings } from './prompts.js'
 
-export { measureVisibility, VISIBILITY_WINDOW_DAYS } from './visibility.js'
-export type { VisibilityResult } from './visibility.js'
+export { measureVisibility, visibilityReport, VISIBILITY_WINDOW_DAYS } from './visibility.js'
+export type { VisibilityReport, VisibilityResult } from './visibility.js'
 
 export { measureAuthority, MAX_COMPARED_COMPETITORS } from './authority.js'
 export type { AuthorityResult } from './authority.js'

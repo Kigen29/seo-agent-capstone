@@ -8,6 +8,7 @@ import {
   getVisibilitySettings,
   listFindings,
   listSites,
+  visibilityReport,
   normaliseCompetitors,
   normalisePrompts,
   saveVisibilitySettings,
@@ -1055,6 +1056,40 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
         }
       },
     )
+
+    /**
+     * The AI-visibility numbers for a site: citation rate, stability, share of voice.
+     *
+     * Read live from the poll checks rather than from the last audit, because the saga writes a
+     * row a day between audits and a figure frozen at audit time would be stale by design.
+     *
+     * Its honest states are the point of the axis and are returned rather than error: no prompts
+     * configured, prompts configured but never polled, and polling-but-not-enough-yet are three
+     * different answers and none of them is a zero.
+     */
+    protectedRoutes
+      .withTypeProvider<ZodTypeProvider>()
+      .get(
+        '/sites/:id/visibility/report',
+        { schema: { params: uuidParam } },
+        async (request, reply) => {
+          const [site] = await withTenant(db, request.tenantId, (tx) =>
+            tx
+              .select({ url: sites.url, competitors: sites.competitors })
+              .from(sites)
+              .where(eq(sites.id, request.params.id))
+              .limit(1),
+          )
+          if (!site) return notFound(reply)
+
+          return visibilityReport(db, {
+            tenantId: request.tenantId,
+            siteId: request.params.id,
+            domain: site.url,
+            competitors: site.competitors,
+          })
+        },
+      )
 
     protectedRoutes
       .withTypeProvider<ZodTypeProvider>()

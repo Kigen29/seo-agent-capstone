@@ -6,7 +6,9 @@ import {
   MIN_POLLS,
   type CitationCheck,
   type PollTarget,
+  type PromptSummary,
   type PromptWindow,
+  type ShareOfVoice,
 } from '@seo/connectors'
 import { visibilityChecks, visibilityPrompts, withTenant, type Database } from '@seo/db'
 import { and, eq, gte } from 'drizzle-orm'
@@ -59,11 +61,38 @@ const percent = (fraction: number): string => `${Math.round(fraction * 100)}%`
  *   4. A full window where every prompt is stably cited. That is the goal state, and it is the
  *      only one of the four that is good news.
  */
-export async function measureVisibility(
+/** What one poll window looks like once the rows are grouped. */
+interface LoadedWindow {
+  /** Every check in the window, ungrouped. Used for the totals a note quotes. */
+  rows: {
+    prompt: string
+    engine: string
+    cited: boolean
+    polledOn: string
+  }[]
+  /** How many prompts are configured, whether or not any has been polled. */
+  configuredCount: number
+  /** The engines seen in the window, sorted. */
+  engines: string[]
+  /** Distinct days the window spans. */
+  days: number
+  prompts: PromptWindow[]
+}
+
+/**
+ * Load and group this site's poll window.
+ *
+ * Extracted because two callers need exactly this and neither should own it. `measureVisibility`
+ * turns it into findings and a coverage note for an audit; `visibilityReport` turns it into the
+ * numbers a screen shows. Grouping it twice would be two chances for the audit and the dashboard
+ * to disagree about what the same checks mean, which is the worst possible bug for an axis whose
+ * entire argument is that it does not overclaim.
+ */
+async function loadWindow(
   db: Database,
-  options: { tenantId: string; siteId: string; domain: string; competitors: readonly string[] },
-  now: Date = new Date(),
-): Promise<VisibilityResult> {
+  options: { tenantId: string; siteId: string; domain: string },
+  now: Date,
+): Promise<LoadedWindow> {
   const rows = await withTenant(db, options.tenantId, (tx) =>
     tx
       .select({
@@ -92,31 +121,6 @@ export async function measureVisibility(
       .from(visibilityPrompts)
       .where(eq(visibilityPrompts.siteId, options.siteId)),
   )
-
-  if (configured.length === 0) {
-    return {
-      findings: [],
-      measured: false,
-      promptsMeasured: 0,
-      note:
-        'Not measured. AI visibility is measured by asking the answer engines the questions ' +
-        'your customers actually ask, and this site has no prompts configured yet. Add them and ' +
-        'the daily poll starts; the first verdict lands three days later, because a citation ' +
-        'from a single poll is noise.',
-    }
-  }
-
-  if (rows.length === 0) {
-    return {
-      findings: [],
-      measured: false,
-      promptsMeasured: 0,
-      note:
-        `Not measured yet. ${configured.length} prompt(s) are configured and waiting for their ` +
-        `first poll. A verdict needs ${MIN_POLLS} checks across ${MIN_DAYS} days, so the axis ` +
-        `lights up three days after polling starts.`,
-    }
-  }
 
   // Group into one window per prompt.
   //
@@ -175,11 +179,49 @@ export async function measureVisibility(
     daysPolled: days.size,
   }))
 
+  return {
+    rows,
+    configuredCount: configured.length,
+    engines: [...new Set(rows.map((row) => row.engine))].sort(),
+    days: new Set(rows.map((row) => row.polledOn)).size,
+    prompts,
+  }
+}
+
+export async function measureVisibility(
+  db: Database,
+  options: { tenantId: string; siteId: string; domain: string; competitors: readonly string[] },
+  now: Date = new Date(),
+): Promise<VisibilityResult> {
+  const { rows, configuredCount, engines, days, prompts } = await loadWindow(db, options, now)
+
+  if (configuredCount === 0) {
+    return {
+      findings: [],
+      measured: false,
+      promptsMeasured: 0,
+      note:
+        'Not measured. AI visibility is measured by asking the answer engines the questions ' +
+        'your customers actually ask, and this site has no prompts configured yet. Add them and ' +
+        'the daily poll starts; the first verdict lands three days later, because a citation ' +
+        'from a single poll is noise.',
+    }
+  }
+
+  if (rows.length === 0) {
+    return {
+      findings: [],
+      measured: false,
+      promptsMeasured: 0,
+      note:
+        `Not measured yet. ${configuredCount} prompt(s) are configured and waiting for their ` +
+        `first poll. A verdict needs ${MIN_POLLS} checks across ${MIN_DAYS} days, so the axis ` +
+        `lights up three days after polling starts.`,
+    }
+  }
+
   const target: PollTarget = { domain: options.domain, competitors: [...options.competitors] }
   const report = evaluateVisibility({ siteId: options.siteId, target, prompts })
-
-  const engines = [...new Set(rows.map((row) => row.engine))].sort()
-  const days = new Set(rows.map((row) => row.polledOn)).size
 
   if (report.promptsMeasured === 0) {
     return {
@@ -188,7 +230,7 @@ export async function measureVisibility(
       promptsMeasured: 0,
       note:
         `Polling, no verdict yet. ${rows.length} check(s) across ${days} day(s) on ` +
-        `${configured.length} prompt(s), which is short of the ${MIN_POLLS} checks over ` +
+        `${configuredCount} prompt(s), which is short of the ${MIN_POLLS} checks over ` +
         `${MIN_DAYS} days a citation verdict needs. Nothing is reported until then: about 45% ` +
         `of citations appear in only one of three checks, so an early answer would be a guess ` +
         `dressed as a measurement.`,
@@ -219,9 +261,106 @@ export async function measureVisibility(
     promptsMeasured: report.promptsMeasured,
     note:
       `Measured by polling ${engines.join(', ')} with your prompts: ${rows.length} checks over ` +
-      `${days} days, on ${report.promptsMeasured} of ${configured.length} prompt(s) with enough ` +
+      `${days} days, on ${report.promptsMeasured} of ${configuredCount} prompt(s) with enough ` +
       `history to judge. You were cited in ${report.share.client} of ${rows.length} checks. ` +
       `${share} A citation is reported only when it holds in at least two of three checks across ` +
       `at least three days, because about 45% of citations appear in only one of three checks.`,
+  }
+}
+
+/**
+ * The AI-visibility numbers, for a screen rather than a scorecard.
+ *
+ * `measureVisibility` answers "what should the audit say about this axis" and returns findings and
+ * a paragraph. This answers "what are the actual figures", and they are figures the product has
+ * been computing every audit since Sprint 3 and discarding: per-prompt citation rate, how many
+ * checks over how many days, the stability verdict, and share of voice against named competitors.
+ * The Sprint 3 demo asks for exactly those three things on screen and they have never had one.
+ *
+ * Read live from `visibility_checks` rather than from a snapshot on the audit, and that is
+ * deliberate. The poll saga writes a row a day, between audits, so a figure frozen at audit time
+ * would be out of date by design. Everything here is computed by the same pure functions the audit
+ * uses, over the same window, so the two cannot drift.
+ */
+export interface VisibilityReport {
+  /** The poll window, so a reader knows what span the numbers describe. */
+  windowDays: number
+  /** How many prompts are configured, whether or not any has been polled. */
+  promptsConfigured: number
+  /** Prompts with enough history to carry a verdict. */
+  promptsMeasured: number
+  /** Every check in the window, and the days they span. */
+  checksRun: number
+  daysPolled: number
+  engines: string[]
+  /** One row per configured prompt, including the ones still accumulating. */
+  prompts: PromptSummary[]
+  /** Null when no competitors are configured, which is not the same as a zero share. */
+  share: ShareOfVoice | null
+  /** Why there is nothing to show, when there is nothing to show. */
+  note?: string
+}
+
+export async function visibilityReport(
+  db: Database,
+  options: { tenantId: string; siteId: string; domain: string; competitors: readonly string[] },
+  now: Date = new Date(),
+): Promise<VisibilityReport> {
+  const { rows, configuredCount, engines, days, prompts } = await loadWindow(db, options, now)
+
+  const empty = {
+    windowDays: VISIBILITY_WINDOW_DAYS,
+    promptsConfigured: configuredCount,
+    promptsMeasured: 0,
+    checksRun: rows.length,
+    daysPolled: days,
+    engines,
+    prompts: [],
+    share: null,
+  }
+
+  if (configuredCount === 0) {
+    return {
+      ...empty,
+      note:
+        'No prompts configured. AI visibility is measured by asking the answer engines the ' +
+        'questions your customers actually ask, and nobody has said what those are yet. Add them ' +
+        'and the daily poll starts.',
+    }
+  }
+
+  if (rows.length === 0) {
+    return {
+      ...empty,
+      note:
+        `${configuredCount} prompt(s) configured, none polled yet. A verdict needs ${MIN_POLLS} ` +
+        `checks across ${MIN_DAYS} days, so the first one lands three days after polling starts.`,
+    }
+  }
+
+  const target: PollTarget = { domain: options.domain, competitors: [...options.competitors] }
+  const report = evaluateVisibility({ siteId: options.siteId, target, prompts })
+
+  return {
+    windowDays: VISIBILITY_WINDOW_DAYS,
+    promptsConfigured: configuredCount,
+    promptsMeasured: report.promptsMeasured,
+    checksRun: rows.length,
+    daysPolled: days,
+    engines,
+    // Every configured prompt, including those still accumulating: a prompt with two checks is
+    // not missing, it is waiting, and showing only the ones with verdicts would make a site that
+    // started polling yesterday look like it had no prompts at all.
+    prompts: report.summaries,
+    share: report.share.competitors.length > 0 ? report.share : null,
+    ...(report.promptsMeasured === 0
+      ? {
+          note:
+            `Polling, no verdict yet. ${rows.length} check(s) across ${days} day(s), short of ` +
+            `the ${MIN_POLLS} checks over ${MIN_DAYS} days a verdict needs. About 45% of ` +
+            'citations appear in only one of three checks, so an early answer would be a guess ' +
+            'dressed as a measurement.',
+        }
+      : {}),
   }
 }

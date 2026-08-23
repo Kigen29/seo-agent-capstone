@@ -108,6 +108,8 @@ export interface Audit {
   completedAt: string | null
   error: string | null
   scorecard: Scorecard | null
+  /** What each axis measured. Null on audits run before the column existed. */
+  metrics: AuditMetrics | null
   findings: (Finding & { rowId: string })[]
 }
 
@@ -136,6 +138,72 @@ export interface VisibilitySettings {
    * different axes.
    */
   brand: string | null
+}
+
+/** One prompt's poll window: how often we asked, over how many days, and how often we were cited. */
+export interface PromptSummary {
+  prompt: string
+  pollsRun: number
+  daysPolled: number
+  citedCount: number
+  /** citedCount / pollsRun. The plain "cited in k of N" a reader can check. */
+  citationRate: number
+  /** `insufficient` means not enough polls, or not over enough days, to say anything yet. */
+  stability: 'insufficient' | 'unstable' | 'stable' | 'absent'
+}
+
+export interface ShareOfVoice {
+  client: number
+  competitors: { domain: string; citations: number }[]
+  /** The client's citations as a fraction of all cited brands'. 0 when nobody was cited. */
+  clientShare: number
+}
+
+/**
+ * The AI-visibility numbers for a site.
+ *
+ * `note` is present exactly when there is nothing to report, and says which kind of nothing: no
+ * prompts configured, none polled yet, or polling but short of a verdict. Those are three
+ * different answers and none of them is a zero.
+ */
+export interface VisibilityReport {
+  windowDays: number
+  promptsConfigured: number
+  promptsMeasured: number
+  checksRun: number
+  daysPolled: number
+  engines: string[]
+  prompts: PromptSummary[]
+  /** Null when no competitors are configured, which is not a zero share. */
+  share: ShareOfVoice | null
+  note?: string
+}
+
+/** What the authority axis measured on an audit. */
+export interface AuthorityMetrics {
+  /** Null when no backlink index is configured. NOT the same as a site with no backlinks. */
+  referringDomains: number | null
+  referringDomainsSampled?: number
+  earnedDomains: number
+  selfPublishedDomains: number
+  /** Domains that mention the brand without linking. Undefined when links were never checked. */
+  unlinkedMentions?: string[]
+}
+
+export interface SearchMetrics {
+  clicks: number
+  impressions: number
+  /** 0..1. Format once, at the edge. */
+  ctr: number
+  position: number
+  startDate: string
+  endDate: string
+}
+
+/** The figures an audit recorded, beyond the scorecard. Absent on audits older than the column. */
+export interface AuditMetrics {
+  authority?: AuthorityMetrics
+  search?: SearchMetrics
 }
 
 /** One keyword idea, with the numbers the vendor reports for it. */
@@ -351,6 +419,16 @@ export function createApiClient(options: ApiClientOptions) {
       }
       return request<KeywordIdeasResult>(`/keywords/ideas?${params.toString()}`)
     },
+
+    /**
+     * The AI-visibility numbers: citation rate, stability per prompt, and share of voice.
+     *
+     * Read live from the poll checks rather than the last audit, because the saga writes a row a
+     * day between audits. A `note` on the result means there is nothing to report yet and says
+     * which kind of nothing it is.
+     */
+    getVisibilityReport: async (siteId: string) =>
+      request<VisibilityReport>(`/sites/${siteId}/visibility/report`),
 
     /** The questions this site's AI visibility is measured on, and the rivals it is measured against. */
     getVisibility: async (siteId: string) =>
