@@ -96,6 +96,18 @@ export class FixerRegistry {
     return this
   }
 
+  /**
+   * The rule ids something is registered for.
+   *
+   * Exists so a test can compare this registry against the rules that declare themselves
+   * `fixable`. `fixable: true` on a rule with no fixer here is a promise the product cannot keep:
+   * the dashboard offers a button, the API accepts, and the worker fails. The two packages are
+   * otherwise independent and nothing else would notice.
+   */
+  ruleIds(): string[] {
+    return [...this.byRule.keys()]
+  }
+
   /** The fixer that can fix this finding, or undefined. An unfixable finding always yields none. */
   fixerFor(finding: Finding): Fixer | undefined {
     if (!finding.fixable) return undefined

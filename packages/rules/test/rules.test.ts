@@ -175,6 +175,23 @@ describe('TECH-006: missing canonical', () => {
       fire('TECH-006', context({ pages: [page({ path: '/x', html: html.noindex() })] })),
     ).toEqual([])
   })
+
+  it('does not claim to be fixable in code, because it is not', () => {
+    // A canonical has to be self-referencing per page, and every file a head-tag fixer can write
+    // to is a shared layout. One tag in app/layout.tsx, header.php or index.html gives every route
+    // the same canonical, which tells Google the whole site duplicates one page: worse than the
+    // missing tag being reported. Next.js is not an escape either; its docs are explicit that a
+    // relative alternates.canonical resolves against metadataBase, not the current path. ADR-0022.
+    expect(ruleById('TECH-006')?.fixable).toBe(false)
+  })
+
+  it('tells the reader the fix is per page and a shared layout would be wrong', () => {
+    const [finding] = fire('TECH-006', context({ pages: [page({ path: '/' })] }))
+
+    // The button is gone, so the finding has to carry the guidance the button used to imply.
+    expect(finding?.falsification).toContain('per page')
+    expect(finding?.falsification).toContain('shared layout')
+  })
 })
 
 describe('TECH-007: canonical points at a broken page', () => {

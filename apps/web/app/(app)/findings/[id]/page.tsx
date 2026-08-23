@@ -105,14 +105,38 @@ export default async function FindingPage({
               {fixMessage.text}
             </Note>
           )}
-          {finding.fixable &&
-            (connections.github.connected ? (
+          {/*
+            The last attempt's failure, said out loud.
+
+            Without this the user clicked the button, read "the agent is opening a pull request",
+            and then watched nothing happen: the worker's error went to a job log they cannot see,
+            and the finding sat here looking untouched. The button is still offered, because
+            trying again is reasonable and some of these failures are transient.
+          */}
+          {finding.fixError && (
+            <Note tone="error" className="mb-3">
+              The last attempt to fix this did not produce a pull request. {finding.fixError}
+            </Note>
+          )}
+          {finding.fixable ? (
+            connections.github.connected ? (
               <FixButton findingId={finding.rowId} />
             ) : (
               <p className="text-muted m-0 text-[13px]">
                 Connect a repository to this site to open a fix pull request.
               </p>
-            ))}
+            )
+          ) : (
+            /*
+              Say why there is no button, rather than leaving a blank space that reads as a
+              missing feature. Some findings are advice; the falsification condition below says
+              what to do about this one.
+            */
+            <p className="text-muted m-0 text-[13px]">
+              This one needs a human: it cannot be fixed safely by editing a file in the repository.
+              See what would prove it wrong, below.
+            </p>
+          )}
         </div>
       )}
 

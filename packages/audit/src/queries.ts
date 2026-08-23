@@ -119,6 +119,12 @@ export interface FindingListItem {
   estimatedImpact: number
   estimatedEffort: Effort
   affectedUrlCount: number
+  /**
+   * Whether the last attempt to fix this failed. A flag, not the message: the reason belongs on
+   * the finding page where there is room to read it, and the same reasoning that removed
+   * `affectedUrls` from this shape applies to a paragraph of error text on every row.
+   */
+  fixFailed: boolean
 }
 
 /** What the caller may narrow the inbox by. Every field is optional and independent. */
@@ -226,6 +232,9 @@ export async function listFindings(
         estimatedEffort: findings.estimatedEffort,
         // Counted in the database rather than shipped and measured in the browser.
         affectedUrlCount: sql<number>`coalesce(array_length(${findings.affectedUrls}, 1), 0)`,
+        // Reduced to a boolean in SQL, so a paragraph of error text is not serialised onto every
+        // row of every page to render one badge.
+        fixFailed: sql<boolean>`${findings.fixError} is not null`,
       })
       .from(findings)
       .innerJoin(sites, eq(findings.siteId, sites.id))
@@ -338,6 +347,7 @@ function toFinding(row: FindingRow): Finding & { rowId: string } {
     fixable: row.fixable,
     status: row.status,
     ...(row.prUrl ? { prUrl: row.prUrl } : {}),
+    ...(row.fixError ? { fixError: row.fixError } : {}),
     ...(row.baseline ? { baseline: row.baseline } : {}),
     ...(row.verification ? { verification: row.verification } : {}),
   }

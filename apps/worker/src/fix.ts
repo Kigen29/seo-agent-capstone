@@ -23,6 +23,38 @@ import { createWorkerLlm } from './llm.js'
 const registry = createFixerRegistry()
 
 export async function runFix(db: Database, job: FixJob): Promise<void> {
+  try {
+    await attemptFix(db, job)
+  } catch (error) {
+    /**
+     * Write the reason onto the finding before rethrowing.
+     *
+     * The rethrow still matters: it fails the job, which the drain records and retries, and a
+     * silent failure would be a different bug. What was missing is that the person who clicked
+     * the button had no way to learn any of this. The dashboard told them a pull request was on
+     * its way and then nothing happened, because the only record of the failure was a line in a
+     * GitHub Actions log.
+     *
+     * Best-effort, and it must not mask the original error: if we cannot even write the reason
+     * down, the useful thing to surface is still what actually went wrong.
+     */
+    await recordFixFailure(db, job, error).catch((writeError: unknown) => {
+      console.error('fix: could not record why the fix failed:', writeError)
+    })
+    throw error
+  }
+}
+
+/** Store the reason on the finding so the inbox and the finding page can show it. */
+async function recordFixFailure(db: Database, job: FixJob, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+
+  await withTenant(db, job.tenantId, (tx) =>
+    tx.update(findings).set({ fixError: message }).where(eq(findings.id, job.findingRowId)),
+  )
+}
+
+async function attemptFix(db: Database, job: FixJob): Promise<void> {
   // Built per job rather than once at module load, because the client now carries the budget
   // guard and the guard needs the database handle the job was called with. It is a couple of
   // closures over an existing pool; the cost is nothing next to the crawl this sits behind.
@@ -78,7 +110,9 @@ export async function runFix(db: Database, job: FixJob): Promise<void> {
   await withTenant(db, job.tenantId, (tx) =>
     tx
       .update(findings)
-      .set({ status: 'pr_open', prUrl: pr.url })
+      // `fixError` is cleared, not left behind: it describes the most recent attempt, and a stale
+      // failure sitting next to an open pull request would read as though the PR had failed.
+      .set({ status: 'pr_open', prUrl: pr.url, fixError: null })
       .where(eq(findings.id, finding.rowId)),
   )
 }

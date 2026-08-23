@@ -26,6 +26,7 @@
     "@seo/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "@seo/rules": "workspace:*"
   }
 }

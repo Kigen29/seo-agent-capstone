@@ -434,5 +434,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0019 | `llms.txt` is agent-readiness infrastructure, never a ranking claim | Accepted |
 | 0020 | The MCP server is a second door, and it goes through the API | Accepted |
 | 0021 | A seam per product line, not per vendor; links are a second signal | Accepted |
+| 0022 | `fixable` is a promise, and a failed fix has to say so | Accepted |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

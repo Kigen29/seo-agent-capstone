@@ -423,6 +423,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@seo/rules':
+        specifier: workspace:*
+        version: link:../rules
       '@seo/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

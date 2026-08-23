@@ -166,13 +166,27 @@ export default async function FindingsPage({
                       <td>{finding.title}</td>
                       <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
                       <td className="text-muted">{hostOf(finding.siteUrl)}</td>
-                      <td>
+                      <td className="whitespace-nowrap">
                         {/*
                             Status was fetched and never rendered, so a finding with a pull request
                             already open looked exactly like one nobody had touched. In a triage
                             list that is the difference between work to do and work in flight.
                           */}
                         <span className={status.className}>{status.label}</span>
+                        {/*
+                            A failed fix attempt leaves the finding open, which is correct: it
+                            still needs doing. But "open" alone made a finding whose fix had been
+                            tried and failed identical to one nobody had touched, which is the
+                            same mistake as not rendering status at all, one level down.
+                          */}
+                        {finding.fixFailed && (
+                          <span
+                            className="tag tag-critical ml-1"
+                            title="The last fix attempt failed. Open the finding for the reason."
+                          >
+                            Fix failed
+                          </span>
+                        )}
                       </td>
                       <td className="tnum text-muted">{finding.estimatedImpact}</td>
                       <td className="tnum text-muted">{finding.affectedUrlCount}</td>
