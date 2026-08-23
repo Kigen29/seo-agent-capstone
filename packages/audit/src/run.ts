@@ -5,6 +5,7 @@ import {
   type Finding,
   type Scorecard,
 } from '@seo/core'
+import { canFixFinding } from '@seo/fixers'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import {
@@ -420,7 +421,18 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
              */
             priorityScore: priorityScore(finding),
             falsification: finding.falsification,
-            fixable: finding.fixable,
+            /**
+             * Asked of the fixers, not copied from the rule, for the same reason `priorityScore`
+             * above is computed rather than stored twice: a column and the code that must honour
+             * it cannot be allowed to disagree.
+             *
+             * A rule declaring `fixable: true` is a statement of intent. Whether a pull request
+             * can actually be written is a fact about which fixers exist, and only the registry
+             * knows it. Copying the rule's claim meant TECH-013 rows were persisted promising a
+             * fix that nothing could write; the button was offered, the job queued, and the user
+             * waited for a failure that was certain before they clicked.
+             */
+            fixable: canFixFinding(finding),
             status: finding.status,
           })),
         )

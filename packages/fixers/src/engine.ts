@@ -108,6 +108,18 @@ export class FixerRegistry {
     return [...this.byRule.keys()]
   }
 
+  /**
+   * Is there a fixer that could handle this finding, whatever the finding claims about itself?
+   *
+   * Separate from {@link fixerFor} because the two questions differ, and conflating them is what
+   * let a stale flag reach a user. `fixerFor` is the worker asking "may I fix this?", and it
+   * respects the finding's recorded promise. This is the product asking "can we fix this at all?",
+   * which only the registered fixers know.
+   */
+  hasFixerFor(finding: Finding): boolean {
+    return (this.byRule.get(finding.ruleId) ?? []).some((fixer) => fixer.canFix(finding))
+  }
+
   /** The fixer that can fix this finding, or undefined. An unfixable finding always yields none. */
   fixerFor(finding: Finding): Fixer | undefined {
     if (!finding.fixable) return undefined

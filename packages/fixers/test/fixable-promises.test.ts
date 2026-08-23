@@ -1,5 +1,6 @@
 import { ALL_RULES } from '@seo/rules'
 import { describe, expect, it } from 'vitest'
+import { LLM_FIXABLE_RULE_IDS } from '../src/fixable.js'
 import { createFixerRegistry } from '../src/registry.js'
 
 /**
@@ -21,14 +22,13 @@ import { createFixerRegistry } from '../src/registry.js'
  */
 
 /**
- * Rules that fall back to the LLM content fixer rather than a registered deterministic one.
+ * The LLM-backed rules, imported rather than restated.
  *
- * Kept as a literal rather than imported, because `@seo/fixers` must not depend on `@seo/agent`:
- * the deterministic engine is the half that runs with no model and no key, and a test dependency
- * would be the first thread pulling that apart. Mirrors the guard in
- * `packages/agent/src/content-fix.ts`, which returns null for anything but this.
+ * This was a literal here, duplicating the one in `src/fixable.ts`, which meant the test and the
+ * code it guards each held their own copy of the same fact. Adding a rule to one and not the other
+ * would leave this suite green while the product offered a button nothing answers.
  */
-const LLM_FIXABLE = new Set(['TECH-021'])
+const LLM_FIXABLE = new Set(LLM_FIXABLE_RULE_IDS)
 
 describe('fixable rules and the fixers that must exist for them', () => {
   const registered = new Set(createFixerRegistry().ruleIds())

@@ -263,6 +263,9 @@ importers:
       '@seo/db':
         specifier: workspace:*
         version: link:../db
+      '@seo/fixers':
+        specifier: workspace:*
+        version: link:../fixers
       '@seo/rules':
         specifier: workspace:*
         version: link:../rules
