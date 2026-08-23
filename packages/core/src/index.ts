@@ -44,6 +44,9 @@ export type { Finding, FindingStatus } from './finding.js'
 export { auditSchema, auditStatusSchema } from './audit.js'
 export type { Audit, AuditStatus } from './audit.js'
 
+export { auditMetricsSchema, authorityMetricsSchema, searchMetricsSchema } from './metrics.js'
+export type { AuditMetrics, AuthorityMetrics, SearchMetrics } from './metrics.js'
+
 export { frameworkSchema, siteSchema, verificationStatusSchema } from './site.js'
 export type { Framework, Site, VerificationStatus } from './site.js'
 

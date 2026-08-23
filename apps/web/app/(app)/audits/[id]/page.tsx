@@ -70,7 +70,9 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
       {audit.scorecard && (
         <>
           <section style={{ marginTop: 'var(--space-8)' }}>
-            <h4 style={{ marginBottom: 'var(--space-2)' }}>Eight-axis scorecard</h4>
+            <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
+              Eight-axis scorecard
+            </h2>
             <p
               style={{
                 marginBottom: 'var(--space-4)',
@@ -87,7 +89,9 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
           </section>
 
           <section style={{ marginTop: 'var(--space-8)' }}>
-            <h4 style={{ marginBottom: 'var(--space-2)' }}>Findings</h4>
+            <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
+              Findings
+            </h2>
             <p
               style={{
                 marginBottom: 'var(--space-4)',

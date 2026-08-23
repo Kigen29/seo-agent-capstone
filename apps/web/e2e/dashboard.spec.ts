@@ -65,14 +65,23 @@ test('shows the eight axes, and leaves the four we did not measure blank', async
   ]
   const blank = ['Performance', 'Authority']
 
+  /**
+   * Scoped to `main`, which is what this assertion always meant.
+   *
+   * The sidebar now has links named "Authority" and "AI visibility", so an unscoped `getByText`
+   * matches the navigation as well as the scorecard and resolves to two elements. The nav is not
+   * what this test is about: it is about what the scorecard says for an axis nobody measured.
+   */
+  const scorecard = page.locator('main')
+
   for (const axis of [...measured, ...blank]) {
-    await expect(page.getByText(axis, { exact: true })).toBeVisible()
+    await expect(scorecard.getByText(axis, { exact: true })).toBeVisible()
   }
 
   // `exact`, because the coverage notes themselves open with "Not measured. Core Web Vitals
   // come from CrUX...", and a substring match happily counts those too. The status label and
   // the explanation are different claims and the test should not conflate them.
-  await expect(page.getByText('Not measured', { exact: true })).toHaveCount(blank.length)
+  await expect(scorecard.getByText('Not measured', { exact: true })).toHaveCount(blank.length)
   await expect(page.getByText('--', { exact: true })).toHaveCount(blank.length)
 
   // And it says WHY each one is blank, naming the data source that would fill it. An axis
@@ -179,4 +188,45 @@ test('shows which findings already have a pull request open', async ({ page }) =
   await page.goto('/findings')
 
   await expect(page.locator('table thead')).toContainText('Status')
+})
+
+/**
+ * The three research pages, and the property that matters most on all of them.
+ *
+ * The seeded database has no SERP key, no backlink index and no poll history, so every one of
+ * these renders its unmeasured state. That is the case worth asserting: a dashboard that shows a
+ * confident zero where it simply never looked is the product lying, and it is the easiest thing
+ * in a UI to get wrong.
+ */
+test('the research pages render, and say unmeasured rather than zero', async ({ page }) => {
+  await signIn(page)
+
+  await page.goto('/visibility')
+  await expect(page.getByRole('heading', { name: /answer engines cite you/i })).toBeVisible()
+  // No prompts are seeded, so the axis must explain itself rather than report 0% share of voice.
+  await expect(page.locator('main')).not.toContainText('0%')
+
+  await page.goto('/authority')
+  await expect(page.getByRole('heading', { name: /who talks about you/i })).toBeVisible()
+
+  await page.goto('/keywords')
+  await expect(
+    page.getByRole('heading', { name: /what are people actually searching for/i }),
+  ).toBeVisible()
+  // The seed box is the whole point of the page and nothing happens until it is used.
+  await expect(page.getByRole('button', { name: 'Search' })).toBeVisible()
+})
+
+test('the nav reaches every section, and keeps the site you picked', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/findings?siteId=00000000-0000-4000-8000-000000000002')
+
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  for (const label of ['Keywords', 'Authority', 'AI visibility', 'Findings', 'Audits']) {
+    await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible()
+  }
+
+  // Context survives navigation: picking a site and then changing section must not lose it.
+  await nav.getByRole('link', { name: 'Authority', exact: true }).click()
+  await expect(page).toHaveURL(/\/authority\?siteId=/)
 })

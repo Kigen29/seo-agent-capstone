@@ -1,4 +1,10 @@
-import { buildScorecard, priorityScore, type Finding, type Scorecard } from '@seo/core'
+import {
+  buildScorecard,
+  priorityScore,
+  type AuditMetrics,
+  type Finding,
+  type Scorecard,
+} from '@seo/core'
 import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import {
@@ -380,6 +386,16 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
 
     const scorecard = buildScorecard({ siteId, findings: found, coverage })
 
+    /**
+     * The figures each axis measured, kept alongside the scorecard rather than only summarised
+     * into its coverage note. An axis that did not run this time contributes nothing, which is
+     * different from one that ran and found nothing.
+     */
+    const metrics: AuditMetrics = {
+      ...(authority.metrics ? { authority: authority.metrics } : {}),
+      ...(search.metrics ? { search: search.metrics } : {}),
+    }
+
     await withTenant(db, tenantId, async (tx) => {
       if (found.length > 0) {
         await tx.insert(findingsTable).values(
@@ -417,6 +433,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
           completedAt: new Date(),
           pagesCrawled: result.pages.length,
           scorecard,
+          metrics,
         })
         .where(eq(audits.id, auditId))
     })

@@ -51,10 +51,26 @@ test('capture', async ({ page }) => {
   await page.goto('/audits')
   await page.screenshot({ path: `${OUT}/06-audits.png`, fullPage: true })
 
+  // The three research pages. Each has an unmeasured state that is the common case on a seeded
+  // database, and that state is exactly what wants looking at: a dash with a reason should read
+  // as an answer, not as a broken card.
+  await page.goto('/keywords')
+  await page.screenshot({ path: `${OUT}/10-keywords.png`, fullPage: true })
+
+  await page.goto('/authority')
+  await page.screenshot({ path: `${OUT}/11-authority.png`, fullPage: true })
+
+  await page.goto('/visibility')
+  await page.screenshot({ path: `${OUT}/12-visibility.png`, fullPage: true })
+
   // Mobile, and dark.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/findings')
   await page.screenshot({ path: `${OUT}/07-findings-mobile.png`, fullPage: true })
+  // The dashboard is a two-column grid from md and one column below it, and the sidebar is now
+  // three groups rather than three links, so the mobile disclosure is taller than it was.
+  await page.goto('/dashboard')
+  await page.screenshot({ path: `${OUT}/13-dashboard-mobile.png`, fullPage: true })
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.emulateMedia({ colorScheme: 'dark' })

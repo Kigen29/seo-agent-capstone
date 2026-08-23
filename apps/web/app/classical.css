@@ -66,6 +66,18 @@
 .classical h5 {
   font-size: var(--text-h5);
 }
+/*
+ * A section heading inside a page: `<h2>` semantically, h5 in size.
+ *
+ * Pages reached for `<h5>` because it was the right size, which walked the document from h1
+ * straight to h5 and skipped four levels. That is the exact defect TECH-020 reports on other
+ * people's sites, shipped on our own, and it is why size and level need separating: a screen
+ * reader navigating by heading gets a broken outline, and nothing about the visual design
+ * required it.
+ */
+.classical .h-section {
+  font-size: var(--text-h5);
+}
 .classical h6 {
   font-size: var(--text-h6);
   letter-spacing: 0.08em;
@@ -384,7 +396,14 @@
   background: var(--color-danger-bg);
   color: var(--color-danger-text);
 }
-.classical .tag-high {
+/*
+ * One declaration, two names. `.tag-high` is a severity; `.tag-warn` is "real, but do not rely on
+ * it", which is what an unstable citation is. They want the same amber and they are not the same
+ * idea, so an alias is right where a second copy of the rule would be the drift this file warns
+ * about three comments above.
+ */
+.classical .tag-high,
+.classical .tag-warn {
   background: var(--color-warning-bg);
   color: var(--color-warning-text);
 }

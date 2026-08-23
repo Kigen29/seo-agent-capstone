@@ -1,4 +1,5 @@
 import {
+  type AuditMetrics,
   type Axis,
   type Effort,
   type Finding,
@@ -263,6 +264,8 @@ export interface AuditDetail {
   completedAt: Date | null
   error: string | null
   scorecard: Scorecard | null
+  /** What each axis measured, when the audit recorded it. Null on audits older than the column. */
+  metrics: AuditMetrics | null
   findings: (Finding & { rowId: string })[]
 }
 
@@ -302,6 +305,7 @@ export async function getAudit(
       completedAt: audit.completedAt,
       error: audit.error,
       scorecard: audit.scorecard ?? null,
+      metrics: audit.metrics ?? null,
       findings: rows.map(toFinding),
     }
   })

@@ -1,3 +1,4 @@
+import type { Audit, VisibilityReport } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleConnection } from '@/components/google-connection'
@@ -12,6 +13,7 @@ import { startAudit, verifySite } from '../actions'
 import { AddSite } from '../add-site'
 import { ConnectRepo } from '../connect-repo'
 import { VisibilityPrompts } from '../visibility-prompts'
+import { Overview } from './overview'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,10 +36,25 @@ const VERIFY_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
 /** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 
+/** The host, for a page title. A full URL as an h1 reads as a string rather than a name. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string; github?: string; verify?: string; asleep?: string }>
+  searchParams: Promise<{
+    google?: string
+    github?: string
+    verify?: string
+    asleep?: string
+    siteId?: string
+  }>
 }) {
   const api = await getClient()
   if (!api) return null
@@ -47,24 +64,48 @@ export default async function Dashboard({
     github: githubCallback,
     verify: verifyCallback,
     asleep,
+    siteId,
   } = await searchParams
   const verifyMessage = verifyCallback ? VERIFY_MESSAGE[verifyCallback] : undefined
 
   let sites
   let connections
+  let audit: Audit | undefined
+  let visibility: VisibilityReport | undefined
   try {
     ;[sites, connections] = await Promise.all([api.listSites(), api.getConnections()])
+
+    /**
+     * The overview is about one site, and the switcher in the sidebar says which. Falling back to
+     * the first is what every other page here does, so arriving with no `siteId` shows something
+     * rather than an empty frame.
+     *
+     * Settled rather than awaited together with the list: these two are the overview's detail and
+     * a failure in either must not cost the site list, the connect flows, or the Add-site form,
+     * which are what a user with nothing set up actually needs.
+     */
+    const active = siteId ? sites.find((site) => site.id === siteId) : sites[0]
+    if (active) {
+      const [auditResult, visibilityResult] = await Promise.allSettled([
+        active.latestAudit ? api.getAudit(active.latestAudit.id) : Promise.resolve(undefined),
+        api.getVisibilityReport(active.id),
+      ])
+      if (auditResult.status === 'fulfilled') audit = auditResult.value
+      if (visibilityResult.status === 'fulfilled') visibility = visibilityResult.value
+    }
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
   }
 
+  const activeSite = siteId ? sites.find((site) => site.id === siteId) : sites[0]
+
   return (
     <main id="main" className="wrap">
       <PageHeader
-        kicker="Sites"
-        title="Your sites"
-        description="Add a site and run an audit. The crawl runs on the worker and this page shows its progress live."
+        kicker="Overview"
+        title={activeSite ? hostOf(activeSite.url) : 'Your sites'}
+        description="Where this site stands across the axes we can measure, and what is honestly unmeasured."
         actions={<Link href="/findings">All findings &rarr;</Link>}
       />
 
@@ -90,6 +131,16 @@ export default async function Dashboard({
           {verifyMessage.text}
         </Note>
       )}
+
+      {activeSite && (
+        <Overview
+          site={activeSite}
+          {...(audit ? { audit } : {})}
+          {...(visibility ? { visibility } : {})}
+        />
+      )}
+
+      <h2 className="h-section mb-3">Your sites</h2>
 
       <AddSite />
 

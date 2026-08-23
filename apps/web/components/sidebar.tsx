@@ -27,10 +27,40 @@ export interface SidebarSite {
   url: string
 }
 
-const LINKS = [
-  { href: '/dashboard', label: 'Sites', match: (p: string) => p === '/dashboard' },
-  { href: '/findings', label: 'Findings', match: (p: string) => p.startsWith('/findings') },
-  { href: '/audits', label: 'Audits', match: (p: string) => p.startsWith('/audits') },
+/**
+ * The navigation, grouped by what you came here to do.
+ *
+ * Three flat links became six in two groups, because the product measures far more than it used
+ * to show and a flat list of six reads as a pile. The split is between finding something out
+ * (research: what people search for, who talks about you, whether the engines cite you) and
+ * looking after this site (what is broken, and the history of checking).
+ *
+ * `match` is a predicate rather than a prefix compare because `/audits` and `/authority` share a
+ * prefix, and `startsWith('/a')` would light both.
+ */
+const GROUPS: {
+  label: string
+  links: { href: string; label: string; match: (p: string) => boolean }[]
+}[] = [
+  {
+    label: 'Overview',
+    links: [{ href: '/dashboard', label: 'Dashboard', match: (p) => p === '/dashboard' }],
+  },
+  {
+    label: 'Research',
+    links: [
+      { href: '/keywords', label: 'Keywords', match: (p) => p.startsWith('/keywords') },
+      { href: '/authority', label: 'Authority', match: (p) => p.startsWith('/authority') },
+      { href: '/visibility', label: 'AI visibility', match: (p) => p.startsWith('/visibility') },
+    ],
+  },
+  {
+    label: 'This site',
+    links: [
+      { href: '/findings', label: 'Findings', match: (p) => p.startsWith('/findings') },
+      { href: '/audits', label: 'Audits', match: (p) => p.startsWith('/audits') },
+    ],
+  },
 ]
 
 function hostOf(url: string): string {
@@ -118,24 +148,33 @@ export function Sidebar({ sites }: { sites: SidebarSite[] }) {
           </label>
         )}
 
-        <nav aria-label="Main" className="flex flex-col gap-1">
-          {LINKS.map((link) => {
-            const active = link.match(pathname)
-            return (
-              <Link
-                key={link.href}
-                href={withSite(link.href)}
-                aria-current={active ? 'page' : undefined}
-                className="rounded px-2 py-1.5 text-sm"
-                style={{
-                  color: active ? 'var(--color-accent-700)' : 'inherit',
-                  background: active ? 'var(--color-accent-100)' : undefined,
-                }}
-              >
-                {link.label}
-              </Link>
-            )
-          })}
+        <nav aria-label="Main" className="flex flex-col gap-4">
+          {GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              {/*
+                A real heading rather than a styled div, so the group is a landmark a screen reader
+                can jump between and not just a smaller font.
+              */}
+              <h2 className="card-kicker m-0 px-2">{group.label}</h2>
+              {group.links.map((link) => {
+                const active = link.match(pathname)
+                return (
+                  <Link
+                    key={link.href}
+                    href={withSite(link.href)}
+                    aria-current={active ? 'page' : undefined}
+                    className="rounded px-2 py-1.5 text-sm"
+                    style={{
+                      color: active ? 'var(--color-accent-700)' : 'inherit',
+                      background: active ? 'var(--color-accent-100)' : undefined,
+                    }}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="mt-auto flex flex-col gap-3">

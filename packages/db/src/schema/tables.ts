@@ -1,4 +1,5 @@
 import type {
+  AuditMetrics,
   Evidence,
   Framework,
   MetricSnapshot,
@@ -157,6 +158,16 @@ export const audits = pgTable(
 
     /** The eight-axis scorecard, stored whole. There is no column for an overall score. */
     scorecard: jsonb('scorecard').$type<Scorecard>(),
+
+    /**
+     * The numbers each axis measured, kept rather than summarised into prose.
+     *
+     * Stored whole for the same reason the scorecard is: the shape is "what this run measured"
+     * and axes keep arriving, so a column per axis would mean a migration per axis. Before this,
+     * `measureAuthority` computed referring domains and the unlinked-mention list and persisted a
+     * paragraph; a page cannot render a paragraph as a number.
+     */
+    metrics: jsonb('metrics').$type<AuditMetrics>(),
 
     /** Why the audit failed, when it did. */
     error: text('error'),
