@@ -23,12 +23,13 @@
   },
   "dependencies": {
     "@seo/budget": "workspace:*",
+    "@seo/connectors": "workspace:*",
     "@seo/core": "workspace:*",
     "@seo/crawler": "workspace:*",
     "@seo/db": "workspace:*",
+    "@seo/fixers": "workspace:*",
     "@seo/rules": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "@seo/connectors": "workspace:*"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

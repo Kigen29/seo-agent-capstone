@@ -19,3 +19,4 @@ export {
   HEAD_FILES,
 } from './head/inject.js'
 export type { HeadTag } from './head/inject.js'
+export { canFixFinding, LLM_FIXABLE_RULE_IDS } from './fixable.js'
