@@ -61,6 +61,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `db:migrate` compiles @seo/db, and the schema imports types from @seo/core, so the
+      # workspace dependency has to be built first. Install alone is not enough: the first run of
+      # this workflow failed on exactly that, with three TS2307s and no migration attempted.
+      #
+      # A full turbo build rather than a filtered one, because it is cached, it takes about a
+      # minute cold, and it is what ci.yml does immediately before its own migrate step. Two
+      # commands that must agree should look the same.
+      - run: pnpm build
+
       - name: Apply pending migrations
         # The runner is idempotent: it applies what the journal says is pending and exits 0 with
         # nothing to do, so a re-run is safe and a no-change push costs a few seconds.
