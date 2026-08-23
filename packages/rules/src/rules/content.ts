@@ -205,7 +205,7 @@ export const TECH_019: Rule = {
   axis: 'content',
   severity: 'low',
   estimatedEffort: 'trivial',
-  fixable: true,
+  fixable: false,
   description: 'A page has no h1, or has several.',
 
   evaluate: (context) =>
@@ -230,7 +230,9 @@ export const TECH_019: Rule = {
             `Re-crawl ${page.finalUrl} and count h1 elements. If there is exactly one, this ` +
             'was wrong. Do not expect a ranking movement from this alone: multiple h1s are ' +
             'valid HTML5 and Google has said they do not cause a problem. Fix it for clarity ' +
-            'and for screen readers, not for rank.',
+            'and for screen readers, not for rank. Fix this by hand: an h1 is body content ' +
+            'in whichever component renders this route, and which heading should be the h1 is a ' +
+            'judgement about what the page is about.',
         }
       }),
 }
@@ -289,7 +291,7 @@ export const TECH_020: Rule = {
   axis: 'content',
   severity: 'info',
   estimatedEffort: 'trivial',
-  fixable: true,
+  fixable: false,
   description: 'The heading hierarchy skips a level.',
 
   evaluate: (context) =>
@@ -320,7 +322,9 @@ export const TECH_020: Rule = {
           falsification:
             `Re-crawl ${page.finalUrl} and walk the heading levels in document order. If no ` +
             'level is skipped, this was wrong. Expect no ranking change whatsoever from ' +
-            'fixing this. It is for screen reader users, and that is reason enough.',
+            'fixing this. It is for screen reader users, and that is reason enough. Fix this ' +
+            'by hand: heading levels are body content spread across the components that render ' +
+            'this route, and correcting one in isolation can skip a different level instead.',
         },
       ]
     }),
