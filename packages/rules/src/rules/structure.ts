@@ -18,7 +18,7 @@ export const TECH_013: Rule = {
   axis: 'structure',
   severity: 'medium',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'A page has no internal links pointing at it.',
 
   evaluate: (context) =>
@@ -37,7 +37,10 @@ export const TECH_013: Rule = {
           falsification:
             `Re-crawl and count internal followed links pointing at ${url}. If the count is ` +
             'above zero, this was wrong. After the fix, the page should have at least one ' +
-            'internal inbound link and a finite click depth from the homepage.',
+            'internal inbound link and a finite click depth from the homepage. ' +
+            'Fix this by hand: which page should link to this one is a decision about what ' +
+            'belongs together. An agent inserting a link somewhere plausible would be writing ' +
+            'your navigation for you.',
         },
       ]
     }),
@@ -55,7 +58,7 @@ export const TECH_014: Rule = {
   axis: 'structure',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: true,
+  fixable: false,
   description: 'A page is more than three clicks from the homepage.',
 
   evaluate: (context) =>
@@ -76,7 +79,9 @@ export const TECH_014: Rule = {
             'three clicks or fewer, this was wrong. Be honest about the limits of this one: ' +
             'click depth is a heuristic for importance, not a ranking factor. Reducing depth ' +
             'without also giving the page real internal links from relevant pages will not ' +
-            'move anything.',
+            'move anything. Fix this by hand: pulling a page closer to the homepage means ' +
+            'changing navigation or hub pages, which is a structural decision rather than a ' +
+            'file edit.',
         },
       ]
     }),

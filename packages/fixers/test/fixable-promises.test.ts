@@ -33,26 +33,20 @@ const LLM_FIXABLE = new Set(['TECH-021'])
 /**
  * Declared fixable, with no fixer of either kind. Every one of these is a button that fails.
  *
- * They are not all the same problem, and that is why they are not all being flipped to
- * `fixable: false` here. Some want a fixer that does not exist yet and would be straightforward
- * (`TECH-003`, declaring the sitemap in robots.txt, is a few lines). Some are structural
- * judgements a parser cannot make (`TECH-013`, a page with no internal links: *which* page should
- * link to it?). Deciding each one is a design call, twelve times over, and doing it inside a bug
- * fix would bury twelve decisions in a diff about something else.
+ * Started at twelve. Two got the fixer they were waiting for (`TECH-003` declares the sitemap in
+ * robots.txt, `TECH-015` upgrades insecure subresources), and six were honest `false` all along:
+ * their fix is a decision rather than an edit, and they now say so on the finding instead of
+ * offering a button.
+ *
+ * The four left are the ones that genuinely want a fixer nobody has written. They are all the
+ * same shape, which is why they are the residue: each needs a model to write replacement *text*,
+ * so they belong to the content fixer, which covers `TECH-021` and nothing else yet.
  */
 const KNOWN_GAPS = new Set([
-  'TECH-001', // robots.txt blocks Googlebot from a sitemap URL. Which of the two is wrong is a human call.
-  'TECH-003', // No sitemap declared in robots.txt. Genuinely easy; the fixer is simply not written.
   'TECH-004', // Sitemap lists dead URLs. Removing them is easy; knowing whether the URL or the sitemap is wrong is not.
-  'TECH-008', // A redirect chain. Shortening it means editing rules we cannot see from the repo.
-  'TECH-010', // An internal link to an error page. The right target is a human decision.
-  'TECH-011', // Duplicate titles. Writing replacements is the content fixer's job, and it does not cover this yet.
-  'TECH-013', // An orphan page. Which page should link to it is editorial.
-  'TECH-014', // Click depth over three. Restructuring navigation is not a file edit.
-  'TECH-015', // Mixed content. Rewriting http:// to https:// is fixable, and needs a fixer.
-  'TECH-016', // Unreciprocated hreflang. Needs the other page's source, which may be a different repo.
-  'TECH-019', // Missing or multiple h1. Editing page structure, not head tags.
-  'TECH-020', // Skipped heading level. Same.
+  'TECH-011', // Duplicate titles. Needs written replacements: the content fixer's job, and it covers only TECH-021.
+  'TECH-019', // Missing or multiple h1. Needs a heading written, and a judgement about which one is the h1.
+  'TECH-020', // Skipped heading level. Same, one level down.
 ])
 
 describe('fixable rules and the fixers that must exist for them', () => {
