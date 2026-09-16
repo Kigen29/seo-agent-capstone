@@ -1,8 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import type { AuditProgress } from '@seo/api-client'
+
 import { fetchAuditProgress } from '@/app/(app)/audits/[id]/progress-action'
+import { usePolledProgress } from '@/components/use-polled-progress'
 
 /**
  * Live progress, not a spinner. The story asks for this by name.
@@ -25,6 +26,10 @@ import { fetchAuditProgress } from '@/app/(app)/audits/[id]/progress-action'
  *
  * Stops when the audit stops. A poll that runs forever against a finished audit is a background
  * tab quietly burning somebody's battery.
+ *
+ * The polling itself lives in `usePolledProgress`, because the fix flow needed the same behaviour
+ * and copying it would have meant two timers to keep in step. No give-up here: a crawl that has
+ * started will end, so there is nothing to give up on.
  */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 const INTERVAL_MS = 2000
@@ -38,32 +43,23 @@ export function LiveProgress({
   status: string
   pagesCrawled: number
 }) {
-  const router = useRouter()
-  const [live, setLive] = useState({ status, pagesCrawled })
-  const running = RUNNING.has(live.status)
+  /*
+    `enabled` reads the prop, not the polled value, and the two differ in a way that matters.
 
-  useEffect(() => {
-    if (!running) return
+    The hook stops itself the moment a poll comes back finished, so this only has to answer "was
+    it running when the page rendered". Deriving it from the polled value instead would mean an
+    audit that was already complete on load starts a poll, learns it is finished, and refreshes
+    the page, which re-renders this component, which polls again.
+  */
+  const { latest } = usePolledProgress<AuditProgress>({
+    enabled: RUNNING.has(status),
+    poll: () => fetchAuditProgress(auditId),
+    intervalMs: INTERVAL_MS,
+  })
 
-    let cancelled = false
-
-    const id = setInterval(async () => {
-      const progress = await fetchAuditProgress(auditId)
-      if (cancelled || !progress) return
-
-      setLive({ status: progress.status, pagesCrawled: progress.pagesCrawled })
-
-      // One refresh, at the end, to pull in the scorecard and the findings the crawl produced.
-      if (progress.finished) router.refresh()
-    }, INTERVAL_MS)
-
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [running, auditId, router])
-
-  if (!running) return null
+  // The last thing we heard, falling back to what the server rendered with before the first poll.
+  const live = latest ?? { status, pagesCrawled }
+  if (!RUNNING.has(live.status)) return null
 
   return (
     <div role="status" aria-live="polite" className="card elev-sm mt-6">

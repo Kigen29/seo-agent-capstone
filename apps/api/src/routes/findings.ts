@@ -1,4 +1,4 @@
-import { getFinding, listFindings, MAX_PAGE_SIZE } from '@seo/audit'
+import { clearFixError, getFinding, getFixProgress, listFindings, MAX_PAGE_SIZE } from '@seo/audit'
 import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
 import { withTenant, sites } from '@seo/db'
 import { eq } from 'drizzle-orm'
@@ -61,6 +61,27 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
     })
 
   /**
+   * Three scalars, for the poll that runs while a fix job is in flight.
+   *
+   * The sibling of `GET /audits/:id/progress`, and it exists for the same reason: the finding
+   * page was the one place in the product where a click produced a banner and then silence until
+   * the user reloaded by hand. Polling `GET /findings/:id` to learn whether a PR had appeared
+   * would re-serialise the full evidence, baseline and verification JSON every few seconds.
+   */
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/findings/:id/fix-progress',
+      { schema: { params: uuidParam } },
+      async (request, reply) => {
+        const progress = await getFixProgress(db, request.tenantId, request.params.id)
+
+        if (!progress) return notFound(reply)
+        return progress
+      },
+    )
+
+  /**
    * Open a pull request that fixes a finding the caller owns. Enqueues the work; the worker
    * detects the framework, generates the diff, and opens the PR, then marks the finding
    * `pr_open` with the PR URL. The preconditions are checked here with a clear 409 rather than
@@ -105,6 +126,15 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
           .status(409)
           .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
       }
+
+      /*
+        Forget the previous attempt's failure before starting a new one.
+
+        Ordered before the enqueue on purpose. If it ran after, a worker fast enough to fail
+        again in between would have its reason wiped by this line, and the user would be left
+        watching a poll that never resolves. Clearing first can only ever lose a stale message.
+      */
+      await clearFixError(db, request.tenantId, finding.rowId)
 
       await options.enqueueFix({
         tenantId: request.tenantId,

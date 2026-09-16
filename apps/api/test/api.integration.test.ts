@@ -1126,6 +1126,7 @@ describe.skipIf(!shouldRun)('the API', () => {
     let fixableFindingId: string
     let unfixableFindingId: string
     let noRepoFindingId: string
+    let retryFindingId: string
 
     const evidence = {
       kind: 'http' as const,
@@ -1203,6 +1204,8 @@ describe.skipIf(!shouldRun)('the API', () => {
       unfixableFindingId = await insertFinding(repoSiteId, repoAudit, 'TECH-007#1', {
         fixable: false,
       })
+      // Its own finding, so the retry case cannot disturb the ordering of the tests above.
+      retryFindingId = await insertFinding(repoSiteId, repoAudit, 'TECH-007#2')
       noRepoFindingId = await insertFinding(noRepoSiteId, noRepoAudit, 'TECH-007#0')
     })
 
@@ -1251,6 +1254,32 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(res.statusCode).toBe(404)
     })
 
+    it('forgets the previous attempt’s error when a new fix is queued', async () => {
+      /*
+        The poll on the finding page reads "still open, and no error" as "in flight". If a failed
+        attempt left its reason behind, a retry would look finished the instant it was queued, and
+        the user would be shown the old failure as though it were the new one.
+      */
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ fixError: 'a previous attempt failed' })
+          .where(eq(findings.id, retryFindingId)),
+      )
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/findings/${retryFindingId}/fix`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(res.statusCode).toBe(202)
+
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(findings).where(eq(findings.id, retryFindingId)).limit(1),
+      )
+      expect(row?.fixError).toBeNull()
+    })
+
     it('refuses a second fix once one is already open', async () => {
       // Keep this last: it moves the finding out of `open`.
       await withTenant(db, tenantId, (tx) =>
@@ -1262,6 +1291,140 @@ describe.skipIf(!shouldRun)('the API', () => {
         headers: { authorization: `Bearer ${token}` },
       })
       expect(res.statusCode).toBe(409)
+    })
+  })
+
+  describe('watching a fix job', () => {
+    let watchedId: string
+
+    beforeAll(async () => {
+      const siteId = await withTenant(db, tenantId, async (tx) => {
+        const [s] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: 'https://fixwatch.example.com',
+            repoFullName: 'octo/owned',
+            githubInstallationId: INSTALLATION_ID,
+          })
+          .returning()
+        return s!.id
+      })
+      const auditId = await withTenant(db, tenantId, async (tx) => {
+        const [a] = await tx
+          .insert(audits)
+          .values({ tenantId, siteId, status: 'complete' })
+          .returning()
+        return a!.id
+      })
+      watchedId = await withTenant(db, tenantId, async (tx) => {
+        const [f] = await tx
+          .insert(findings)
+          .values({
+            tenantId,
+            siteId,
+            auditId,
+            ruleId: 'TECH-007',
+            key: 'TECH-007#0',
+            axis: 'crawl_health',
+            severity: 'high',
+            confidence: 1,
+            title: 'a canonical that redirects',
+            evidence: {
+              kind: 'http' as const,
+              url: 'https://fixwatch.example.com/',
+              status: 200,
+              redirectChain: ['https://fixwatch.example.com'],
+              observedAt: '2026-07-17T00:00:00.000Z',
+              source: 'crawler' as const,
+            },
+            affectedUrls: ['https://fixwatch.example.com/'],
+            estimatedEffort: 'trivial',
+            estimatedImpact: 70,
+            falsification: 'still redirects after merge',
+            fixable: true,
+            status: 'open',
+          })
+          .returning()
+        return f!.id
+      })
+    })
+
+    const progress = (id: string, bearer: string) =>
+      app.inject({
+        method: 'GET',
+        url: `/findings/${id}/fix-progress`,
+        headers: { authorization: `Bearer ${bearer}` },
+      })
+
+    it('says it is not finished while the job is still in flight', async () => {
+      const res = await progress(watchedId, token)
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toMatchObject({
+        status: 'open',
+        prUrl: null,
+        fixError: null,
+        finished: false,
+      })
+    })
+
+    it('does not ship the finding’s evidence, because the point is to be small', async () => {
+      // The whole reason this endpoint exists rather than polling GET /findings/:id.
+      const res = await progress(watchedId, token)
+      expect(JSON.stringify(res.json())).not.toContain('redirectChain')
+      expect(Object.keys(res.json() as object).sort()).toEqual([
+        'finished',
+        'fixError',
+        'id',
+        'prUrl',
+        'status',
+      ])
+    })
+
+    it('finishes with the pull request once the worker has opened one', async () => {
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ status: 'pr_open', prUrl: 'https://github.com/octo/owned/pull/7', fixError: null })
+          .where(eq(findings.id, watchedId)),
+      )
+
+      const res = await progress(watchedId, token)
+      expect(res.json()).toMatchObject({
+        status: 'pr_open',
+        prUrl: 'https://github.com/octo/owned/pull/7',
+        finished: true,
+      })
+    })
+
+    it('finishes with the reason when the attempt failed, so the poll stops', async () => {
+      /*
+        The failure case is the one that is invisible in the status column: the finding is still
+        `open`, exactly as it was before the click. Without the error making it `finished`, the
+        page would poll until it gave up and never say what went wrong.
+      */
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({
+            status: 'open',
+            prUrl: null,
+            fixError: 'No safe automatic fix could be generated.',
+          })
+          .where(eq(findings.id, watchedId)),
+      )
+
+      const res = await progress(watchedId, token)
+      expect(res.json()).toMatchObject({
+        status: 'open',
+        finished: true,
+        fixError: 'No safe automatic fix could be generated.',
+      })
+    })
+
+    it('gives another tenant a 404, not a 403', async () => {
+      const res = await progress(watchedId, otherToken)
+      expect(res.statusCode).toBe(404)
     })
   })
 

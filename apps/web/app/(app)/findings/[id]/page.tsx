@@ -7,6 +7,7 @@ import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { FixButton } from './fix-button'
+import { FixProgress } from './fix-progress'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,12 +24,14 @@ const EFFORT_LABEL: Record<string, string> = {
   large: 'Large',
 }
 
-/** The banner shown after an Open-a-pull-request click, keyed on the ?fix= status. */
+/**
+ * The banner shown after an Open-a-pull-request click, keyed on the ?fix= status.
+ *
+ * Only the failure case is a banner. `failed` means the API refused the request outright, so
+ * there is no job to watch and the message is the whole story. A queued fix is handled by
+ * `FixProgress` instead, which watches the job rather than asserting once that it is on its way.
+ */
 const FIX_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
-  queued: {
-    tone: 'ok',
-    text: 'The agent is opening a pull request that fixes this. It will appear here as an open PR shortly.',
-  },
   failed: {
     tone: 'error',
     text: 'Could not open a pull request. Connect a repository to this site, or check that no PR is already open, then try again.',
@@ -100,10 +103,23 @@ export default async function FindingPage({
         </Note>
       ) : (
         <div className="mb-6">
-          {fixMessage && (
-            <Note tone={fixMessage.tone} className="mb-3">
-              {fixMessage.text}
-            </Note>
+          {/*
+            A queued fix is watched, not announced.
+
+            The old version said "it will appear here as an open PR shortly" and then never
+            changed, because nothing on this page re-rendered until the user reloaded. The work
+            runs on a worker that has to be started, so the honest thing is to poll and say what
+            is true at each moment. `fixError` being set means the attempt already failed, and the
+            note below is the better answer, so there is nothing left to wait for.
+          */}
+          {fix === 'queued' && !finding.fixError ? (
+            <FixProgress findingId={finding.rowId} />
+          ) : (
+            fixMessage && (
+              <Note tone={fixMessage.tone} className="mb-3">
+                {fixMessage.text}
+              </Note>
+            )
           )}
           {/*
             The last attempt's failure, said out loud.

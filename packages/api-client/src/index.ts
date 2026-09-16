@@ -98,6 +98,16 @@ export interface AuditProgress {
   finished: boolean
 }
 
+/** The three scalars the finding page polls while a fix job is in flight. */
+export interface FixProgress {
+  id: string
+  status: string
+  prUrl: string | null
+  fixError: string | null
+  /** True once there is nothing left to poll for, so the client can stop. */
+  finished: boolean
+}
+
 export interface Audit {
   id: string
   siteId: string
@@ -344,6 +354,9 @@ export function createApiClient(options: ApiClientOptions) {
      * carries every finding with its evidence, which is not something to re-fetch twice a minute.
      */
     getAuditProgress: async (id: string) => request<AuditProgress>(`/audits/${id}/progress`),
+
+    /** The fix-flow sibling of `getAuditProgress`: has the pull request landed, or failed? */
+    getFixProgress: async (id: string) => request<FixProgress>(`/findings/${id}/fix-progress`),
 
     /** Queue an audit for a site. Returns the new audit's id; the crawl runs on the worker. */
     startAudit: async (siteId: string) =>
