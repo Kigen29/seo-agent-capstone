@@ -6,7 +6,8 @@ import {
   verifySigninState,
   SIGNIN_NONCE_COOKIE,
 } from '@seo/connectors'
-import { asOwner, userIdentities, type Database } from '@seo/db'
+import { budgetStatus } from '@seo/budget'
+import { asOwner, tenants, userIdentities, type Database } from '@seo/db'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
@@ -190,6 +191,41 @@ export function identityRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app.get('/auth/me', async (request) => {
     const [row] = await withTenantIdentity(db, request.tenantId)
     return { identity: row ?? null }
+  })
+
+  /**
+   * The account behind the session: who owns it, and what it is allowed to spend.
+   *
+   * The budget belongs on this screen rather than buried in a log, because this deployment is
+   * open (ADR-0023) and the cap is the only thing standing between a signup and somebody else's
+   * API keys. A person should be able to see what theirs is without reading the source.
+   *
+   * It reports the cap and the spend, never a "you have plenty left" verdict. The numbers say
+   * what is true; a reassuring summary computed from them would be the product editorialising
+   * about money, which is exactly where it should not.
+   */
+  app.get('/account', async (request) => {
+    const [tenant] = await asOwner(db, (tx) =>
+      tx
+        .select({ name: tenants.name, createdAt: tenants.createdAt })
+        .from(tenants)
+        .where(eq(tenants.id, request.tenantId))
+        .limit(1),
+    )
+
+    const budget = await budgetStatus(db, request.tenantId)
+    const [identity] = await withTenantIdentity(db, request.tenantId)
+
+    return {
+      tenantName: tenant?.name ?? null,
+      createdAt: tenant?.createdAt?.toISOString() ?? null,
+      identity: identity ?? null,
+      budget: {
+        capMicros: budget.capMicros,
+        spentMicros: budget.spentMicros,
+        allowed: budget.allowed,
+      },
+    }
   })
 
   /**

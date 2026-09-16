@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Cormorant_Garamond, Lora } from 'next/font/google'
-import { themeScript } from '@/components/theme-toggle'
+import { themeScript } from '@/components/theme-script'
 import { siteUrl } from '@/lib/site'
 import './globals.css'
 
