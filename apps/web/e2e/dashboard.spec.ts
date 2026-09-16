@@ -33,6 +33,10 @@ const BLOCKED_FINDING = '00000000-0000-4000-8000-000000000005'
  * always been an API token in an httpOnly cookie, and it still is, whichever way it was obtained
  * (ADR-0023). These tests are about the dashboard, and making thirteen of them depend on the
  * mechanics of a login screen coupled them to a thing none of them were trying to prove.
+ *
+ * It establishes a session and navigates nowhere. The old helper drove the login form and left the
+ * browser on the dashboard, so a caller could assert against that page without asking for it; one
+ * test was relying on exactly that and went red here. Every caller now says where it is going.
  */
 async function signIn(page: Page, token = TOKEN) {
   /*
@@ -171,6 +175,10 @@ test('gives another tenant a 404, not a permission error', async ({ page }) => {
   // enumerate which audits exist across the platform. The UI must be as ignorant as the API.
   await signIn(page, OTHER_TOKEN)
 
+  // `signIn` sets a cookie and nothing else, so this has to navigate. It used to be implicit:
+  // the old helper drove the login form and therefore left the browser on the dashboard, and
+  // this assertion was quietly relying on that side effect.
+  await page.goto('/dashboard')
   await expect(page.getByText('No sites yet')).toBeVisible()
 
   const response = await page.goto(`/audits/${AUDIT}`)
