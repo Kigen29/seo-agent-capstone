@@ -99,18 +99,42 @@ if (!keywordCredentials) {
  * failure and not a half-working login page. The web app asks which providers exist and renders
  * only those, so the page can never offer a button that leads to a 503.
  *
- * The redirect URI is derived from this API's own public URL rather than configured separately,
- * because there is exactly one correct value and a second variable is a second thing to get
- * wrong. It must match what is registered on the GitHub App and the Google OAuth client.
+ * The redirect URI must match what is registered on the GitHub App and the Google OAuth client.
  */
 const identityProviders = (() => {
+  /*
+    The redirect URI is derived from this service's own public origin, and getting it wrong is
+    silent until a user clicks the button.
+
+    RENDER_EXTERNAL_URL is set automatically by Render for every web service, so the deployed API
+    configures itself and there is no variable to forget. API_PUBLIC_URL overrides it for anywhere
+    that is not Render. API_URL is the local development value.
+
+    The localhost fallback is the dangerous one, and it is why the guard below exists: a
+    production instance that fell back to it would render a perfectly good sign-in button that
+    sends the user to Google and comes back `redirect_uri_mismatch`, which tells them nothing and
+    tells us nothing either. No button at all is the better failure, because the login page still
+    offers the token form and says so.
+  */
   const base = (
     process.env.API_PUBLIC_URL ??
+    process.env.RENDER_EXTERNAL_URL ??
     process.env.API_URL ??
     `http://localhost:${process.env.PORT ?? 4000}`
   ).replace(/\/$/, '')
-  const redirectUri = `${base}/auth/signin/callback`
+
   const providers: Record<string, IdentityProvider> = {}
+
+  if (process.env.NODE_ENV === 'production' && base.startsWith('http://localhost')) {
+    console.error(
+      'Social sign-in is disabled: no public URL is configured, so the OAuth redirect would ' +
+        'point at localhost and every sign-in would fail at the provider. Set API_PUBLIC_URL ' +
+        'to the public origin of this API.',
+    )
+    return providers
+  }
+
+  const redirectUri = `${base}/auth/signin/callback`
 
   if (process.env.GH_APP_CLIENT_ID && process.env.GH_APP_CLIENT_SECRET) {
     providers.github = createGitHubIdentity({
@@ -132,7 +156,8 @@ const identityProviders = (() => {
   if (names.length === 0) {
     console.warn('No social sign-in is configured; the login page falls back to API tokens.')
   } else {
-    console.log(`social sign-in enabled for: ${names.join(', ')}`)
+    // Printed so a deploy log answers "why is there no GitHub button" without a debugging session.
+    console.log(`social sign-in enabled for: ${names.join(', ')}; redirect ${redirectUri}`)
   }
 
   return providers
