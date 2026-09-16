@@ -145,6 +145,37 @@ The product page lesson, filtered through what primary sources say.
 These follow ADR-0016, ADR-0017 and ADR-0021: one interface per product line, one explicit budget
 decorator each, and an honest "not measured" when unconfigured.
 
+#### Prerequisite: DataForSEO is not configured in production
+
+Checked 2026-09-16. The DataForSEO code is built, but the credentials do not reach production, so
+everything already built on it is switched off and all of Tier 2 would be too.
+
+DataForSEO is enabled only when both `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are present
+(`dataForSeoFromEnv` in `packages/connectors/src/dataforseo/request.ts`). Two places read them:
+
+| Where it runs | What it powers | State |
+|---|---|---|
+| Worker, on GitHub Actions (`packages/audit/src/run.ts`) | Referring domains on the authority axis, and AUTH-004 (mentions without a link) | **Off.** `.github/workflows/worker.yml` passes neither variable, and the repo has no `DATAFORSEO_*` secret. Every audit reports referring domains as not measured. `BACKLINK_COST_PER_QUERY_USD`, also read here, is not passed either. |
+| API, on Render (`apps/api/src/server.ts`) | `/keywords` and the MCP `keyword_ideas` tool | **Almost certainly off.** `render.yaml` does not list the variables. The Render dashboard was not inspected, so a value added there by hand cannot be ruled out. When off, the route returns an empty list with a "not configured" note, and the API logs a warning at boot. |
+
+`.env.example` sets `DATAFORSEO_USE_SANDBOX=true`. The sandbox returns fabricated data for free,
+which is right for contract tests and demos and wrong for a real audit.
+
+To switch it on:
+
+1. **Worker:** add `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` as repository secrets and
+   `BACKLINK_COST_PER_QUERY_USD` as a repository variable, then pass all three in the `env:` block
+   of `worker.yml`.
+2. **API:** set the same two credentials in the Render dashboard, and declare them in `render.yaml`
+   with `sync: false` like the other secrets, so the file stays an accurate list of what the
+   service needs.
+3. Leave `DATAFORSEO_USE_SANDBOX` unset or `false` in production.
+4. Confirm it took: the API boot log no longer warns, `/keywords` returns rows, and the next audit
+   shows a referring domain count instead of "not measured".
+
+The values are secrets and never go in the repo, which is public. Spend stays capped per tenant by
+the budget guard (ADR-0017), so switching it on cannot produce an open-ended bill.
+
 #### 4. Link gap, classified
 
 - Add `intersection(targets, exclude, limit)` to `BacklinkProvider` and implement it against
@@ -258,6 +289,9 @@ to build one without its grade.
 
 ## 5. Open questions to settle before building
 
+- **DataForSEO in production:** check the Render dashboard for credentials added by hand, then
+  follow the switch-on steps in Tier 2's prerequisite. Nothing in Tier 2 can be demonstrated on
+  real data until this is done.
 - **DataForSEO domain intersection:** confirm the request parameters (target limit, exclusion of the
   client's own domain, intersection mode) and the per-call price against the live documentation,
   and record them in a contract test fixture.
