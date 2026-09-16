@@ -14,6 +14,7 @@ import { findingRoutes } from './routes/findings.js'
 import { keywordRoutes } from './routes/keywords.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
 import { outreachRoutes } from './routes/outreach.js'
+import { identityRoutes, signinRoutes } from './routes/signin.js'
 import { siteRoutes } from './routes/sites.js'
 import { visibilityRoutes } from './routes/visibility.js'
 import { githubWebhookRoutes } from './routes/webhooks.js'
@@ -86,6 +87,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
   // Unauthenticated on purpose, and each says why in its own file.
   oauthCallbackRoutes(app, deps)
+  // Unauthenticated by necessity: somebody signing in has no session yet. See the file.
+  signinRoutes(app, deps)
   await githubWebhookRoutes(app, deps)
 
   await app.register(async (protectedRoutes) => {
@@ -123,6 +126,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     auditRoutes(protectedRoutes, deps)
     connectionRoutes(protectedRoutes, deps)
     outreachRoutes(protectedRoutes, deps)
+    identityRoutes(protectedRoutes, deps)
     keywordRoutes(protectedRoutes, deps)
     visibilityRoutes(protectedRoutes, deps)
   })

@@ -511,6 +511,73 @@ export const spend = pgTable(
   ],
 )
 
+/**
+ * Who a person is, at GitHub or Google.
+ *
+ * Keyed on (provider, providerAccountId), never on the email. An email is a label the user
+ * controls and can change; the account id is stable for the life of the account. Matching on
+ * email would mean somebody who changes their GitHub address comes back as a stranger and gets a
+ * second, empty tenant, and it would mean two people who ever shared an address could collide.
+ * The email is here to be displayed, and for nothing else.
+ *
+ * Looked up before any tenant context exists, so the lookup runs through `asOwner`, the same
+ * small class of operations as resolving an API token and creating a tenant.
+ */
+export const userIdentities = pgTable(
+  'user_identities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+
+    /** 'github' or 'google'. Not an enum: a third provider should not need a migration. */
+    provider: text('provider').notNull(),
+    /** The provider's own stable id for this account. Never the email. */
+    providerAccountId: text('provider_account_id').notNull(),
+
+    email: text('email'),
+    name: text('name'),
+    avatarUrl: text('avatar_url'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('user_identities_provider_account_idx').on(table.provider, table.providerAccountId),
+  ],
+)
+
+/**
+ * How a freshly minted token crosses from the API's origin to the web app's.
+ *
+ * The API is on Render and the web app is on Vercel, so the API cannot set the web app's cookie.
+ * The shortcut is to redirect back with the token in the query string, and it is the wrong one: a
+ * URL reaches browser history, the next request's Referer, and every log on the way, and this one
+ * would be carrying a live credential. `oauth-callbacks.ts` already refuses to put secrets in
+ * redirects for the same reason, and this is the same rule applied to the session itself.
+ *
+ * So the redirect carries a code that is worth nothing alone, and the web app's *server* trades
+ * it for the token, once. Only the hash of the code is stored, exactly like a token.
+ */
+export const authHandoffs = pgTable(
+  'auth_handoffs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+
+    codeHash: text('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** Set by the exchange. Its presence is what makes a code single use. */
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('auth_handoffs_code_idx').on(table.codeHash)],
+)
+
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
 export const TENANT_SCOPED = [
   sites,
@@ -522,4 +589,6 @@ export const TENANT_SCOPED = [
   visibilityPrompts,
   visibilityChecks,
   spend,
+  userIdentities,
+  authHandoffs,
 ] as const

@@ -2,8 +2,11 @@ import { createBudgetGuard, recordSpend } from '@seo/budget'
 import {
   budgetedKeywords,
   createDataForSeoKeywords,
+  createGitHubIdentity,
+  createGoogleIdentity,
   dataForSeoFromEnv,
   googleOAuthConfigFromEnv,
+  type IdentityProvider,
 } from '@seo/connectors'
 import {
   createQueue,
@@ -89,6 +92,61 @@ if (!keywordCredentials) {
   console.warn('DataForSEO is not configured; keyword research and backlink data are disabled.')
 }
 
+/**
+ * The social sign-in providers, assembled from whatever credentials are present.
+ *
+ * Each one is independent: GitHub configured and Google not means one button, not a boot
+ * failure and not a half-working login page. The web app asks which providers exist and renders
+ * only those, so the page can never offer a button that leads to a 503.
+ *
+ * The redirect URI is derived from this API's own public URL rather than configured separately,
+ * because there is exactly one correct value and a second variable is a second thing to get
+ * wrong. It must match what is registered on the GitHub App and the Google OAuth client.
+ */
+const identityProviders = (() => {
+  const base = (
+    process.env.API_PUBLIC_URL ??
+    process.env.API_URL ??
+    `http://localhost:${process.env.PORT ?? 4000}`
+  ).replace(/\/$/, '')
+  const redirectUri = `${base}/auth/signin/callback`
+  const providers: Record<string, IdentityProvider> = {}
+
+  if (process.env.GH_APP_CLIENT_ID && process.env.GH_APP_CLIENT_SECRET) {
+    providers.github = createGitHubIdentity({
+      clientId: process.env.GH_APP_CLIENT_ID,
+      clientSecret: process.env.GH_APP_CLIENT_SECRET,
+      redirectUri,
+    })
+  }
+
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    providers.google = createGoogleIdentity({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri,
+    })
+  }
+
+  const names = Object.keys(providers)
+  if (names.length === 0) {
+    console.warn('No social sign-in is configured; the login page falls back to API tokens.')
+  } else {
+    console.log(`social sign-in enabled for: ${names.join(', ')}`)
+  }
+
+  return providers
+})()
+
+/** See AppOptions.newTenantBudgetMicros. Undefined leaves the column default alone. */
+const newTenantBudgetMicros = (() => {
+  const raw = process.env.NEW_TENANT_BUDGET_MICROS
+  if (raw === undefined || raw === '') return undefined
+
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined
+})()
+
 const keywordCostMicros = (() => {
   const usd = Number(process.env.KEYWORD_COST_PER_QUERY_USD)
   // The vendor's published rate at the default row count, rounded up. Errs high when unset,
@@ -101,6 +159,8 @@ const app = await buildApp({
   webUrl: process.env.WEB_URL,
   google,
   github,
+  identityProviders,
+  ...(newTenantBudgetMicros === undefined ? {} : { newTenantBudgetMicros }),
   keywords: keywordCredentials
     ? (tenantId, db) => {
         const guard = createBudgetGuard(db)

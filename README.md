@@ -49,6 +49,28 @@ pnpm db:migrate
 pnpm dev                  # the Next dashboard and the Fastify API together
 ```
 
+## Signing in
+
+Sign in with **GitHub** or **Google**. Both reuse credentials the project already had: GitHub uses
+the GitHub App's own client id and secret, and Google uses the same OAuth client as the Search
+Console connection, so neither needs a new registration.
+
+A social sign-in mints an ordinary API token and puts it in an httpOnly cookie. It is not a second
+kind of session, which is why row-level security, `withTenant` and the MCP server are untouched by
+it. See [ADR-0023](docs/adr/0023-social-sign-in-mints-an-api-token.md) for why, and for how the
+token crosses from the API's origin to the web app's without ever appearing in a URL.
+
+Set `<API_PUBLIC_URL>/auth/signin/callback` as a callback URL on both the GitHub App and the
+Google OAuth client. A provider whose credentials are absent simply gets no button.
+
+**This deployment is open**: anyone signing in gets a tenant, with the monthly cap in
+`NEW_TENANT_BUDGET_MICROS` on the paid model and SERP calls. Set it to `0` to leave everything
+free working (crawl, the 26 rules, the scorecard, fix pull requests, verification) while spending
+nothing. The cap is per tenant, not global.
+
+Pasting an API token still works, behind a disclosure on the login page. It is how the CLI, the MCP
+server and the end-to-end suite authenticate.
+
 ## Testing
 
 ```bash

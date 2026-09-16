@@ -115,6 +115,14 @@ export interface OutreachDraft {
   groundedOn: GroundingFact[]
 }
 
+/** Who is signed in, for the dashboard to show. Null when the session is a hand-minted token. */
+export interface SignedInIdentity {
+  provider: string
+  email: string | null
+  name: string | null
+  avatarUrl: string | null
+}
+
 /** The three scalars the finding page polls while a fix job is in flight. */
 export interface FixProgress {
   id: string
@@ -284,6 +292,62 @@ export interface ApiClientOptions {
  */
 const DEFAULT_TIMEOUT_MS = 20_000
 
+/**
+ * The two calls that happen before there is a session to authenticate with.
+ *
+ * Standalone functions rather than methods, because `createApiClient` is built around a bearer
+ * token and these run at the exact moment there is not one. Giving the client an optional token
+ * to accommodate two unauthenticated calls would weaken the type that currently makes it
+ * impossible to build an unauthenticated client by accident.
+ */
+export async function fetchAuthProviders(
+  baseUrl: string,
+  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+): Promise<string[]> {
+  try {
+    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/auth/providers`, {
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    })
+    if (!response.ok) return []
+
+    const body = (await response.json()) as { providers?: string[] }
+    return body.providers ?? []
+  } catch {
+    /*
+      An empty list, never a thrown error.
+
+      This runs on the login page, and the API is on a free instance that sleeps. A cold start
+      here must degrade to "no social buttons, use a token" rather than to a broken sign-in page,
+      because this is the first screen a new user ever sees.
+    */
+    return []
+  }
+}
+
+/**
+ * Trade a single-use handoff code for the session token it stands for.
+ *
+ * Returns undefined when the code is unknown, already redeemed, or expired. The API refuses to
+ * say which, so neither does this.
+ */
+export async function exchangeAuthCode(
+  baseUrl: string,
+  code: string,
+  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+): Promise<string | undefined> {
+  const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/auth/exchange`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+  })
+
+  if (!response.ok) return undefined
+
+  const body = (await response.json()) as { token?: string }
+  return body.token
+}
+
 export function createApiClient(options: ApiClientOptions) {
   const doFetch = options.fetch ?? globalThis.fetch
   const base = options.baseUrl.replace(/\/$/, '')
@@ -371,6 +435,18 @@ export function createApiClient(options: ApiClientOptions) {
      * carries every finding with its evidence, which is not something to re-fetch twice a minute.
      */
     getAuditProgress: async (id: string) => request<AuditProgress>(`/audits/${id}/progress`),
+
+    /** Who is signed in, or null for a session minted by hand for the CLI. */
+    getIdentity: async () =>
+      (await request<{ identity: SignedInIdentity | null }>('/auth/me')).identity,
+
+    /**
+     * Revoke the presented token, so signing out means the credential stops working rather than
+     * only that this browser forgot it.
+     */
+    signOut: async () => {
+      await request<void>('/auth/signout', { method: 'POST' })
+    },
 
     /** The fix-flow sibling of `getAuditProgress`: has the pull request landed, or failed? */
     getFixProgress: async (id: string) => request<FixProgress>(`/findings/${id}/fix-progress`),
