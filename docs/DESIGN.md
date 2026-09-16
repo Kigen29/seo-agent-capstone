@@ -115,6 +115,11 @@ before it ships.
 - Do layout in utilities. **A hand-written component class will lose a specificity fight with a
   Tailwind utility**: `.classical .nav` is (0,2,0) and `md:hidden` is (0,1,0), so the utility loses
   regardless of the media query. That one shipped.
+- The same fight, in the other direction, has now shipped twice: **`mx-auto` does nothing on a
+  `<p>`**. `.classical p` sets a margin at (0,1,1) and beats `.mx-auto` at (0,1,0), so the
+  paragraph sits against the left edge of a container whose every other child is centred, and
+  nothing warns you. `max-w-*` on the same element applies perfectly, which is what makes it look
+  like a centring bug rather than a specificity one. Put the constraint on a wrapping `<div>`.
 - Flex children need `min-w-0` before text can truncate.
 - Wide tables scroll inside `.table-scroll`; the page body never scrolls sideways.
 

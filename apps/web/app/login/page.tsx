@@ -61,12 +61,19 @@ export default async function Login({
           <span className="nav-brand" style={{ margin: 0 }}>
             RankWright
           </span>
-          <p
-            className="text-muted mx-auto mt-2 max-w-[34ch] text-[13px]"
-            style={{ lineHeight: 1.6 }}
-          >
-            Every other AI-SEO tool sends your marketer a list. We send your repo a pull request.
-          </p>
+          {/*
+            The width is constrained on a wrapper, not on the paragraph.
+
+            `.classical p` sets a margin at specificity (0,1,1), which beats `.mx-auto` at (0,1,0),
+            so `mx-auto` on a `<p>` silently does nothing and the text sits against the left edge
+            while everything around it is centred. DESIGN.md warns about this class of fight in
+            general; this is the specific one that keeps recurring.
+          */}
+          <div className="mx-auto max-w-[34ch]">
+            <p className="text-muted mt-2 text-[13px]" style={{ lineHeight: 1.6 }}>
+              Every other AI-SEO tool sends your marketer a list. We send your repo a pull request.
+            </p>
+          </div>
         </div>
 
         <div className="card elev-md" style={{ padding: 'var(--space-7)' }}>
@@ -106,13 +113,13 @@ export default async function Login({
           )}
         </div>
 
-        <p
-          className="text-muted mx-auto mt-5 max-w-[40ch] text-center text-[12px]"
-          style={{ lineHeight: 1.7 }}
-        >
-          We store your provider account id, and your name and email to show you who is signed in.
-          Nothing is posted anywhere on your behalf, and we never ask for a password.
-        </p>
+        {/* Same fight as above: the constraint goes on the wrapper, never on the paragraph. */}
+        <div className="mx-auto mt-5 max-w-[40ch]">
+          <p className="text-muted m-0 text-center text-[12px]" style={{ lineHeight: 1.7 }}>
+            We store your provider account id, and your name and email to show you who is signed in.
+            Nothing is posted anywhere on your behalf, and we never ask for a password.
+          </p>
+        </div>
       </div>
     </main>
   )
