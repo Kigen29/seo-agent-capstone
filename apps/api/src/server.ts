@@ -15,6 +15,7 @@ import {
 } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
+import { LlmClient } from '@seo/llm'
 import { makeDispatcher } from './dispatch.js'
 
 /**
@@ -118,6 +119,25 @@ const app = await buildApp({
         })
       }
     : undefined,
+  /*
+    The tenant's model client, guarded exactly like the worker's.
+
+    Composed here rather than in the route so the app never reads the chain from the environment
+    itself and a test can hand in a fake that spends nothing. `LlmClient` resolves its chain from
+    LLM_SMART and friends (ADR-0005), so an API with no keys configured has no chain, every call
+    fails closed, and the route answers "no draft" rather than erroring.
+  */
+  outreach: (_tenantId, db) => {
+    const guard = createBudgetGuard(db)
+
+    return new LlmClient(async (id, usage) => {
+      console.log(
+        `api: llm spend for tenant ${id}: ~$${usage.estimatedUsd.toFixed(4)} ` +
+          `(${usage.provider}:${usage.model}, ${usage.inputTokens}+${usage.outputTokens} tok)`,
+      )
+      await guard.recordSpend(id, usage)
+    }, guard.checkBudget)
+  },
   enqueue: async (job) => {
     await enqueueAudit(queue, job)
     await dispatch()

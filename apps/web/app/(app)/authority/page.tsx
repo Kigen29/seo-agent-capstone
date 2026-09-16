@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { OutreachPitch } from './outreach-pitch'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,9 +35,12 @@ export default async function AuthorityPage({
 
   let sites: Site[]
   let audit: Audit | undefined
+  // Kept out of the try, because the drafting control below needs to know which site it is
+  // pitching for, and the resolved site used to be scoped to the block that fetched the audit.
+  let site: Site | undefined
   try {
     sites = await api.listSites()
-    const site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
+    site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
     if (site?.latestAudit) audit = await api.getAudit(site.latestAudit.id)
   } catch (error) {
     handleApiError(error)
@@ -157,18 +161,28 @@ export default async function AuthorityPage({
               </p>
               <div className="card elev-sm gap-0 p-0">
                 {authority.unlinkedMentions.map((domain, index) => (
-                  <a
+                  <div
                     key={domain}
-                    href={`https://${domain}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3 text-[13px] break-all"
+                    className="p-3"
                     style={{
                       borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)',
                     }}
                   >
-                    {domain}
-                  </a>
+                    <a
+                      href={`https://${domain}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[13px] break-all"
+                    >
+                      {domain}
+                    </a>
+                    {/*
+                      The ask is small and the hit rate is good, and the reason it goes undone is
+                      that twelve individual emails is a morning nobody has. So the agent writes
+                      them one at a time, and a person sends them.
+                    */}
+                    {site && <OutreachPitch siteId={site.id} domain={domain} />}
+                  </div>
                 ))}
               </div>
             </section>

@@ -98,6 +98,23 @@ export interface AuditProgress {
   finished: boolean
 }
 
+/**
+ * A drafted outreach email, and the facts it was built on. Never a sent one.
+ *
+ * `sendPolicy` is carried on the payload rather than being a rule the UI is trusted to remember,
+ * so a screen cannot render a draft without the caveat that a human sends it (CLAUDE.md rule 6).
+ */
+export interface GroundingFact {
+  claim: string
+  sourceUrl: string
+}
+
+export interface OutreachDraft {
+  draft: { subject: string; body: string; angle: string }
+  sendPolicy: string
+  groundedOn: GroundingFact[]
+}
+
 /** The three scalars the finding page polls while a fix job is in flight. */
 export interface FixProgress {
   id: string
@@ -357,6 +374,28 @@ export function createApiClient(options: ApiClientOptions) {
 
     /** The fix-flow sibling of `getAuditProgress`: has the pull request landed, or failed? */
     getFixProgress: async (id: string) => request<FixProgress>(`/findings/${id}/fix-progress`),
+
+    /**
+     * Draft one outreach email for one publication. Returns null when there is no draft to make.
+     *
+     * A 422 is the drafter refusing, not a failure: nothing concrete enough to pitch, or no model
+     * configured. That is a real answer a person can act on, so it comes back as null rather than
+     * as a thrown error a caller would have to pattern-match on a status code to interpret.
+     */
+    draftOutreach: async (
+      siteId: string,
+      input: { domain: string; context?: string; facts: GroundingFact[] },
+    ) => {
+      try {
+        return await request<OutreachDraft>(`/sites/${siteId}/outreach`, {
+          method: 'POST',
+          body: JSON.stringify(input),
+        })
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.status === 422) return null
+        throw error
+      }
+    },
 
     /** Queue an audit for a site. Returns the new audit's id; the crawl runs on the worker. */
     startAudit: async (siteId: string) =>

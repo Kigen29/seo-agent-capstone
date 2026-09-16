@@ -14,17 +14,19 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
+    "@seo/agent": "workspace:*",
     "@seo/audit": "workspace:*",
+    "@seo/budget": "workspace:*",
+    "@seo/connectors": "workspace:*",
     "@seo/core": "workspace:*",
     "@seo/db": "workspace:*",
+    "@seo/llm": "workspace:*",
+    "@seo/queue": "workspace:*",
+    "@seo/vcs": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.2.0",
     "fastify-type-provider-zod": "^4.0.2",
-    "zod": "^3.23.0",
-    "@seo/queue": "workspace:*",
-    "@seo/connectors": "workspace:*",
-    "@seo/vcs": "workspace:*",
-    "@seo/budget": "workspace:*"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",

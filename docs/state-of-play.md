@@ -132,29 +132,21 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   check, and a documented labelling method.
 - **MCP server** (`apps/mcp`): exposes the product to an external agent. Writes are off unless
   `SEO_MCP_ALLOW_WRITES=1`, capped by `SEO_MCP_MAX_PRS`.
+- **Progress on both slow actions** (#146): `usePolledProgress` backs the audit page and the fix
+  flow, so clicking "Open a pull request" no longer produces a banner and then silence. It says
+  "queued" until a runner claims the job, because until then nothing is actually happening, and it
+  gives up after five minutes rather than polling a schedule measured in hours.
+- **Outreach drafting, reachable** (#147): the authority axis drafts a pitch per unlinked mention.
+  The client supplies the one concrete fact, because that is the input we cannot generate
+  honestly, and nothing anywhere in the path can send. This was the first LLM call the API makes
+  rather than the worker; it is behind the same per-tenant budget guard, and it is synchronous
+  because a paragraph a human is about to edit is not worth a worker start.
 
 ---
 
 ## What is left
 
-### 1. No progress feedback after "Open a pull request" (#140)
-
-You click, get a banner saying a PR is on its way, and then **nothing until you manually refresh**.
-The work happens on a worker that may not start for up to 15 minutes, so the silence can be long.
-
-`apps/web/components/live-progress.tsx` already solves this and is used on exactly one page
-(the audit page). The fix flow never got it. This is the highest-value remaining UI work and it is
-mostly reuse.
-
-### 2. `draftOutreach` is unreachable (#141)
-
-`packages/agent/src/outreach.ts` is implemented, unit-tested, prompt-snapshotted, exported - and
-called by nothing. No route, no job, no UI. **Wire it up or delete it.** Unreachable code that
-looks finished is worse than absent code, because a reader assumes the feature exists.
-
-Note the product law if it is wired up: *never auto-send outreach. We draft. Humans send.*
-
-### 3. STORY-038, the eval harness, is two-fifths short (#129)
+### 1. STORY-038, the eval harness, is two-fifths short (#129)
 
 | Criterion | State |
 |---|---|
@@ -169,19 +161,17 @@ with a `why`, then a second pass over whatever the engine raised that you did no
 is in `packages/eval/README.md` and the one rule that matters is **never label from engine output;
 use it only as a reason to go and look.**
 
-Merge rate and revert rate were impossible until this week because no fix PR had ever been merged.
-One now has, so the numbers can start.
+Merge rate and revert rate were impossible until a fix PR had been merged. One has, so the numbers
+can start.
 
-### 4. Two open stories
+### 2. Two open stories
 
 - **#118 STORY-034**: the graded deliverables close. Re-verified 2026-09-16: the deployed link,
   the task board link, the design document and the `quantic-grader` share are all in place, so
   **the recorded demo is the only item left**, and it is yours rather than the code's.
-- **#117 STORY-033**: billing. Marked stretch.
-- **#142 STORY-041**: the scheduled workflows are throttled. Measurements above; the open part is
-  whether to keep `keep-warm.yml` at all.
+- **#117 STORY-033**: billing. Marked stretch, and the only one of the two that is code.
 
-### 5. Smaller things
+### 3. Smaller things
 
 - `packages/db/src/schema/tables.ts` is 525 lines, the largest source file in the repo now that
   `apps/api/src/app.ts` is split. A schema file is a more defensible place for length than a route
