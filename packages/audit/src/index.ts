@@ -2,9 +2,11 @@ export { runAudit } from './run.js'
 export type { AuditResult, RunAuditOptions } from './run.js'
 
 export {
+  clearFixError,
   getAudit,
   getAuditProgress,
   getFinding,
+  getFixProgress,
   listSites,
   listFindings,
   DEFAULT_PAGE_SIZE,
@@ -13,6 +15,7 @@ export {
 export type {
   AuditDetail,
   AuditProgress,
+  FixProgress,
   SiteSummary,
   FindingListItem,
   FindingFilters,
