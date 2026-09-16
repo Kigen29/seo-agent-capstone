@@ -67,3 +67,24 @@ services:
       # the install URL can be built.
       - key: GH_APP_SLUG
         sync: false
+      # The App's user-to-server OAuth credentials, which is what "Sign in with GitHub" uses
+      # (ADR-0023). A different pair from GH_APP_ID / GH_APP_PRIVATE_KEY above: those are how the
+      # App acts as itself to open pull requests, these are how a person proves who they are.
+      # Without both, the login page simply shows no GitHub button.
+      - key: GH_APP_CLIENT_ID
+        sync: false
+      - key: GH_APP_CLIENT_SECRET
+        sync: false
+      # What a tenant created by a social sign-in may spend per month, in micro-dollars.
+      # This deployment is open, so this is the bound on what a stranger can spend on our keys.
+      # 0 leaves everything free working and spends nothing. Unset means the $5 column default.
+      - key: NEW_TENANT_BUDGET_MICROS
+        sync: false
+
+      # API_PUBLIC_URL is deliberately NOT listed.
+      #
+      # Render sets RENDER_EXTERNAL_URL automatically on every web service, and the API prefers
+      # it, so the OAuth redirect configures itself here with nothing to forget. Set
+      # API_PUBLIC_URL only if this service is ever fronted by a custom domain, in which case the
+      # value registered on the GitHub App and the Google OAuth client is that domain and not the
+      # onrender.com one.
