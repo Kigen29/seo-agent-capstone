@@ -61,9 +61,13 @@ pnpm lint           # includes the architectural rules (see below)
 the unit tests in each package and are part of the same command; the ones that touch Postgres
 need `DATABASE_URL` and are the reason CI runs a Postgres service container.
 
-The LLM evaluation harness (precision, recall, and hallucination rate against a golden dataset)
-is designed but not built. See section 4.5 of the design and testing document for the method and
-why the `judge` role must be a different model family than the model under test.
+The LLM evaluation harness (`packages/eval`) is built: it runs the finding engine against
+hand-labelled pages and reports precision, recall and hallucination rate, and it asserts that the
+`judge` role resolves to a different model family than the model under test. The golden dataset it
+grades against is still small (one case, four pages, against a target of roughly fifty), so treat
+the numbers as an instrument that works rather than a verdict that is settled. See section 4.5 of
+the design and testing document for the method, and `packages/eval/README.md` for the labelling
+rule that matters: never label from engine output.
 
 ## Use it from your editor (MCP)
 
