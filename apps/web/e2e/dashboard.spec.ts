@@ -22,22 +22,54 @@ const OTHER_TOKEN = 'seo_e2e_other_tenant_token_do_not_use'
 const AUDIT = '00000000-0000-4000-8000-000000000004'
 const BLOCKED_FINDING = '00000000-0000-4000-8000-000000000005'
 
+/**
+ * Establish a session by writing the cookie the app reads, rather than by driving a form.
+ *
+ * There used to be a token field on the login page and every test below typed into it. That form
+ * is gone: signing in is GitHub or Google now, and an OAuth round trip cannot be driven in a test
+ * without either mocking a provider's servers or holding real credentials in CI.
+ *
+ * Setting the cookie directly is not a workaround for that, it is the better test. The session has
+ * always been an API token in an httpOnly cookie, and it still is, whichever way it was obtained
+ * (ADR-0023). These tests are about the dashboard, and making thirteen of them depend on the
+ * mechanics of a login screen coupled them to a thing none of them were trying to prove.
+ */
 async function signIn(page: Page, token = TOKEN) {
-  await page.goto('/login')
-  await page.getByLabel('API token').fill(token)
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/dashboard/)
+  /*
+    Scoped by domain and path rather than by a hardcoded URL.
+
+    The config serves on 127.0.0.1 at a port it chooses, so writing the origin out here would be a
+    second place to keep in step. A cookie set for the wrong origin is not an error: it is simply
+    never sent, and every test then fails with an unhelpful redirect to the login page.
+  */
+  await page.context().addCookies([
+    {
+      name: 'seo_token',
+      value: token,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
 }
 
-test('signs in, and refuses a token that is not real', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('API token').fill('seo_not_a_real_token')
-  await page.getByRole('button', { name: 'Sign in' }).click()
+test('sends a visitor with a dead session back to sign in', async ({ page }) => {
+  // The cookie is present and the token behind it is not real, which is what a revoked session
+  // looks like. It has to fail closed rather than render a shell with empty data in it.
+  await signIn(page, 'seo_not_a_real_token')
+  await page.goto('/dashboard')
 
-  // Scoped to the paragraph, not `getByRole('alert')`: Next renders its own route announcer
-  // with role="alert", so the bare role matches two elements and the locator is ambiguous.
-  await expect(page.locator('p[role="alert"]')).toContainText('not valid')
   await expect(page).toHaveURL(/\/login/)
+})
+
+test('offers a way to sign in, and no longer asks for a token', async ({ page }) => {
+  await page.goto('/login')
+
+  // Whatever providers this deployment has configured, the page must offer sign-in and must not
+  // ask a human for a credential minted by a CLI.
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByLabel('API token')).toHaveCount(0)
 })
 
 test('turns an anonymous visitor away from the dashboard', async ({ page }) => {

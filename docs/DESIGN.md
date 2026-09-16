@@ -74,10 +74,40 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | Paging | `<Pagination>` |
 | A form button | `<SubmitButton pendingLabel>` |
 | Loading | `.skeleton`, and a `loading.tsx` for the route |
+| A menu | `<DropdownMenu>` and friends |
+| An on/off control | `<Switch>` |
+| A profile picture | `<Avatar>` + `<AvatarFallback>`, and `initials()` |
+| A form label | `<Label>` |
+| A rule between sections | `<Separator>` |
+| A link that looks like a button | `<Button asChild>` wrapping a `<Link>` |
 
 `.card` is a flex column and its default `align-items: stretch` makes every child full width. A
 button inside a card needs its width constrained or it becomes a full-width bar. This has caused
 four separate visual bugs; check it every time.
+
+## shadcn, and what we took from it
+
+`components/ui/` holds shadcn-shaped components built on Radix. What was taken is the
+**architecture**: a typed variant API through `cva`, `asChild` so a link can wear a button's
+appearance without duplicating its classes, a `className` that genuinely overrides through `cn()`,
+and Radix's keyboard, focus and ARIA behaviour for the things that are genuinely hard.
+
+What was **not** taken is the look. shadcn is copy-in components you own, not a theme you adopt, so
+every one of these is restyled onto the tokens above. There is no Inter, no violet primary, no
+16px radius and no second palette anywhere in `components/ui/`.
+
+Two rules follow, and they are the ones to hold the line on:
+
+- **A component that has a Classical class uses it.** `<Button>` renders `.btn .btn-primary`; it
+  does not re-declare gold in Tailwind utilities. There is still exactly one place that decides
+  what a primary button looks like, and it is `classical.css`.
+- **Reach for Radix when the behaviour is hard, not when the markup is.** A menu, a switch, a
+  dialog and tabs are worth it: roving tabindex, Escape, focus return, `aria-expanded` and
+  click-outside are each a thing to forget. A card is not worth it, and `.card` stays as it is.
+
+`components.json` exists so `npx shadcn add` drops a component in the right place with the right
+aliases. Anything it generates arrives in the default look and has to be restyled onto the tokens
+before it ships.
 
 ## Layout
 

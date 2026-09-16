@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { signOut } from '@/app/login/actions'
-import { ThemeToggle } from '@/components/theme-toggle'
+import type { SignedInIdentity } from '@seo/api-client'
+import { AccountMenu } from '@/components/account-menu'
 
 /**
  * The app shell: where you are, what else there is, and which site you are looking at.
@@ -71,7 +71,14 @@ function hostOf(url: string): string {
   }
 }
 
-export function Sidebar({ sites }: { sites: SidebarSite[] }) {
+export function Sidebar({
+  sites,
+  identity,
+}: {
+  sites: SidebarSite[]
+  /** Null for a session minted by hand for the CLI, which has no person behind it. */
+  identity: SignedInIdentity | null
+}) {
   const pathname = usePathname() ?? ''
   const params = useSearchParams()
   const [open, setOpen] = useState(false)
@@ -177,13 +184,18 @@ export function Sidebar({ sites }: { sites: SidebarSite[] }) {
           ))}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-3">
-          <ThemeToggle />
-          <form action={signOut}>
-            <button type="submit" className="btn btn-ghost btn-sm">
-              Sign out
-            </button>
-          </form>
+        {/*
+          The account menu, where a theme control and a bare sign-out button used to sit.
+
+          Both were rare decisions taking permanent space on every screen, and neither said who was
+          signed in, which is the first thing anyone looks for once there is more than one way to
+          be signed in.
+        */}
+        <div
+          className="mt-auto"
+          style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 'var(--space-3)' }}
+        >
+          <AccountMenu identity={identity} />
         </div>
       </div>
     </>

@@ -1,3 +1,4 @@
+import type { SignedInIdentity } from '@seo/api-client'
 import { redirect } from 'next/navigation'
 import { Sidebar, type SidebarSite } from '@/components/sidebar'
 import { getClient, getToken } from '@/lib/session'
@@ -27,16 +28,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * populate would turn a cosmetic problem into an outage.
    */
   let sites: SidebarSite[] = []
+  let identity: SignedInIdentity | null = null
   try {
     const api = await getClient()
-    if (api) sites = (await api.listSites()).map((site) => ({ id: site.id, url: site.url }))
+    if (api) {
+      // Both at once: two round trips to a sleeping free instance is twice the cold start, and
+      // neither of these blocks the other.
+      const [siteList, who] = await Promise.all([api.listSites(), api.getIdentity()])
+      sites = siteList.map((site) => ({ id: site.id, url: site.url }))
+      identity = who
+    }
   } catch {
     sites = []
   }
 
   return (
     <div className="md:flex">
-      <Sidebar sites={sites} />
+      <Sidebar sites={sites} identity={identity} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   )

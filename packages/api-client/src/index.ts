@@ -123,6 +123,20 @@ export interface SignedInIdentity {
   avatarUrl: string | null
 }
 
+/**
+ * The account behind the session, for the profile and settings screens.
+ *
+ * The budget is in micro-dollars, like everywhere else it appears, and is formatted once at the
+ * edge. Money is never a float in this codebase: a `fast` call costs fractions of a cent and
+ * thousands of them have to sum without drift, which an integer gives by construction.
+ */
+export interface Account {
+  tenantName: string | null
+  createdAt: string | null
+  identity: SignedInIdentity | null
+  budget: { capMicros: number; spentMicros: number; allowed: boolean }
+}
+
 /** The three scalars the finding page polls while a fix job is in flight. */
 export interface FixProgress {
   id: string
@@ -435,6 +449,9 @@ export function createApiClient(options: ApiClientOptions) {
      * carries every finding with its evidence, which is not something to re-fetch twice a minute.
      */
     getAuditProgress: async (id: string) => request<AuditProgress>(`/audits/${id}/progress`),
+
+    /** The account behind the session: who owns it, and what it may spend this month. */
+    getAccount: async () => request<Account>('/account'),
 
     /** Who is signed in, or null for a session minted by hand for the CLI. */
     getIdentity: async () =>
