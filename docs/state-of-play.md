@@ -2,7 +2,7 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last updated: 2026-08-24.
+Last updated: 2026-09-16.
 
 This is the "read this first after a break" document. `CLAUDE.md` says what we are building and the
 laws it must obey; `docs/architecture.md` says how it is put together. This one says what is true
@@ -27,8 +27,9 @@ merged.
 Until that day both had been stuck. See "the webhook is not a channel you can rely on" below,
 because the reason is a permanent property of the free tier rather than a bug that is now gone.
 
-**Production numbers as of this writing:** 95 findings, 45 fixable, 1 verified, 2 sites with
-Search Console verified, 26 rules, 8 deterministic fixers.
+**Production numbers, measured 2026-08-24 and not re-read since:** 95 findings, 45 fixable, 1
+verified, 2 sites with Search Console verified. The code-side counts are still current: 26 rules,
+8 deterministic fixers, plus the LLM content fixer.
 
 ---
 
@@ -47,19 +48,47 @@ That is not a hypothetical: it silently broke the last two steps of the loop for
 that works is *webhook for speed, sweep for truth* - `apps/worker/src/reconcile.ts` is the worked
 example, and any future integration that receives callbacks needs the same treatment.
 
-### The cold start is the worst part of the product
+### The cold start is the worst part of the product, and the keep-warm does not fix it
 
-Every first request after a quiet period pays 30 to 60 seconds. `keep-warm.yml` reduces how often
-this happens; it cannot eliminate it, because the keep-warm cron and the spin-down window are the
-same 15 minutes. The dashboard already handles it honestly rather than showing a broken page. Do
-not paper over it further; a sprint demo should wake the service first.
+Every first request after a quiet period pays 30 to 60 seconds. Measured on 2026-09-16, a request
+to `/health` took **33.6 seconds**.
 
-### The worker is a cron, not a daemon
+`keep-warm.yml` was written to make this rare. **It does not work, and the reason is the next
+section.** It asks for a ping every 10 minutes against a 15-minute idle window; GitHub actually
+runs it every 3 hours or so. The cold start is therefore the normal case, not the rare one. The
+workflow is kept because it costs nothing and occasionally helps, but nothing should be built on
+the assumption that the API is awake.
+
+The dashboard already handles this honestly rather than showing a broken page. Do not paper over
+it further; **a sprint demo should wake the service by hand first.**
+
+### The worker is a cron, not a daemon, and the cron is much slower than it says
 
 GitHub Actions on a public repo gives unlimited free minutes, and that is the whole reason the
-crawler is affordable. The cost is that the worker is ephemeral and runs at most every 15 minutes
-(`repository_dispatch` for immediacy, `*/15` as the safety net). **Nothing can assume a process
-stays up.** Durability lives in pg-boss, never in memory.
+crawler is affordable. The cost is that the worker is ephemeral: `repository_dispatch` for
+immediacy, a schedule as the safety net. **Nothing can assume a process stays up.** Durability
+lives in pg-boss, never in memory.
+
+**The schedules do not run on the cadence they declare.** GitHub de-prioritises scheduled
+workflows on repositories with little recent activity, and the effect is large. Measured across
+the 30 most recent scheduled runs of each, 2026-09-11 to 2026-09-16:
+
+| Workflow | Declared | Shortest gap seen | Median gap | Longest gap |
+|---|---|---|---|---|
+| `keep-warm.yml` | every 10 min | 103 min | **179 min** | 352 min |
+| `worker.yml` | every 15 min | 105 min | **185 min** | 415 min |
+
+Read the "shortest gap" column first: the *best* case observed was over an hour and a half, which
+is seven times the window `keep-warm.yml` needs to hit. This is not jitter around the declared
+cadence, it is a different cadence.
+
+What still works is `repository_dispatch`, which is not a schedule and fires promptly. So a user
+action that enqueues a job is fine; it is the unattended safety net that is slow.
+
+**Scheduled workflows are disabled entirely after 60 days with no repository activity.** Any
+commit resets the clock. Before a break, note that the worker will stop running on its own roughly
+two months after the last commit, and CI will stay green the whole time, because nothing about a
+disabled schedule is a test failure.
 
 ### One Postgres does everything
 
@@ -108,7 +137,7 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
 
 ## What is left
 
-### 1. No progress feedback after "Open a pull request"
+### 1. No progress feedback after "Open a pull request" (#140)
 
 You click, get a banner saying a PR is on its way, and then **nothing until you manually refresh**.
 The work happens on a worker that may not start for up to 15 minutes, so the silence can be long.
@@ -117,7 +146,7 @@ The work happens on a worker that may not start for up to 15 minutes, so the sil
 (the audit page). The fix flow never got it. This is the highest-value remaining UI work and it is
 mostly reuse.
 
-### 2. `draftOutreach` is unreachable
+### 2. `draftOutreach` is unreachable (#141)
 
 `packages/agent/src/outreach.ts` is implemented, unit-tested, prompt-snapshotted, exported - and
 called by nothing. No route, no job, no UI. **Wire it up or delete it.** Unreachable code that
@@ -145,9 +174,12 @@ One now has, so the numbers can start.
 
 ### 4. Two open stories
 
-- **#118 STORY-034**: the graded deliverables close. Yours, not mine: the recorded demo, the task
-  board link, sharing with `quantic-grader`.
+- **#118 STORY-034**: the graded deliverables close. Re-verified 2026-09-16: the deployed link,
+  the task board link, the design document and the `quantic-grader` share are all in place, so
+  **the recorded demo is the only item left**, and it is yours rather than the code's.
 - **#117 STORY-033**: billing. Marked stretch.
+- **#142 STORY-041**: the scheduled workflows are throttled. Measurements above; the open part is
+  whether to keep `keep-warm.yml` at all.
 
 ### 5. Smaller things
 

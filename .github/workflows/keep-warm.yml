@@ -6,10 +6,19 @@
 # roughly enough for a single always-on service, so this is fine for one API and would not
 # be for several.
 #
-# Honest limitation: GitHub's scheduled workflows are best-effort and can be delayed under
-# load, sometimes past Render's 15-minute idle window, so this makes a cold start rare rather
-# than impossible. Before anything that must be instant, hit the site once by hand, or run
-# this workflow manually from the Actions tab (workflow_dispatch).
+# Honest limitation, and it is worse than "best-effort" suggests: this workflow does not
+# currently keep anything warm. GitHub de-prioritises scheduled workflows on repositories with
+# little recent activity, and measured over the 30 most recent scheduled runs (2026-09-11 to
+# 2026-09-16) the gap between runs was 103 minutes at the shortest, 179 at the median and 352 at
+# the longest. Even the best case is seven times Render's 15-minute idle window, so the cold
+# start is the normal case rather than the rare one.
+#
+# It is kept anyway because it costs nothing, it does occasionally land, and a more active repo
+# gets a faster schedule back. What it must not do is create a belief that the API is awake.
+# Before anything that must be instant, a demo or a grading session, hit the site once by hand
+# or run this workflow from the Actions tab (workflow_dispatch) and wait for it to finish.
+#
+# See docs/state-of-play.md, "the worker is a cron, not a daemon", for the measurements.
 #
 # If the API URL ever changes, set an `API_HEALTH_URL` repository variable; otherwise it uses
 # the value below.
@@ -17,7 +26,9 @@ name: keep-warm
 
 on:
   schedule:
-    # Every 10 minutes. Render idles after 15, and the cron can run late, so 10 leaves margin.
+    # Asks for every 10 minutes against Render's 15-minute idle window. GitHub does not honour
+    # this; see the note above for what actually happens. Left at 10 because asking for less
+    # would not make it run more often, and asking for more would be a claim we cannot keep.
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
@@ -30,6 +41,7 @@ jobs:
         run: |
           URL="${{ vars.API_HEALTH_URL || 'https://seo-agent-capstone.onrender.com/health' }}"
           echo "pinging $URL"
-          # --max-time 90 tolerates the cold-start wake this ping is triggering. A failed ping
-          # is not a failed job: it just means the next run, ten minutes on, tries again.
+          # --max-time 90 tolerates the cold-start wake this ping is triggering, which on a
+          # schedule this sparse is most of them. A failed ping is not a failed job: the next
+          # run tries again, whenever GitHub gets to it.
           curl -fsS --max-time 90 "$URL" && echo "  awake" || echo "  ping failed; will retry next cycle"
