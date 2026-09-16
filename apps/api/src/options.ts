@@ -1,5 +1,5 @@
 import type { OutreachLlm } from '@seo/agent'
-import type { KeywordProvider, OAuthConfig } from '@seo/connectors'
+import type { IdentityProvider, KeywordProvider, OAuthConfig } from '@seo/connectors'
 import type { Database } from '@seo/db'
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { GitHubApp } from '@seo/vcs'
@@ -82,6 +82,30 @@ export interface AppOptions {
     /** The secret GitHub signs each webhook with, so we can prove a delivery is genuine. */
     webhookSecret: string
   }
+  /**
+   * The social sign-in providers, keyed by name: `github`, `google`.
+   *
+   * A map rather than two fields, so the routes iterate rather than branch and a third provider
+   * is a line in the composition root. Injected like everything else here, so the app never reads
+   * client secrets itself and a test can sign somebody in without a network.
+   *
+   * A provider whose credentials are absent is simply not in the map, and its button does not
+   * render. That is the same posture every connector takes: missing configuration degrades the
+   * feature honestly rather than erroring.
+   */
+  identityProviders?: Record<string, IdentityProvider>
+  /**
+   * What a tenant created by a social sign-in may spend per month, in micro-dollars.
+   *
+   * This deployment is open: anyone with a GitHub or Google account can sign in and gets a
+   * tenant. The cap is what bounds that, and it is per tenant rather than global, so N signups
+   * is N caps and not one shared pot. Set `NEW_TENANT_BUDGET_MICROS=0` to let strangers use
+   * everything that is free (crawl, the rule engine, the scorecard, fix pull requests, Search
+   * Console verification) while spending nothing on the paid model and SERP calls.
+   *
+   * Undefined leaves the column default alone.
+   */
+  newTenantBudgetMicros?: number
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }

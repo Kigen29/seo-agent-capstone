@@ -86,6 +86,19 @@ export type { BudgetedKeywordOptions } from './keywords/budgeted.js'
 export { KeywordBudgetError } from './keywords/types.js'
 export type { KeywordIdea, KeywordOptions, KeywordProvider } from './keywords/types.js'
 
+export { createGitHubIdentity } from './identity/github.js'
+export { createGoogleIdentity } from './identity/google.js'
+export {
+  newNonce,
+  readCookie,
+  safeNext,
+  signSigninState,
+  verifySigninState,
+  SIGNIN_NONCE_COOKIE,
+} from './identity/state.js'
+export type { SigninState } from './identity/state.js'
+export type { IdentityProvider, IdentityProviderConfig, SocialIdentity } from './identity/types.js'
+
 export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
 export {
   summarisePrompt,

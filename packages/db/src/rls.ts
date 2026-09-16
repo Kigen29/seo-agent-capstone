@@ -86,6 +86,8 @@ export const TENANT_SCOPED_TABLES = [
   'visibility_prompts',
   'visibility_checks',
   'spend',
+  'user_identities',
+  'auth_handoffs',
 ] as const
 
 /** The full RLS setup, in the order a migration must apply it. */

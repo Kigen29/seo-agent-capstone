@@ -1,4 +1,5 @@
 import type { OutreachLlm } from '@seo/agent'
+import type { IdentityProvider, SocialIdentity } from '@seo/connectors'
 import { decryptToken, DEFAULT_KEYWORD_LIMIT, KeywordBudgetError, signState } from '@seo/connectors'
 import { priorityScore } from '@seo/core'
 import {
@@ -10,6 +11,7 @@ import {
   oauthCredentials,
   sites,
   tenants,
+  userIdentities,
   visibilityPrompts,
   withTenant,
   type Database,
@@ -75,6 +77,14 @@ describe.skipIf(!shouldRun)('the API', () => {
    * present in CI. What is under test here is the route's contract, not the model's prose.
    */
   let outreachModel: OutreachLlm | undefined
+
+  /** What the fake provider will claim the next `identify` proved. Set per test by signIn. */
+  let nextIdentity: SocialIdentity = { provider: 'fake', accountId: 'acct-1', name: 'Kigen' }
+  const fakeProvider: IdentityProvider = {
+    name: 'fake',
+    authUrl: (state) => `https://provider.example/authorize?state=${encodeURIComponent(state)}`,
+    identify: async () => nextIdentity,
+  }
   /** Every prompt the fake was given, so a test can prove what the model was and was not told. */
   const outreachPrompts: string[] = []
 
@@ -112,6 +122,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         verifyFixEnqueued.push(job)
       },
       outreach: () => outreachModel,
+      identityProviders: { fake: fakeProvider },
       github: {
         app: {
           // apiFor is exercised by the fixer stories, not here; listing is what the callback uses.
@@ -1552,6 +1563,221 @@ describe.skipIf(!shouldRun)('the API', () => {
       outreachModel = undefined
       const res = await pitch(pitchSiteId, token, validBody)
       expect(res.statusCode).toBe(503)
+    })
+  })
+
+  describe('signing in with a social provider', () => {
+    /** Pull the nonce the start route set, so the callback can present it like a browser would. */
+    const nonceFrom = (setCookie: string | string[] | undefined): string => {
+      const header = Array.isArray(setCookie) ? (setCookie[0] ?? '') : (setCookie ?? '')
+      return header.split(';')[0]?.split('=')[1] ?? ''
+    }
+
+    const start = () => app.inject({ method: 'GET', url: '/auth/signin/fake' })
+
+    /** Walk a whole sign-in and return the handoff code the browser would be redirected with. */
+    const signIn = async (identity: SocialIdentity): Promise<string> => {
+      nextIdentity = identity
+      const started = await start()
+      const nonce = nonceFrom(started.headers['set-cookie'])
+      const state = new URL(started.headers.location as string).searchParams.get('state')
+
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/auth/signin/callback?code=ok&state=${encodeURIComponent(state ?? '')}`,
+        headers: { cookie: `seo_signin_nonce=${nonce}` },
+      })
+
+      return new URL(callback.headers.location as string).searchParams.get('code') ?? ''
+    }
+
+    const redeem = async (code: string): Promise<string> => {
+      const res = await app.inject({ method: 'POST', url: '/auth/exchange', payload: { code } })
+      return (res.json() as { token: string }).token
+    }
+
+    const me = (session: string) =>
+      app.inject({
+        method: 'GET',
+        url: '/auth/me',
+        headers: { authorization: `Bearer ${session}` },
+      })
+
+    it('lists only the providers that are configured', async () => {
+      const res = await app.inject({ method: 'GET', url: '/auth/providers' })
+      expect(res.json()).toEqual({ providers: ['fake'] })
+    })
+
+    it('sets a nonce cookie and sends the browser to the provider', async () => {
+      const res = await start()
+
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toContain('https://provider.example/authorize')
+
+      const cookie = String(res.headers['set-cookie'])
+      expect(cookie).toContain('seo_signin_nonce=')
+      // HttpOnly so no script can read it; Lax rather than Strict because the callback arrives
+      // as a top-level navigation from the provider, and Strict would withhold it there.
+      expect(cookie).toContain('HttpOnly')
+      expect(cookie).toContain('SameSite=Lax')
+    })
+
+    it('refuses a callback whose nonce does not match the browser cookie', async () => {
+      /*
+        The login-CSRF defence. An attacker can obtain a valid code for their own account and feed
+        the victim the callback URL; what they cannot do is set a cookie on our origin in the
+        victim's browser. Without this the victim ends up signed into the attacker's account and
+        typing their own data into it.
+      */
+      const started = await start()
+      const state = new URL(started.headers.location as string).searchParams.get('state')
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/auth/signin/callback?code=ok&state=${encodeURIComponent(state ?? '')}`,
+        headers: { cookie: 'seo_signin_nonce=not-the-one' },
+      })
+
+      expect(res.headers.location).toContain('error=invalid_state')
+    })
+
+    it('refuses a callback with no cookie at all', async () => {
+      const started = await start()
+      const state = new URL(started.headers.location as string).searchParams.get('state')
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/auth/signin/callback?code=ok&state=${encodeURIComponent(state ?? '')}`,
+      })
+      expect(res.headers.location).toContain('error=invalid_state')
+    })
+
+    it('refuses a forged state', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/signin/callback?code=ok&state=not.signed',
+        headers: { cookie: 'seo_signin_nonce=whatever' },
+      })
+      expect(res.headers.location).toContain('error=invalid_state')
+    })
+
+    it('treats a declined consent as a choice, not a failure', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/signin/callback?error=access_denied',
+      })
+      expect(res.headers.location).toContain('error=declined')
+    })
+
+    it('never puts the session token in the redirect, only a handoff code', async () => {
+      /*
+        The whole reason the handoff exists. A URL reaches browser history, the next request's
+        Referer, and every log on the way, so a token in one is a credential written down in
+        three places nobody controls.
+      */
+      const code = await signIn({ provider: 'fake', accountId: 'acct-redirect', name: 'R' })
+
+      expect(code).not.toContain('seo_')
+      expect(code.length).toBeGreaterThan(20)
+    })
+
+    it('exchanges the code for a token that actually works', async () => {
+      const code = await signIn({ provider: 'fake', accountId: 'acct-works', name: 'W' })
+      const session = await redeem(code)
+
+      const whoami = await me(session)
+      expect(whoami.statusCode).toBe(200)
+      expect((whoami.json() as { identity: { name: string } }).identity).toMatchObject({
+        provider: 'fake',
+        name: 'W',
+      })
+    })
+
+    it('spends a handoff code exactly once', async () => {
+      // Reloading the callback URL is the ordinary way this happens, not an attack.
+      const code = await signIn({ provider: 'fake', accountId: 'acct-once', name: 'O' })
+
+      const first = await app.inject({ method: 'POST', url: '/auth/exchange', payload: { code } })
+      const second = await app.inject({ method: 'POST', url: '/auth/exchange', payload: { code } })
+
+      expect(first.statusCode).toBe(200)
+      expect(second.statusCode).toBe(400)
+    })
+
+    it('refuses a code it never minted', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/exchange',
+        payload: { code: 'not-a-real-code' },
+      })
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('returns the same tenant when the same account signs in again', async () => {
+      /*
+        Keyed on the provider account id, so this holds even when the email changes. Matching on
+        the email instead would hand this person a second, empty tenant and lose everything in
+        the first one.
+      */
+      const identity = { provider: 'fake', accountId: 'acct-stable', email: 'first@example.com' }
+      const one = await signIn(identity)
+      const two = await signIn({ ...identity, email: 'changed@example.com', name: 'Renamed' })
+
+      await redeem(one)
+      const after = await me(await redeem(two))
+      const body = after.json() as { identity: { email: string; name: string } }
+
+      // The display data refreshes from the provider rather than being frozen at first sign-in.
+      expect(body.identity.email).toBe('changed@example.com')
+      expect(body.identity.name).toBe('Renamed')
+
+      const rows = await asOwner(db, (tx) =>
+        tx.select().from(userIdentities).where(eq(userIdentities.providerAccountId, 'acct-stable')),
+      )
+      expect(rows).toHaveLength(1)
+    })
+
+    it('gives a hand-minted token a null identity rather than inventing one', async () => {
+      const res = await me(token)
+      expect((res.json() as { identity: unknown }).identity).toBeNull()
+    })
+
+    it('signing out revokes the token, not just the cookie', async () => {
+      /*
+        Clearing the cookie is what the user sees; deleting the row is what ends the session. With
+        only the cookie cleared, a token captured beforehand keeps working for the full thirty
+        days of the cookie's life after they believed they had signed out.
+      */
+      const session = await redeem(
+        await signIn({ provider: 'fake', accountId: 'acct-signout', name: 'S' }),
+      )
+      expect((await me(session)).statusCode).toBe(200)
+
+      await app.inject({
+        method: 'POST',
+        url: '/auth/signout',
+        headers: { authorization: `Bearer ${session}` },
+      })
+
+      expect((await me(session)).statusCode).toBe(401)
+    })
+
+    it('leaves every other session alone when one signs out', async () => {
+      // Signing out of this browser must not revoke the CLI token, or another browser.
+      const first = await redeem(
+        await signIn({ provider: 'fake', accountId: 'acct-two-devices', name: 'D' }),
+      )
+      const second = await redeem(
+        await signIn({ provider: 'fake', accountId: 'acct-two-devices', name: 'D' }),
+      )
+
+      await app.inject({
+        method: 'POST',
+        url: '/auth/signout',
+        headers: { authorization: `Bearer ${first}` },
+      })
+
+      expect((await me(second)).statusCode).toBe(200)
     })
   })
 
