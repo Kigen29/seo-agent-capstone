@@ -32,6 +32,9 @@ importers:
       '@fastify/cors':
         specifier: ^10.0.1
         version: 10.1.0
+      '@seo/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@seo/audit':
         specifier: workspace:*
         version: link:../../packages/audit
@@ -47,6 +50,9 @@ importers:
       '@seo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@seo/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@seo/queue':
         specifier: workspace:*
         version: link:../../packages/queue

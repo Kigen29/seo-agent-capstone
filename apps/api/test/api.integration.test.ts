@@ -1,3 +1,4 @@
+import type { OutreachLlm } from '@seo/agent'
 import { decryptToken, DEFAULT_KEYWORD_LIMIT, KeywordBudgetError, signState } from '@seo/connectors'
 import { priorityScore } from '@seo/core'
 import {
@@ -67,6 +68,16 @@ describe.skipIf(!shouldRun)('the API', () => {
   const fixEnqueued: FixJob[] = []
   const verifyFixEnqueued: VerifyFixJob[] = []
 
+  /**
+   * The model the outreach route is handed, swapped per test.
+   *
+   * A fake rather than a chain, so these tests spend nothing and do not depend on a key being
+   * present in CI. What is under test here is the route's contract, not the model's prose.
+   */
+  let outreachModel: OutreachLlm | undefined
+  /** Every prompt the fake was given, so a test can prove what the model was and was not told. */
+  const outreachPrompts: string[] = []
+
   const mint = (tenant: string) => {
     const plain = generateToken()
     return asOwner(db, async (tx) => {
@@ -100,6 +111,7 @@ describe.skipIf(!shouldRun)('the API', () => {
       enqueueVerifyFix: async (job) => {
         verifyFixEnqueued.push(job)
       },
+      outreach: () => outreachModel,
       github: {
         app: {
           // apiFor is exercised by the fixer stories, not here; listing is what the callback uses.
@@ -1425,6 +1437,121 @@ describe.skipIf(!shouldRun)('the API', () => {
     it('gives another tenant a 404, not a 403', async () => {
       const res = await progress(watchedId, otherToken)
       expect(res.statusCode).toBe(404)
+    })
+  })
+
+  describe('drafting outreach', () => {
+    let pitchSiteId: string
+
+    const draft = {
+      subject: 'Vehicle occupancy data for your Mara coverage',
+      body: 'x'.repeat(200),
+      angle: 'They covered the Mara circuit in March and used no occupancy figures.',
+    }
+
+    /** A model that returns a valid draft and records what it was asked. */
+    const workingModel: OutreachLlm = {
+      object: async (opts) => {
+        outreachPrompts.push(opts.prompt)
+        return { output: draft as never }
+      },
+    }
+
+    beforeAll(async () => {
+      pitchSiteId = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://pitch.example.com', brand: 'Pitch Safaris' })
+          .returning()
+        return row!.id
+      })
+    })
+
+    const pitch = (siteId: string, bearer: string, body: Record<string, unknown>) =>
+      app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/outreach`,
+        headers: { authorization: `Bearer ${bearer}` },
+        payload: body,
+      })
+
+    const validBody = {
+      domain: 'nation.africa',
+      facts: [
+        {
+          claim: 'We have published vehicle occupancy for every 9-day Mara circuit since 2011.',
+          sourceUrl: 'https://pitch.example.com/fleet',
+        },
+      ],
+    }
+
+    it('drafts a pitch, and says on the payload that a human sends it', async () => {
+      outreachModel = workingModel
+      const res = await pitch(pitchSiteId, token, validBody)
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json() as {
+        draft: typeof draft
+        sendPolicy: string
+        groundedOn: { claim: string }[]
+      }
+      expect(body.draft.subject).toBe(draft.subject)
+      expect(body.groundedOn).toHaveLength(1)
+      // Rule 6 travels with the payload, so a UI cannot render a draft without the caveat.
+      expect(body.sendPolicy).toContain('a human reviews and sends')
+    })
+
+    it('tells the model only the facts it was given', async () => {
+      /*
+        The expensive failure mode for this feature is an invented specific in an email to a
+        journalist, sent under the client's name. The drafter's system prompt forbids inventing;
+        this asserts the route is not quietly widening what the model has to work with.
+      */
+      outreachModel = workingModel
+      outreachPrompts.length = 0
+      await pitch(pitchSiteId, token, validBody)
+
+      const prompt = outreachPrompts.at(-1) ?? ''
+      expect(prompt).toContain('vehicle occupancy')
+      expect(prompt).toContain('nation.africa')
+      expect(prompt).toContain('Pitch Safaris')
+    })
+
+    it('answers 422, not 500, when the drafter refuses', async () => {
+      // No chain configured, a refusal, or output that did not validate. None of those is a
+      // fault the user can act on by retrying, and "there is no draft" is a real answer.
+      outreachModel = {
+        object: async () => {
+          throw new Error('no chain configured')
+        },
+      }
+      const res = await pitch(pitchSiteId, token, validBody)
+      expect(res.statusCode).toBe(422)
+    })
+
+    it('refuses a request with no facts at all, before spending anything', async () => {
+      outreachModel = workingModel
+      outreachPrompts.length = 0
+      const res = await pitch(pitchSiteId, token, { domain: 'nation.africa', facts: [] })
+
+      expect(res.statusCode).toBe(400)
+      expect(outreachPrompts).toHaveLength(0)
+    })
+
+    it('gives another tenant a 404, and does not call the model', async () => {
+      outreachModel = workingModel
+      outreachPrompts.length = 0
+      const res = await pitch(pitchSiteId, otherToken, validBody)
+
+      expect(res.statusCode).toBe(404)
+      // The ownership check runs before the billed call, so a stranger cannot spend our money.
+      expect(outreachPrompts).toHaveLength(0)
+    })
+
+    it('reports 503 when no model is configured at all', async () => {
+      outreachModel = undefined
+      const res = await pitch(pitchSiteId, token, validBody)
+      expect(res.statusCode).toBe(503)
     })
   })
 

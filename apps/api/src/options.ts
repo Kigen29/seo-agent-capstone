@@ -1,3 +1,4 @@
+import type { OutreachLlm } from '@seo/agent'
 import type { KeywordProvider, OAuthConfig } from '@seo/connectors'
 import type { Database } from '@seo/db'
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
@@ -47,6 +48,22 @@ export interface AppOptions {
    * hard connection ceiling is a real cost for no benefit.
    */
   keywords?: (tenantId: string, db: Database) => KeywordProvider | undefined
+  /**
+   * A model client for a tenant, already wrapped in that tenant's budget guard.
+   *
+   * The same factory shape as `keywords`, and for the same reason: the guard is per-tenant
+   * (ADR-0017) and the tenant is only known once a request has authenticated.
+   *
+   * This is the first LLM call the API makes; every other one in the product runs on the worker.
+   * Drafting is the exception because it is interactive. A fix PR is worth waiting for, so it is
+   * queued; a paragraph of email a human is about to edit is not worth a worker start, which
+   * #142 measured in hours when `repository_dispatch` is not configured. The spend rules do not
+   * change: the same `createBudgetGuard` wraps the call, so it is checked before and recorded
+   * after exactly as the worker's is.
+   *
+   * Absent means `POST /sites/:id/outreach` reports 503 rather than pretending to draft.
+   */
+  outreach?: (tenantId: string, db: Database) => OutreachLlm | undefined
   /**
    * Google OAuth. Injected so the connection routes can be tested with a mocked token
    * endpoint, and so the app never reads process.env directly. Absent means the routes report
