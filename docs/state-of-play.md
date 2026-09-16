@@ -171,7 +171,15 @@ can start.
   **the recorded demo is the only item left**, and it is yours rather than the code's.
 - **#117 STORY-033**: billing. Marked stretch, and the only one of the two that is code.
 
-### 3. Smaller things
+### 3. A researched roadmap, not yet started
+
+`docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
+keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free
+and deterministic: Search Console cannibalisation and question findings, local business identity as
+a pull request, and product page rules. The public `/check` page is approved in principle and
+**needs its ADR, amending ADR-0009, before any code**.
+
+### 4. Smaller things
 
 - `packages/db/src/schema/tables.ts` is 525 lines, the largest source file in the repo now that
   `apps/api/src/app.ts` is split. A schema file is a more defensible place for length than a route
