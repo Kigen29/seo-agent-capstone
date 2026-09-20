@@ -80,6 +80,20 @@ services:
       # 0 leaves everything free working and spends nothing. Unset means the $5 column default.
       - key: NEW_TENANT_BUDGET_MICROS
         sync: false
+      # DataForSEO, for keyword research on /keywords and the MCP keyword_ideas tool.
+      #
+      # The API needs these as well as the worker: the worker uses the same vendor for backlinks
+      # during an audit, this service uses it for keyword ideas during a request. Absent, the
+      # route answers with an empty list and a note saying it is not configured, which is the
+      # posture every paid surface takes (ADR-0016, ADR-0021).
+      #
+      # The password here is the vendor's **API password** from app.dataforseo.com/api-access,
+      # not the account login password. They are different strings and the account one returns
+      # 40100 on every call.
+      - key: DATAFORSEO_LOGIN
+        sync: false
+      - key: DATAFORSEO_PASSWORD
+        sync: false
 
       # API_PUBLIC_URL is deliberately NOT listed.
       #

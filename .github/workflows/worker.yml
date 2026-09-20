@@ -76,6 +76,15 @@ jobs:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           SERP_COUNTRY: ${{ vars.SERP_COUNTRY }}
           SERP_COST_PER_QUERY_USD: ${{ vars.SERP_COST_PER_QUERY_USD }}
+          # The backlink index, for referring domains and the unlinked-mention finding on the
+          # authority axis (ADR-0021). Off by default like SerpApi: unset means the axis reports
+          # referring domains as unmeasured rather than as a zero, which is the one distinction
+          # that matters there. The cost variable feeds the per-tenant budget guard, so leaving
+          # it unset would record spend as free and quietly disarm the cap (ADR-0017).
+          DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
+          DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+          DATAFORSEO_USE_SANDBOX: ${{ vars.DATAFORSEO_USE_SANDBOX }}
+          BACKLINK_COST_PER_QUERY_USD: ${{ vars.BACKLINK_COST_PER_QUERY_USD }}
           GOOGLE_PSI_API_KEY: ${{ secrets.GOOGLE_PSI_API_KEY }}
           GOOGLE_CRUX_API_KEY: ${{ secrets.GOOGLE_CRUX_API_KEY }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
