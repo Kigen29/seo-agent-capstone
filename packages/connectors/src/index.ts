@@ -108,13 +108,21 @@ export type {
 
 export {
   createDataForSeoKeywords,
+  DEFAULT_GAP_LIMIT,
   DEFAULT_LIMIT as DEFAULT_KEYWORD_LIMIT,
   MAX_LIMIT as MAX_KEYWORD_LIMIT,
+  subtractKnownQueries,
 } from './keywords/dataforseo.js'
 export { budgetedKeywords } from './keywords/budgeted.js'
 export type { BudgetedKeywordOptions } from './keywords/budgeted.js'
 export { KeywordBudgetError } from './keywords/types.js'
-export type { KeywordIdea, KeywordOptions, KeywordProvider } from './keywords/types.js'
+export type {
+  KeywordGap,
+  KeywordGapEntry,
+  KeywordIdea,
+  KeywordOptions,
+  KeywordProvider,
+} from './keywords/types.js'
 
 export { createGitHubIdentity } from './identity/github.js'
 export { createGoogleIdentity } from './identity/google.js'

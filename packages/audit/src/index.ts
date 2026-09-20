@@ -38,6 +38,7 @@ export { measureVisibility, visibilityReport, VISIBILITY_WINDOW_DAYS } from './v
 export type { VisibilityReport, VisibilityResult } from './visibility.js'
 
 export { measureAuthority, MAX_COMPARED_COMPETITORS } from './authority.js'
+export { siteQueries } from './search.js'
 export type { AuthorityResult } from './authority.js'
 
 export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'

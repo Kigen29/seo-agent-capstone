@@ -1,6 +1,7 @@
 import type { SerpBudgetHooks } from '../serp/budgeted.js'
 import {
   KeywordBudgetError,
+  type KeywordGap,
   type KeywordIdea,
   type KeywordOptions,
   type KeywordProvider,
@@ -36,24 +37,37 @@ export function budgetedKeywords(
     name: provider.name,
 
     async ideas(seed: string, keywordOptions?: KeywordOptions): Promise<KeywordIdea[]> {
-      const verdict = await options.checkBudget(options.tenantId)
-      if (!verdict.allowed) {
-        throw new KeywordBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
-      }
-
-      try {
-        return await provider.ideas(seed, keywordOptions)
-      } finally {
-        await options
-          .recordSpend(options.tenantId, {
-            provider: provider.name,
-            model: 'keywords',
-            micros: options.costPerQueryMicros,
-          })
-          .catch((error: unknown) => {
-            console.error('keywords: could not record what this query cost:', error)
-          })
-      }
+      return spend(() => provider.ideas(seed, keywordOptions))
     },
+
+    async gap(
+      client: string,
+      competitor: string,
+      keywordOptions?: KeywordOptions,
+    ): Promise<KeywordGap> {
+      return spend(() => provider.gap(client, competitor, keywordOptions))
+    },
+  }
+
+  /** Refuse, then call, then record. The order is the decision ADR-0017 exists to hold. */
+  async function spend<T>(call: () => Promise<T>): Promise<T> {
+    const verdict = await options.checkBudget(options.tenantId)
+    if (!verdict.allowed) {
+      throw new KeywordBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
+    }
+
+    try {
+      return await call()
+    } finally {
+      await options
+        .recordSpend(options.tenantId, {
+          provider: provider.name,
+          model: 'keywords',
+          micros: options.costPerQueryMicros,
+        })
+        .catch((error: unknown) => {
+          console.error('keywords: could not record what this query cost:', error)
+        })
+    }
   }
 }

@@ -37,12 +37,42 @@ export interface KeywordOptions {
   limit?: number
 }
 
+/** A keyword a competitor ranks for, with where they rank. */
+export interface KeywordGapEntry extends KeywordIdea {
+  /** The competitor's absolute position, 1 being the top. Null when the vendor omits it. */
+  competitorPosition: number | null
+  /** The competitor page that ranks for it. */
+  competitorUrl?: string
+}
+
+export interface KeywordGap {
+  /** The competitor whose rankings were read. */
+  competitor: string
+  /** The client the competitor was compared against. */
+  client: string
+  /** The rows the vendor returned, ordered by search volume. */
+  keywords: KeywordGapEntry[]
+  /** The row limit this result was fetched with, so a caller can qualify what it derives. */
+  limit: number
+}
+
 export interface KeywordProvider {
   /** A stable identifier for the spend ledger, e.g. 'dataforseo'. */
   readonly name: string
 
   /** Keyword ideas related to a seed term, with their volumes. */
   ideas(seed: string, options?: KeywordOptions): Promise<KeywordIdea[]>
+
+  /**
+   * Keywords a competitor ranks for and the client does not, as the vendor sees it.
+   *
+   * "As the vendor sees it" is the whole caveat, and it is why the result is not shown raw. A
+   * third-party index is weakest exactly where our clients live: a small site in a small market is
+   * routinely absent from it, so the vendor reports a gap for every term the client already ranks
+   * for. The Search Console subtraction that fixes it happens above this seam, because a keyword
+   * vendor has no business knowing about a tenant's OAuth grant.
+   */
+  gap(client: string, competitor: string, options?: KeywordOptions): Promise<KeywordGap>
 }
 
 /** A paid query was refused before it was made, because the tenant is out of budget. */

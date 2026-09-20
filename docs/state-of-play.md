@@ -209,7 +209,13 @@ vendor's spam score and routing directories to the local axis. The first live qu
 fifteen domains and refused all fifteen, which is the honest answer and the reason the
 classification exists.
 
-**Not started:** the rest of Tier 2, and Tier 3.
+**Done (2026-09-21):** Tier 2 item 5, the keyword gap. A competitor's rankings from the vendor,
+with every query the site already draws impressions for subtracted using its own Search Console
+data, on `/keywords`. The subtraction is best-effort and its absence is reported rather than
+passed off as a clean gap. `siteQueries` in `packages/audit/src/search.ts` is the shared way into
+a tenant's Search Console, extracted from `measureSearch` for this.
+
+**Not started:** Tier 2 item 6 (question mining), and Tier 3.
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free
