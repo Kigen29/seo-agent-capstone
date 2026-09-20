@@ -28,7 +28,7 @@ Until that day both had been stuck. See "the webhook is not a channel you can re
 because the reason is a permanent property of the free tier rather than a bug that is now gone.
 
 **Production numbers, measured 2026-08-24 and not re-read since:** 95 findings, 45 fixable, 1
-verified, 2 sites with Search Console verified. The code-side counts are still current: 27 rules,
+verified, 2 sites with Search Console verified. The code-side counts are still current: 29 rules,
 9 deterministic fixers, plus the LLM content fixer.
 
 ---
@@ -115,7 +115,7 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
 
 ## What is built and working
 
-- **The rule engine**: 27 deterministic rules across 6 axes, fixture-tested. `performance` and
+- **The rule engine**: 29 deterministic rules across 6 axes, fixture-tested. `performance` and
   `authority` have no rules by design; they are measured by connectors, which is why the scorecard
   honestly shows "Not measured" rather than a zero.
 - **The fixers**: 9 deterministic, plus the LLM content fixer for TECH-021. `canFixFinding` is the
@@ -179,7 +179,14 @@ site is shown for with no page answering them, matched against crawled titles an
 deterministic, cost nothing, and are unmeasured rather than empty when Search Console is not
 connected. The content coverage note no longer claims cannibalisation is unmeasured.
 
-**Done (2026-09-20):** Tier 1 item 2, local business identity. A Maps share link is decoded into a CID and Place ID (host allow-listed, redirects followed by hand), stored per site, and LOCAL-002 opens a pull request that adds `hasMap` and `sameAs` to an existing LocalBusiness block rather than adding a second one. LOCAL-003 (NAP drift inside the site) and LOCAL-004 (no review link or map embed) are still to do.
+**Done (2026-09-20):** Tier 1 item 2, local business identity. A Maps share link is decoded into a
+CID and Place ID (host allow-listed, redirects followed by hand), stored per site, and LOCAL-002
+opens a pull request that adds `hasMap` and `sameAs` to an existing LocalBusiness block rather
+than adding a second one. LOCAL-003 raises a phone number in the markup that no number on the page
+matches (compared on the last nine digits, so one number written two ways is not drift) and
+LOCAL-004 raises a connected profile the site never links to. Both are findings rather than pull
+requests: which phone is right is a fact only the business knows, and adding visible links is a
+design decision.
 
 **Not started:** the rest.
 
