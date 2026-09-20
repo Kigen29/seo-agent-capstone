@@ -946,6 +946,124 @@ describe('LOCAL-002: LocalBusiness markup that does not link to the Google profi
   })
 })
 
+describe('LOCAL-003: the phone shown is not the phone in the markup', () => {
+  const ldScript = (data: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify(data)}</script>`
+
+  const site = (body: string, telephone?: string) =>
+    html.doc(
+      body,
+      telephone === undefined
+        ? ''
+        : ldScript({ '@type': 'LocalBusiness', name: 'Acme Cafe', telephone }),
+    )
+
+  it('fires when the two numbers are different', () => {
+    const page1 = page({
+      path: '/',
+      html: site('<h1>Acme Cafe</h1><p>Call us on 0722 987 654</p>', '+254700123456'),
+    })
+
+    const findings = fire('LOCAL-003', context({ pages: [page1] }))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.axis).toBe('local')
+    // Not fixable: which of the two is correct is a fact only the business knows, and a fixer
+    // picking one would have even odds of publishing the wrong number in machine-readable form.
+    expect(findings[0]?.fixable).toBe(false)
+  })
+
+  it('treats an international and a local spelling of one number as the same number', () => {
+    // +254 700 123 456 and 0700 123 456 are one number written two ways. Reporting drift here
+    // would be a false positive on a site that is perfectly consistent.
+    const consistent = page({
+      path: '/',
+      html: site('<h1>Acme</h1><p>Call 0700 123 456</p>', '+254 700 123 456'),
+    })
+
+    expect(fire('LOCAL-003', context({ pages: [consistent] }))).toEqual([])
+  })
+
+  it('stays silent when the page shows no number at all', () => {
+    const quiet = page({ path: '/', html: site('<h1>Acme</h1><p>Visit us.</p>', '+254700123456') })
+
+    expect(fire('LOCAL-003', context({ pages: [quiet] }))).toEqual([])
+  })
+
+  it('stays silent when the markup declares no telephone', () => {
+    // That is LOCAL-001's territory, and raising both would double up on one edit.
+    const noSchema = page({ path: '/', html: site('<h1>Acme</h1><p>Call 0722 987 654</p>') })
+
+    expect(fire('LOCAL-003', context({ pages: [noSchema] }))).toEqual([])
+  })
+
+  it('accepts a match against any of several numbers on the page', () => {
+    const many = page({
+      path: '/',
+      html: site('<h1>Acme</h1><p>Sales 0722 987 654. Support 0700 123 456.</p>', '+254700123456'),
+    })
+
+    expect(fire('LOCAL-003', context({ pages: [many] }))).toEqual([])
+  })
+
+  it('carries both numbers so a human can settle it', () => {
+    const drifted = page({
+      path: '/',
+      html: site('<h1>Acme</h1><p>Call 0722 987 654</p>', '+254700123456'),
+    })
+
+    const carried = JSON.parse(
+      (fire('LOCAL-003', context({ pages: [drifted] }))[0]!.evidence as { snippet: string })
+        .snippet,
+    )
+    expect(carried.declared).toEqual(['+254700123456'])
+    expect(carried.visible.join(' ')).toContain('0722 987 654')
+  })
+})
+
+describe('LOCAL-004: a connected profile the site never links to', () => {
+  const CID = '1234567890123456789'
+  const withProfile = (pageHtml: string) => ({
+    ...context({ pages: [page({ path: '/', html: pageHtml })] }),
+    businessProfile: { cid: CID, placeId: 'ChIJN1t_tDeuEmsRUsoyG83frY4' },
+  })
+
+  const plain = html.doc('<h1>Acme Cafe</h1><p>Open daily.</p>')
+
+  it('fires when neither a map nor a review link is anywhere on the page', () => {
+    const findings = fire('LOCAL-004', withProfile(plain))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.severity).toBe('info')
+    expect(findings[0]?.fixable).toBe(false)
+    // The links are in the evidence, so acting on this is a copy and a paste.
+    const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(carried.profileUrl).toBe(`https://maps.google.com/?cid=${CID}`)
+    expect(carried.reviewUrl).toContain('writereview')
+  })
+
+  it('says so when only the review link is missing', () => {
+    const mapOnly = html.doc(
+      '<h1>Acme</h1><iframe src="https://www.google.com/maps/embed?pb=x"></iframe>',
+    )
+
+    expect(fire('LOCAL-004', withProfile(mapOnly))[0]?.title).toContain('review link')
+  })
+
+  it('stays silent once both are present', () => {
+    const linked = html.doc(
+      `<h1>Acme</h1><a href="https://maps.google.com/?cid=${CID}">Find us</a>` +
+        '<a href="https://search.google.com/local/writereview?placeid=ChIJ123">Review us</a>',
+    )
+
+    expect(fire('LOCAL-004', withProfile(linked))).toEqual([])
+  })
+
+  it('stays silent when no profile is connected, because there is no link to suggest', () => {
+    expect(fire('LOCAL-004', context({ pages: [page({ path: '/', html: plain })] }))).toEqual([])
+  })
+})
+
 /**
  * The rules that stopped offering a fix, and what they owe the reader instead.
  *

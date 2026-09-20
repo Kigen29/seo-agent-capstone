@@ -95,7 +95,7 @@ export default async function AccountSettingsPage() {
         */}
         {budget.capMicros === 0 ? (
           <Note tone="info" className="mt-3">
-            This account has no paid budget. Everything free still works: crawling, all 27 rules,
+            This account has no paid budget. Everything free still works: crawling, all 29 rules,
             the eight-axis scorecard, fix pull requests and Search Console verification. AI
             visibility polling, keyword research and drafted outreach need a budget, and will say so
             rather than failing quietly.

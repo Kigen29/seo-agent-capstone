@@ -65,7 +65,7 @@ Google OAuth client. A provider whose credentials are absent simply gets no butt
 
 **This deployment is open**: anyone signing in gets a tenant, with the monthly cap in
 `NEW_TENANT_BUDGET_MICROS` on the paid model and SERP calls. Set it to `0` to leave everything
-free working (crawl, the 27 rules, the scorecard, fix pull requests, verification) while spending
+free working (crawl, the 29 rules, the scorecard, fix pull requests, verification) while spending
 nothing. The cap is per tenant, not global.
 
 Pasting an API token still works, behind a disclosure on the login page. It is how the CLI, the MCP
