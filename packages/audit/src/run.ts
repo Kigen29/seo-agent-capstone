@@ -11,10 +11,12 @@ import { audits, findings as findingsTable, sites, withTenant, type Database } f
 import {
   budgeted,
   budgetedBacklinks,
+  CANNIBALISATION_CHECKS,
   createDataForSeoBacklinks,
   createSerpApiProvider,
   dataForSeoFromEnv,
   googleOAuthConfigFromEnv,
+  QUESTION_GAP_CHECKS,
   QUICK_WIN_CHECKS,
   type BacklinkProvider,
   type OAuthConfig,
@@ -296,14 +298,28 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     )
 
     /**
-     * Quick wins from Search Console, if this tenant has connected it. Unlike the crawl axes,
-     * this reaches into the tenant's own field data (behind their OAuth grant), so it is only
-     * available for a connected site whose host matches a verified property. When it is not,
-     * the content axis is simply the crawl checks, and that is honest rather than empty.
+     * The Search Console step: quick wins, self-competing pages, and questions with no page.
+     * Unlike the crawl axes, this reaches into the tenant's own field data (behind their OAuth
+     * grant), so it is only available for a connected site whose host matches a verified
+     * property. When it is not, the content axis is simply the crawl checks, and that is honest
+     * rather than empty.
+     *
+     * The crawled pages go in because one of those checks compares what the site is asked for
+     * against what it has written. Titles and H1s only: this is a subject-coverage test, and
+     * handing it the body text would make it a similarity score nobody could check.
      */
     const search = await measureSearch(
       db,
-      { tenantId, siteId, siteUrl: seed },
+      {
+        tenantId,
+        siteId,
+        siteUrl: seed,
+        pages: result.pages.map((page) => ({
+          url: page.finalUrl,
+          title: page.extract.title,
+          h1s: page.extract.h1s,
+        })),
+      },
       { config: options.googleOAuth ?? googleOAuthConfig() },
     )
 
@@ -377,10 +393,16 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     coverage.authority = authority.coverage
 
     if (search.measured) {
-      // Content is already measured by the crawl rules; the quick wins add to it rather than
-      // replacing it, so the check count grows and the note records that Search Console fed in.
+      // Content is already measured by the crawl rules; the Search Console checks add to it
+      // rather than replacing it, so the count grows and the note records that field data fed
+      // in. Cannibalisation is counted here and nowhere else, which is why the rule engine's
+      // own note says it is measured only when Search Console is connected.
       coverage.content = {
-        checksRun: coverage.content.checksRun + QUICK_WIN_CHECKS,
+        checksRun:
+          coverage.content.checksRun +
+          QUICK_WIN_CHECKS +
+          CANNIBALISATION_CHECKS +
+          QUESTION_GAP_CHECKS,
         note: search.note,
       }
     }

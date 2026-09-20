@@ -30,7 +30,10 @@ const THIN_COVERAGE: Partial<Record<Axis, string>> = {
     'cited and not evidence of it.',
   content:
     'Partially measured. Titles, descriptions, headings, and thin or duplicate pages are ' +
-    'checked. Originality, freshness, and keyword cannibalisation are not.',
+    'checked from the crawl. Pages competing with each other for one query, and questions the ' +
+    'site is shown for with no page answering them, are measured only when Search Console is ' +
+    'connected, because both are facts about what Google does with the site rather than about ' +
+    'its markup. Originality and freshness are not measured.',
   agent_readiness:
     'Measured from the crawl: llms.txt, the file that helps AI agents navigate the site (and ' +
     'which Google Search ignores), plus the accessibility tree an agent actually reads, which is ' +

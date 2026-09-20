@@ -2,7 +2,7 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last updated: 2026-09-16.
+Last updated: 2026-09-20.
 
 This is the "read this first after a break" document. `CLAUDE.md` says what we are building and the
 laws it must obey; `docs/architecture.md` says how it is put together. This one says what is true
@@ -171,7 +171,15 @@ can start.
   **the recorded demo is the only item left**, and it is yours rather than the code's.
 - **#117 STORY-033**: billing. Marked stretch, and the only one of the two that is code.
 
-### 3. A researched roadmap, not yet started
+### 3. A researched roadmap, one item in
+
+**Done (2026-09-20):** Tier 1 item 1, the two Search Console content findings. CONTENT-001 raises
+queries where two of the site's own pages split the impressions; CONTENT-002 raises questions the
+site is shown for with no page answering them, matched against crawled titles and H1s. Both are
+deterministic, cost nothing, and are unmeasured rather than empty when Search Console is not
+connected. The content coverage note no longer claims cannibalisation is unmeasured.
+
+**Not started:** the rest.
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free

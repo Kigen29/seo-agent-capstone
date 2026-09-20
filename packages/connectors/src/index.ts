@@ -37,6 +37,12 @@ export type {
 export { evaluateQuickWins, QUICK_WIN_CHECKS } from './gsc/quick-wins.js'
 export type { QuickWinsInput } from './gsc/quick-wins.js'
 
+export { evaluateCannibalisation, CANNIBALISATION_CHECKS } from './gsc/cannibalisation.js'
+export type { CannibalisationInput } from './gsc/cannibalisation.js'
+
+export { evaluateQuestionGaps, QUESTION_GAP_CHECKS } from './gsc/questions.js'
+export type { QuestionGapInput, PageSummary } from './gsc/questions.js'
+
 export {
   createSiteVerificationClient,
   SiteVerificationAuthError,

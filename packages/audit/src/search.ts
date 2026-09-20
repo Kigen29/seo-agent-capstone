@@ -3,10 +3,13 @@ import {
   createGscClient,
   decryptToken,
   defaultWindow,
+  evaluateCannibalisation,
+  evaluateQuestionGaps,
   evaluateQuickWins,
   refreshAccessToken,
   type GscProperty,
   type OAuthConfig,
+  type PageSummary,
   type SearchAnalyticsQuery,
   type SearchAnalyticsRow,
 } from '@seo/connectors'
@@ -56,12 +59,48 @@ async function siteTotals(
   }
 }
 
+/**
+ * Rows grouped by query *and* page, which is the only shape that shows self-competition.
+ *
+ * A second request, because one response cannot be both shapes: grouped by page, a query's
+ * average position is per page, and the quick-wins checks need the query's own. It is allowed to
+ * fail on its own like the totals call, since a rate limit on this request must not cost the
+ * audit the findings the first one already produced.
+ *
+ * The row limit is well under Google's 25,000 ceiling. Cannibalisation shows up on queries with
+ * real impressions, which are the rows Search Console returns first, and a wider request would
+ * spend quota on the long tail where a one-impression "conflict" is meaningless anyway.
+ */
+async function pagedRows(
+  gsc: { searchAnalytics: (p: string, q: SearchAnalyticsQuery) => Promise<SearchAnalyticsRow[]> },
+  property: string,
+  window: { startDate: string; endDate: string },
+): Promise<SearchAnalyticsRow[]> {
+  try {
+    return await gsc.searchAnalytics(property, {
+      ...window,
+      dimensions: ['query', 'page'],
+      rowLimit: 5000,
+    })
+  } catch {
+    return []
+  }
+}
+
 export interface MeasureSearchOptions {
   tenantId: string
   siteId: string
   siteUrl: string
   /** An explicit Search Console property, if the site has one set. Otherwise we match by host. */
   gscProperty?: string | null
+  /**
+   * What the crawl found, reduced to titles and H1s.
+   *
+   * Only the question-gap check needs it, and it needs it to tell a missing page from a page
+   * that ranks badly. Empty or absent disables that check rather than guessing, which is why
+   * the parameter is optional: the rest of this step is about the property, not the crawl.
+   */
+  pages?: PageSummary[]
 }
 
 export interface SearchDeps {
@@ -119,21 +158,26 @@ export async function measureSearch(
       rowLimit: 1000,
     })
 
-    const findings = evaluateQuickWins({
-      siteId: options.siteId,
-      siteUrl: options.siteUrl,
-      ...window,
-      rows,
-    })
+    const shared = { siteId: options.siteId, siteUrl: options.siteUrl, ...window }
+
+    const findings = [
+      ...evaluateQuickWins({ ...shared, rows }),
+      ...evaluateQuestionGaps({ ...shared, rows, pages: options.pages ?? [] }),
+      ...evaluateCannibalisation({
+        ...shared,
+        rows: await pagedRows(gsc, property, window),
+      }),
+    ]
 
     return {
       findings,
       measured: true,
       metrics: await siteTotals(gsc, property, window),
       note:
-        `Search Console quick wins included, from real search performance over the 28 days ` +
-        `from ${window.startDate} to ${window.endDate}. Search Console lags two to three days, ` +
-        `so a change will not show here for a few weeks.`,
+        `Search Console included, from real search performance over the 28 days from ` +
+        `${window.startDate} to ${window.endDate}: quick wins, pages competing for the same ` +
+        `query, and questions the site is shown for but has no page answering. Search Console ` +
+        `lags two to three days, so a change will not show here for a few weeks.`,
     }
   } catch {
     // Revoked or expired credentials, a GSC error, a rate limit: none of these is worth

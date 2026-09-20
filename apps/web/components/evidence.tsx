@@ -91,6 +91,16 @@ export function EvidenceBlock({ evidence }: { evidence: Evidence }): React.React
               `impressions: ${evidence.impressions.toLocaleString()}`,
               `clicks: ${evidence.clicks.toLocaleString()}`,
               `click-through rate: ${(evidence.ctr * 100).toFixed(1)}%`,
+              // The split is the finding when two of the site's own pages share a query, so it
+              // is printed per page rather than left to the title.
+              ...(evidence.competingUrls ?? []).map(
+                (page) =>
+                  `${page.url}: ${page.impressions.toLocaleString()} impressions, ` +
+                  `position ${page.position.toFixed(1)}`,
+              ),
+              evidence.relatedQueries?.length
+                ? `also asked as: ${evidence.relatedQueries.map((q) => `"${q}"`).join(', ')}`
+                : undefined,
             ]
               .filter(Boolean)
               .join('\n'),

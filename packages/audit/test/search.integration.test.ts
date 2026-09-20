@@ -57,6 +57,36 @@ const googleFetch = (
     throw new Error(`unexpected fetch to ${u}`)
   })
 
+/**
+ * A fetch that answers each Search Analytics shape differently, keyed by the dimensions asked
+ * for. measureSearch makes three of these calls now (query rows, query-and-page rows, and the
+ * dimensionless totals), and a mock that returned one shape to all three would let a rule be
+ * fed rows it never sees in production.
+ */
+const googleFetchByDimensions = (byKey: Record<string, unknown[]>) =>
+  vi.fn(async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+    const u = String(input)
+    const body = (data: unknown) =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => data,
+        text: async () => JSON.stringify(data),
+      }) as Response
+
+    if (u.includes('oauth2.googleapis.com/token'))
+      return body({ access_token: 'access-1', expires_in: 3600 })
+    if (u.endsWith('/sites'))
+      return body({
+        siteEntry: [{ siteUrl: 'sc-domain:example.com', permissionLevel: 'siteOwner' }],
+      })
+    if (u.includes('/searchAnalytics/query')) {
+      const sent = JSON.parse(String(init?.body ?? '{}')) as { dimensions?: string[] }
+      return body({ rows: byKey[(sent.dimensions ?? []).join(',')] ?? [] })
+    }
+    throw new Error(`unexpected fetch to ${u}`)
+  })
+
 describe.skipIf(!shouldRun)('measureSearch', () => {
   let db: Database
   let close: () => Promise<void>
@@ -116,6 +146,99 @@ describe.skipIf(!shouldRun)('measureSearch', () => {
     expect(result.findings).toHaveLength(1)
     expect(result.findings[0]?.ruleId).toBe('QW-STRIKING')
     expect(result.note).toMatch(/Search Console/)
+  })
+
+  it('finds pages competing for one query, from the query-and-page rows', async () => {
+    const fetch = googleFetchByDimensions({
+      query: [],
+      'query,page': [
+        {
+          keys: ['floor tiles nairobi', 'https://example.com/tiles'],
+          clicks: 10,
+          impressions: 600,
+          ctr: 0.016,
+          position: 12,
+        },
+        {
+          keys: ['floor tiles nairobi', 'https://example.com/flooring'],
+          clicks: 2,
+          impressions: 400,
+          ctr: 0.005,
+          position: 18,
+        },
+      ],
+    })
+
+    const result = await measureSearch(db, opts(), { config: CONFIG, fetch })
+
+    expect(result.measured).toBe(true)
+    expect(result.findings.map((f) => f.ruleId)).toEqual(['CONTENT-001'])
+  })
+
+  it('finds a question with no page answering it, using the crawled titles', async () => {
+    const fetch = googleFetchByDimensions({
+      query: [
+        {
+          keys: ['how much do floor tiles cost in nairobi'],
+          clicks: 1,
+          impressions: 300,
+          ctr: 0.003,
+          position: 31,
+        },
+      ],
+      'query,page': [],
+    })
+
+    const withPages = {
+      ...opts(),
+      pages: [{ url: 'https://example.com/', title: 'Rangau Tiles', h1s: ['Rangau Tiles'] }],
+    }
+
+    const result = await measureSearch(db, withPages, { config: CONFIG, fetch })
+
+    expect(result.findings.map((f) => f.ruleId)).toEqual(['CONTENT-002'])
+  })
+
+  it('keeps the quick wins when the query-and-page request fails', async () => {
+    // A rate limit on the second request must not cost the audit the findings the first one
+    // already produced. Cannibalisation is silently unmeasured; the rest still lands.
+    const fetch = vi.fn(
+      async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+        const u = String(input)
+        const body = (data: unknown) =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => data,
+            text: async () => JSON.stringify(data),
+          }) as Response
+
+        if (u.includes('oauth2.googleapis.com/token'))
+          return body({ access_token: 'access-1', expires_in: 3600 })
+        if (u.endsWith('/sites'))
+          return body({
+            siteEntry: [{ siteUrl: 'sc-domain:example.com', permissionLevel: 'siteOwner' }],
+          })
+
+        const sent = JSON.parse(String(init?.body ?? '{}')) as { dimensions?: string[] }
+        if ((sent.dimensions ?? []).length === 2)
+          return {
+            ok: false,
+            status: 429,
+            json: async () => ({}),
+            text: async () => 'slow down',
+          } as Response
+
+        return body({
+          rows: [{ keys: ['seo audit'], clicks: 8, impressions: 3000, ctr: 0.0027, position: 13 }],
+        })
+      },
+    )
+
+    const result = await measureSearch(db, opts(), { config: CONFIG, fetch })
+
+    expect(result.measured).toBe(true)
+    expect(result.findings.map((f) => f.ruleId)).toEqual(['QW-STRIKING'])
   })
 
   it('decrypts the refresh token and trades it for an access token', async () => {
