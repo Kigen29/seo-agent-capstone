@@ -53,7 +53,15 @@ export function evidenceToText(evidence: Evidence): string {
       return (
         `${evidence.query ? `"${evidence.query}"` : evidence.url}: ` +
         `position ${evidence.position}, ${evidence.impressions} impressions, ` +
-        `${evidence.clicks} clicks (${evidence.startDate} to ${evidence.endDate})`
+        `${evidence.clicks} clicks (${evidence.startDate} to ${evidence.endDate})` +
+        (evidence.competingUrls?.length
+          ? `; split across ${evidence.competingUrls
+              .map((page) => `${page.url} (${page.impressions} impressions)`)
+              .join(', ')}`
+          : '') +
+        (evidence.relatedQueries?.length
+          ? `; also asked as ${evidence.relatedQueries.map((q) => `"${q}"`).join(', ')}`
+          : '')
       )
     // The sample is the evidence here, not the verdict: "cited twice" means nothing without the
     // number of checks and the days they span, so the line leads with all three.

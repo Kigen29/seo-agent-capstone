@@ -106,6 +106,33 @@ export const searchEvidenceSchema = z.object({
   ctr: z.number().min(0).max(1),
   startDate: z.string(),
   endDate: z.string(),
+  /**
+   * The pages that shared one query's impressions, when the row was grouped by query and page.
+   *
+   * Carried rather than summarised into the title because the split *is* the observation: a
+   * finding that says two pages compete for a query has to show which two and by how much, or a
+   * reader cannot check it and the verifier cannot re-observe it. Absent on every finding built
+   * from a query-only row, which is most of them.
+   */
+  competingUrls: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        impressions: z.number().int().min(0),
+        clicks: z.number().int().min(0),
+        position: z.number().min(0),
+      }),
+    )
+    .optional(),
+  /**
+   * Other queries Search Console reported that ask the same thing in different words.
+   *
+   * One question rarely arrives as one string ("tile prices nairobi", "how much are tiles in
+   * nairobi"). Reporting each separately would turn a single content gap into a dozen findings,
+   * so they are grouped and the variants travel with the evidence, where they can be read and
+   * disputed rather than quietly dropped.
+   */
+  relatedQueries: z.array(z.string()).optional(),
 })
 
 /**

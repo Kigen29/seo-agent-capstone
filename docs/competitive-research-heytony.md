@@ -68,6 +68,10 @@ branch with its own story, tests and, where a decision is made, ADR. Rule IDs ar
 
 #### 1. Content intelligence from Search Console
 
+**Built, 2026-09-20.** Both checks ship in `packages/connectors/src/gsc/cannibalisation.ts` and
+`packages/connectors/src/gsc/questions.ts`, wired through `packages/audit/src/search.ts`. The
+thresholds below are the ones in the code; what follows is the design they were built to.
+
 The content axis coverage note in `packages/rules/src/coverage.ts` says cannibalisation is not
 measured. This closes that, using data we already fetch.
 
