@@ -189,6 +189,21 @@ export interface VisibilitySettings {
   brand: string | null
 }
 
+/**
+ * The Google Business Profile a site belongs to, and what can be built from it.
+ *
+ * The stored halves and the derived halves travel together so no caller has to know how a profile
+ * link is shaped: `cid` and `placeId` are what we hold, `mapsUrl` and `reviewUrl` are what they
+ * make. All four are null for a site with no profile connected, which is a real state and not an
+ * error, since plenty of sites are not local businesses.
+ */
+export interface BusinessProfileSettings {
+  cid: string | null
+  placeId: string | null
+  mapsUrl: string | null
+  reviewUrl: string | null
+}
+
 /** One prompt's poll window: how often we asked, over how many days, and how often we were cited. */
 export interface PromptSummary {
   prompt: string
@@ -588,6 +603,22 @@ export function createApiClient(options: ApiClientOptions) {
       request<VisibilitySettings>(`/sites/${siteId}/visibility`, {
         method: 'PUT',
         body: JSON.stringify(settings),
+      }),
+
+    /** The Google Business Profile connected to this site, with the links derived from it. */
+    getBusinessProfile: async (siteId: string) =>
+      request<BusinessProfileSettings>(`/sites/${siteId}/business-profile`),
+
+    /**
+     * Connect a business profile from a Google Maps share link, or clear it with null.
+     *
+     * The API follows the link, so what comes back is what was actually found in it rather than
+     * what was pasted. A link carrying no identifier is a 400 explaining how to get one.
+     */
+    setBusinessProfile: async (siteId: string, mapsUrl: string | null) =>
+      request<BusinessProfileSettings>(`/sites/${siteId}/business-profile`, {
+        method: 'PUT',
+        body: JSON.stringify({ mapsUrl }),
       }),
   }
 }

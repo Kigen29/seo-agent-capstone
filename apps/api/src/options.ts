@@ -106,6 +106,15 @@ export interface AppOptions {
    * Undefined leaves the column default alone.
    */
   newTenantBudgetMicros?: number
+  /**
+   * The fetch used to follow a Google Maps share link.
+   *
+   * Its own field rather than a reuse of `google.fetch`, which exists for the OAuth token
+   * endpoint: this one follows a URL a *user* supplied, which is a different trust level and the
+   * reason `resolveMapsUrl` re-checks every hop against a host allow-list. Injected so a test can
+   * drive the redirect chain, including the hop that leaves Google, without a network.
+   */
+  mapsFetch?: typeof globalThis.fetch
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }

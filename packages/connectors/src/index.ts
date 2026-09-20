@@ -37,6 +37,15 @@ export type {
 export { evaluateQuickWins, QUICK_WIN_CHECKS } from './gsc/quick-wins.js'
 export type { QuickWinsInput } from './gsc/quick-wins.js'
 
+export {
+  MapsUrlError,
+  mapsUrlForCid,
+  parseMapsUrl,
+  resolveMapsUrl,
+  reviewUrlForPlaceId,
+} from './local/maps-url.js'
+export type { BusinessProfile } from './local/maps-url.js'
+
 export { evaluateCannibalisation, CANNIBALISATION_CHECKS } from './gsc/cannibalisation.js'
 export type { CannibalisationInput } from './gsc/cannibalisation.js'
 

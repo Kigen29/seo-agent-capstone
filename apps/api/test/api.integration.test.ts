@@ -2002,6 +2002,127 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('the Google Business Profile', () => {
+    /**
+     * A Maps share link resolves through one redirect, so the app under test needs a fetch it can
+     * be driven with. `location` is all the resolver reads, which is the property being relied on
+     * here: the body is never downloaded.
+     */
+    const mapsApp = async (location: string | null) =>
+      buildApp({
+        db,
+        mapsFetch: (async () =>
+          ({
+            ok: false,
+            status: location ? 302 : 200,
+            headers: new Headers(location ? { location } : {}),
+          }) as Response) as unknown as typeof globalThis.fetch,
+      })
+
+    const put = (
+      instance: Awaited<ReturnType<typeof buildApp>>,
+      payload: unknown,
+      bearer = token,
+    ) =>
+      instance.inject({
+        method: 'PUT',
+        url: `/sites/${siteId}/business-profile`,
+        headers: { authorization: `Bearer ${bearer}` },
+        payload: payload as object,
+      })
+
+    it('starts unconnected, which is a real state for a site that is not a local business', async () => {
+      const res = await get(`/sites/${siteId}/business-profile`, token)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ cid: null, placeId: null, mapsUrl: null, reviewUrl: null })
+    })
+
+    it('follows a share link and stores what it carried', async () => {
+      const instance = await mapsApp(
+        'https://www.google.com/maps/place/Rangau/data=!4m2!3m1!1s0x182f0:0x4d2!19sChIJN1t_tDeuEmsRUsoyG83frY4',
+      )
+
+      try {
+        const res = await put(instance, { mapsUrl: 'https://maps.app.goo.gl/abc123' })
+
+        expect(res.statusCode).toBe(200)
+        expect(res.json()).toEqual({
+          cid: '1234',
+          placeId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+          // The derived links travel with the stored ids so no caller has to know their shape.
+          mapsUrl: 'https://maps.google.com/?cid=1234',
+          reviewUrl:
+            'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+        })
+
+        // And it survives the round trip, rather than only being echoed back.
+        expect((await get(`/sites/${siteId}/business-profile`, token)).json().cid).toBe('1234')
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('explains what to do when the link carries no business identifier', async () => {
+      const instance = await mapsApp(null)
+
+      try {
+        const res = await put(instance, { mapsUrl: 'https://maps.app.goo.gl/nothing' })
+
+        expect(res.statusCode).toBe(400)
+        expect(res.json().message).toContain('press Share')
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('refuses a link that redirects off Google, rather than fetching it', async () => {
+      // The route takes a URL from a user, so this is the case that matters: a redirect to an
+      // internal address must be refused at the hop, not followed.
+      const instance = await mapsApp('http://169.254.169.254/latest/meta-data/')
+
+      try {
+        const res = await put(instance, { mapsUrl: 'https://maps.app.goo.gl/ssrf' })
+
+        expect(res.statusCode).toBe(400)
+        expect(res.json().message).toContain('off Google')
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('disconnects on an empty value, so a wrong branch can be undone', async () => {
+      const instance = await mapsApp('https://maps.google.com/?cid=99')
+
+      try {
+        await put(instance, { mapsUrl: 'https://maps.google.com/?cid=99' })
+        const res = await put(instance, { mapsUrl: null })
+
+        expect(res.json()).toEqual({ cid: null, placeId: null, mapsUrl: null, reviewUrl: null })
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('is a 404 for another tenant, never a 403', async () => {
+      const instance = await mapsApp('https://maps.google.com/?cid=99')
+
+      try {
+        expect((await get(`/sites/${siteId}/business-profile`, otherToken)).statusCode).toBe(404)
+        expect(
+          (await put(instance, { mapsUrl: 'https://maps.google.com/?cid=99' }, otherToken))
+            .statusCode,
+        ).toBe(404)
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('needs a token like everything else', async () => {
+      expect((await get(`/sites/${siteId}/business-profile`)).statusCode).toBe(401)
+    })
+  })
+
   describe('GET /keywords/ideas', () => {
     it('answers with a note and no data when no provider is configured', async () => {
       // The app under test is built without one. An unconfigured paid surface must be empty and

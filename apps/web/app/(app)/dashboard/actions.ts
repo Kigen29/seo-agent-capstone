@@ -1,6 +1,11 @@
 'use server'
 
-import { ApiRequestError, type ConnectRepoResult, type VisibilitySettings } from '@seo/api-client'
+import {
+  ApiRequestError,
+  type BusinessProfileSettings,
+  type ConnectRepoResult,
+  type VisibilitySettings,
+} from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { handleApiError } from '@/lib/api-error'
@@ -212,4 +217,48 @@ export async function verifySite(formData: FormData): Promise<void> {
 
   revalidatePath('/dashboard')
   redirect('/dashboard?verify=queued')
+}
+
+/** The Google Business Profile connected to a site, for the panel that edits it. */
+export async function loadBusinessProfile(
+  siteId: string,
+): Promise<BusinessProfileSettings | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  try {
+    return await api.getBusinessProfile(siteId)
+  } catch (error) {
+    handleApiError(error)
+    return { error: 'Could not load the profile. The API may be waking up; try again shortly.' }
+  }
+}
+
+/**
+ * Connect a business profile from a Maps share link, or clear it with null.
+ *
+ * A 400 is returned as its own message rather than swallowed, because the API's refusals are the
+ * useful half of this feature: "that link carries no business identifier" tells somebody exactly
+ * what to do next, and a generic failure would not.
+ */
+export async function saveBusinessProfile(
+  siteId: string,
+  mapsUrl: string | null,
+): Promise<BusinessProfileSettings | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  let saved: BusinessProfileSettings
+  try {
+    saved = await api.setBusinessProfile(siteId, mapsUrl)
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 400) {
+      return { error: error.message }
+    }
+    handleApiError(error)
+    return { error: 'Could not save the profile. Try again shortly.' }
+  }
+
+  revalidatePath('/dashboard')
+  return saved
 }

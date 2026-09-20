@@ -12,6 +12,7 @@ import { auditRoutes } from './routes/audits.js'
 import { connectionRoutes } from './routes/connections.js'
 import { findingRoutes } from './routes/findings.js'
 import { keywordRoutes } from './routes/keywords.js'
+import { localRoutes } from './routes/local.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
 import { outreachRoutes } from './routes/outreach.js'
 import { identityRoutes, signinRoutes } from './routes/signin.js'
@@ -128,6 +129,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     outreachRoutes(protectedRoutes, deps)
     identityRoutes(protectedRoutes, deps)
     keywordRoutes(protectedRoutes, deps)
+    localRoutes(protectedRoutes, deps)
     visibilityRoutes(protectedRoutes, deps)
   })
 

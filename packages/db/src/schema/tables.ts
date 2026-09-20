@@ -111,6 +111,20 @@ export const sites = pgTable(
      */
     brand: text('brand'),
 
+    /**
+     * The Google Business Profile this site belongs to, as its two public identifiers.
+     *
+     * Stored for the same reason `brand` is: neither is derivable from the site. The CID is the
+     * profile's numeric id (a decimal string, because it exceeds 2^53 and a JavaScript number
+     * would silently round it), and it is what a `hasMap` or `sameAs` link in LocalBusiness
+     * markup should point at. The Place ID is what builds a "leave a review" link.
+     *
+     * Null means the client has not connected a profile, and the local axis says so rather than
+     * assuming a business has none.
+     */
+    gbpCid: text('gbp_cid'),
+    gbpPlaceId: text('gbp_place_id'),
+
     /** Search Console property, e.g. 'https://example.com/', set when auto-verification runs. */
     gscProperty: text('gsc_property'),
     /** Where the site is in the auto-verification lifecycle. See VerificationStatus. */

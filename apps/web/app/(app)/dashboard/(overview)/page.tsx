@@ -12,6 +12,7 @@ import { getClient } from '@/lib/session'
 import { startAudit, verifySite } from '../actions'
 import { AddSite } from '../add-site'
 import { ConnectRepo } from '../connect-repo'
+import { BusinessProfile } from '../business-profile'
 import { VisibilityPrompts } from '../visibility-prompts'
 import { Overview } from './overview'
 
@@ -252,6 +253,7 @@ export default async function Dashboard({
                 </p>
 
                 <VisibilityPrompts siteId={site.id} siteUrl={site.url} />
+                <BusinessProfile siteId={site.id} siteUrl={site.url} />
               </div>
             )
           })}
