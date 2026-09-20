@@ -130,7 +130,8 @@ markup.
 
 #### 3. Product pages, without the myths
 
-The product page lesson, filtered through what primary sources say.
+**Built, 2026-09-20**, as PROD-001 and PROD-002 in `packages/rules/src/rules/product.ts`, on the
+structure axis. The product page lesson, filtered through what primary sources say.
 
 - Detect a product page deterministically: Product JSON-LD, `og:type` of `product`, or platform
   markers (Shopify, WooCommerce).
@@ -139,9 +140,9 @@ The product page lesson, filtered through what primary sources say.
   eligibility actually depends on.
 - **PROD-002:** the JSON-LD price differs from the price visible on the page. Mismatches are a
   merchant policy problem, not a style issue.
-- **PROD-003:** manufacturer copy. Near-identical product descriptions across the site, found with
-  the existing `packages/rules/src/simhash.ts` and reported as one set rather than one finding per
-  page. This is the deterministic version of "write original descriptions".
+- **PROD-003 was dropped.** It would have found near-identical product descriptions with simhash,
+  which is exactly what TECH-012 already does across the whole site. A second rule would have
+  reported the same pages twice and asked a client to act on one problem in two places.
 - The content fixer may draft richer product sections, but only from facts the client supplies
   (specifications, warranty terms, real use cases). Same refusal as the outreach drafter: no fact,
   no draft. A model inventing a product's dimensions is worse than a short page.
