@@ -202,7 +202,14 @@ numerically so formatting is never mistaken for a mismatch. The planned PROD-003
 because TECH-012 already finds near-duplicate copy. No word-count rule and no FAQ schema advice
 was built, because neither survives contact with the primary sources.
 
-**Not started:** Tier 2 and Tier 3.
+**Done (2026-09-21):** Tier 2 item 4, the classified link gap. DataForSEO is configured and live
+(balance about $0.89 at the time of writing, so the ceiling is low). AUTH-005 names publications
+that link to every tracked competitor and not to this site, after refusing link farms by the
+vendor's spam score and routing directories to the local axis. The first live query returned
+fifteen domains and refused all fifteen, which is the honest answer and the reason the
+classification exists.
+
+**Not started:** the rest of Tier 2, and Tier 3.
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free

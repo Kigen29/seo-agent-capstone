@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createDataForSeoBacklinks } from '../src/backlinks/dataforseo.js'
+import { createDataForSeoBacklinks, MAX_INTERSECTION_TARGETS } from '../src/backlinks/dataforseo.js'
 import { BacklinkRequestError } from '../src/backlinks/types.js'
 import { DataForSeoError } from '../src/dataforseo/request.js'
 import { createDataForSeoKeywords, MAX_LIMIT } from '../src/keywords/dataforseo.js'
@@ -160,6 +160,144 @@ describe('the DataForSEO backlinks provider', () => {
       BacklinkRequestError,
     )
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('the DataForSEO domain intersection', () => {
+  const provider = (fetchImpl: typeof fetch) =>
+    createDataForSeoBacklinks({ ...CREDENTIALS, fetch: fetchImpl })
+
+  /**
+   * The shape below was captured from a live call, not copied from the documentation, because the
+   * documented description is ambiguous in the one place it matters: `domain_intersection` is
+   * keyed by target position, and the `target` field inside each entry is the *referring* domain
+   * repeated, not the competitor it links to.
+   */
+  const row = (
+    domain: string,
+    over: Partial<{ rank: number; spam: number; nofollow: 'none' | 'some' | 'all' }> = {},
+  ) => ({
+    domain_intersection: {
+      '1': {
+        target: domain,
+        rank: over.rank ?? 200,
+        backlinks: 10,
+        referring_pages: 10,
+        referring_pages_nofollow: over.nofollow === 'none' || !over.nofollow ? 0 : 10,
+        backlinks_spam_score: over.spam ?? 0,
+      },
+      '2': {
+        target: domain,
+        rank: over.rank ?? 200,
+        backlinks: 4,
+        referring_pages: 4,
+        referring_pages_nofollow: over.nofollow === 'all' ? 4 : 0,
+        backlinks_spam_score: over.spam ?? 0,
+      },
+    },
+    summary: { intersections_count: 2 },
+  })
+
+  it('reads the referring domain out of the per-target entries', async () => {
+    const result = await provider(
+      json(envelope({ total_count: 913, items: [row('nation.africa', { rank: 412 })] })),
+    ).intersection(['rival-one.com', 'rival-two.com'], 'heartbeestsafaris.com')
+
+    expect(result.domains).toEqual([
+      {
+        domain: 'nation.africa',
+        intersections: 2,
+        backlinks: 14,
+        rank: 412,
+        spamScore: 0,
+        // Known to be followed, which is a different fact from not knowing.
+        nofollow: false,
+      },
+    ])
+    // The slice and the true total are different facts, as they are for referring domains.
+    expect(result.total).toBe(913)
+  })
+
+  it('sends the targets keyed by position and excludes the client', async () => {
+    const fetchImpl = json(envelope({ items: [] }))
+    await provider(fetchImpl).intersection(
+      ['rival-one.com', 'https://rival-two.com/pricing'],
+      'heartbeestsafaris.com',
+    )
+
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    const [task] = JSON.parse(init.body as string) as {
+      targets: Record<string, string>
+      exclude_targets: string[]
+      intersection_mode: string
+    }[]
+
+    expect(task?.targets).toEqual({ '1': 'rival-one.com', '2': 'rival-two.com' })
+    // The exclusion is the gap. Doing it here rather than filtering our own slice afterwards is
+    // what makes every row a domain that really does not link to the client.
+    expect(task?.exclude_targets).toEqual(['heartbeestsafaris.com'])
+    // 'partial' would return anything linking to any one rival, which is most of the web's farms.
+    expect(task?.intersection_mode).toBe('all')
+  })
+
+  it('keeps the worst spam score across the targets, not the kindest', async () => {
+    const mixed = row('linkfarm.example')
+    mixed.domain_intersection['1'].backlinks_spam_score = 4
+    mixed.domain_intersection['2'].backlinks_spam_score = 71
+
+    const result = await provider(json(envelope({ items: [mixed] }))).intersection(
+      ['rival-one.com'],
+      'client.com',
+    )
+
+    expect(result.domains[0]?.spamScore).toBe(71)
+  })
+
+  it('only calls a domain nofollow when every link it gives is nofollow', async () => {
+    // Nofollow on one competitor and followed on another is a followed domain: it can still pass
+    // authority, so treating it as nofollow would drop a real opportunity from the list.
+    const some = await provider(
+      json(envelope({ items: [row('forum.example', { nofollow: 'some' })] })),
+    ).intersection(['rival-one.com'], 'client.com')
+    expect(some.domains[0]?.nofollow).toBe(false)
+
+    const all = await provider(
+      json(envelope({ items: [row('forum.example', { nofollow: 'all' })] })),
+    ).intersection(['rival-one.com'], 'client.com')
+    expect(all.domains[0]?.nofollow).toBe(true)
+  })
+
+  it('never asks the vendor a question with no comparable competitor', async () => {
+    // A gap against nobody has no answer worth paying for, so no request is made at all.
+    const fetchImpl = json(envelope({ items: [] }))
+    const result = await provider(fetchImpl).intersection(['client.com'], 'client.com')
+
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ targets: [], total: 0, domains: [] })
+  })
+
+  it('caps the targets it compares, because "links to all of them" collapses on a long list', async () => {
+    const fetchImpl = json(envelope({ items: [] }))
+    await provider(fetchImpl).intersection(['a.com', 'b.com', 'c.com', 'd.com'], 'client.com')
+
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    const [task] = JSON.parse(init.body as string) as { targets: Record<string, string> }[]
+
+    expect(Object.keys(task!.targets)).toHaveLength(MAX_INTERSECTION_TARGETS)
+  })
+
+  it('treats no intersecting domains as a fact, not a failure', async () => {
+    const result = await provider(
+      json({ status_code: 20000, tasks: [{ status_code: 20000, result: null }] }),
+    ).intersection(['rival-one.com'], 'client.com')
+
+    expect(result).toMatchObject({ total: 0, domains: [] })
   })
 })
 

@@ -190,6 +190,15 @@ the budget guard (ADR-0017), so switching it on cannot produce an open-ended bil
 
 #### 4. Link gap, classified
 
+**Built, 2026-09-21.** `BacklinkProvider.intersection` in
+`packages/connectors/src/backlinks/dataforseo.ts`, classified in `authority/link-gap.ts`, raised as
+AUTH-005 and shown on the authority page.
+
+The first live query justified the whole classification step on its own. Against two Kenyan tile
+retailers, the vendor returned fifteen domains linking to both and not to the client, and **all
+fifteen were link farms** (`60detiknewss.com`, `betwinnermirror.com`, and similar). LinkGap's own
+output is this list, unfiltered, emailed as a PDF. Ours refused every one and said so.
+
 - Add `intersection(targets, exclude, limit)` to `BacklinkProvider` and implement it against
   DataForSEO's backlinks domain intersection endpoint through the existing `postTask` in
   `packages/connectors/src/dataforseo/request.ts`. Add it to `backlinks/budgeted.ts`, where the

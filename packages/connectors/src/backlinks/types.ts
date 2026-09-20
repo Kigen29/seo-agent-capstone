@@ -49,6 +49,44 @@ export interface ReferringDomains {
   limit: number
 }
 
+/** One domain that links to every compared target, and not to the client. */
+export interface LinkGapDomain {
+  /** The linking host, normalised and lowercased. */
+  domain: string
+  /** How many of the compared targets it links to. */
+  intersections: number
+  /** Links to the compared targets, summed. Relationship depth, not quality. */
+  backlinks?: number
+  /** The vendor's authority score, 0-1000. Vendor-specific, and 0 is common for junk. */
+  rank?: number
+  /**
+   * The vendor's spam score for the domain, 0-100. Higher is worse.
+   *
+   * Carried because the first real query for this seam returned a page of link farms, and a gap
+   * list that hands a client `60detiknewss.com` as an "opportunity" is worse than no list.
+   */
+  spamScore?: number
+  /** True when every link it gives the compared targets is nofollow. */
+  nofollow?: boolean
+}
+
+/**
+ * Domains linking to a set of competitors but not to the client.
+ *
+ * `total` and `domains` answer different questions, exactly as they do for
+ * {@link ReferringDomains}: `total` is how many such domains the vendor found, `domains` is the
+ * slice we paid to enumerate. Anything computed from the slice is a statement about the slice.
+ */
+export interface LinkGap {
+  /** The competitor domains compared, as sent. */
+  targets: string[]
+  /** The client domain excluded from the result, which is what makes this a gap. */
+  excluded: string
+  total: number
+  domains: LinkGapDomain[]
+  limit: number
+}
+
 export interface BacklinkProvider {
   /** A stable identifier for the spend ledger, e.g. 'dataforseo'. */
   readonly name: string
@@ -60,6 +98,16 @@ export interface BacklinkProvider {
    * the two facts we need come back together.
    */
   referringDomains(domain: string, limit?: number): Promise<ReferringDomains>
+
+  /**
+   * Which domains link to every one of these targets, and not to the excluded one.
+   *
+   * The exclusion is done by the vendor rather than by us afterwards, and that is the difference
+   * between a gap and a list: filtering our own referring domains out locally would only remove
+   * the ones inside whatever slice we had paid to enumerate, so a link from outside it would read
+   * as an opportunity we already have.
+   */
+  intersection(targets: readonly string[], exclude: string, limit?: number): Promise<LinkGap>
 }
 
 /** A paid query was refused before it was made, because the tenant is out of budget. */
