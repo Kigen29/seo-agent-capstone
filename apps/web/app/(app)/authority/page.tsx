@@ -195,6 +195,52 @@ export default async function AuthorityPage({
             </Note>
           )}
 
+          {authority.linkGap && (
+            <section className="mb-6">
+              <h2 className="h-section mb-1">Links your competitors have and you do not</h2>
+              <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
+                Sites linking to every one of {authority.linkGap.comparedWith.join(', ')} and not to
+                you. Only publications are listed: {authority.linkGap.refusedAsSpam} domain(s) were
+                refused as link farms, and {authority.linkGap.directoryDomains.length} are
+                directories, which belong on the local axis as listings rather than as pitches.
+              </p>
+
+              {authority.linkGap.editorialDomains.length > 0 ? (
+                <div className="card elev-sm gap-0 p-0">
+                  {authority.linkGap.editorialDomains.map((domain, index) => (
+                    <div
+                      key={domain}
+                      className="p-3"
+                      style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
+                    >
+                      <a
+                        href={`https://${domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[13px] break-all"
+                      >
+                        {domain}
+                      </a>
+                      {site && <OutreachPitch siteId={site.id} domain={domain} />}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /*
+                  The honest empty state, and on a small site it is the common one. The first real
+                  query against two Kenyan tile retailers returned fifteen domains, every one of
+                  them a link farm. A tool that printed them as opportunities would be pointing a
+                  client at exactly the links Google's spam policy exists to discount.
+                */
+                <Note tone="info">
+                  Nothing worth pitching. Every domain linking to all of your competitors and not to
+                  you was a link farm or a directory, so there is no outreach list here. That is a
+                  finding about your competitors&rsquo; links rather than about your site.
+                </Note>
+              )}
+            </section>
+          )}
+
           <p className="text-muted m-0 text-[13px]">
             Measured on the audit of{' '}
             {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(

@@ -46,6 +46,15 @@ export {
 } from './local/maps-url.js'
 export type { BusinessProfile } from './local/maps-url.js'
 
+export {
+  classifyGap,
+  classifyGapDomain,
+  linkGapFinding,
+  MIN_GAP_DOMAINS,
+  SPAM_SCORE_LIMIT,
+} from './authority/link-gap.js'
+export type { ClassifiedGap, ClassifiedGapDomain, GapKind } from './authority/link-gap.js'
+
 export { evaluateCannibalisation, CANNIBALISATION_CHECKS } from './gsc/cannibalisation.js'
 export type { CannibalisationInput } from './gsc/cannibalisation.js'
 
@@ -89,7 +98,13 @@ export {
 export { budgetedBacklinks } from './backlinks/budgeted.js'
 export type { BudgetedBacklinkOptions } from './backlinks/budgeted.js'
 export { BacklinkBudgetError, BacklinkRequestError } from './backlinks/types.js'
-export type { BacklinkProvider, ReferringDomain, ReferringDomains } from './backlinks/types.js'
+export type {
+  BacklinkProvider,
+  LinkGap,
+  LinkGapDomain,
+  ReferringDomain,
+  ReferringDomains,
+} from './backlinks/types.js'
 
 export {
   createDataForSeoKeywords,

@@ -252,6 +252,20 @@ export interface AuthorityMetrics {
   selfPublishedDomains: number
   /** Domains that mention the brand without linking. Undefined when links were never checked. */
   unlinkedMentions?: string[]
+  /**
+   * The link gap: sites linking to every tracked competitor and not to this one.
+   *
+   * Only the editorial domains are listed, because they are the only ones worth an email. The
+   * refused count travels with them so the filtering can be seen rather than trusted: on a small
+   * site most of this list is usually link farms, and a tool that printed them as opportunities
+   * would be recommending a link scheme.
+   */
+  linkGap?: {
+    editorialDomains: string[]
+    refusedAsSpam: number
+    directoryDomains: string[]
+    comparedWith: string[]
+  }
 }
 
 export interface SearchMetrics {

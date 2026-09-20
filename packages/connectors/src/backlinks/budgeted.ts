@@ -1,4 +1,9 @@
-import { BacklinkBudgetError, type BacklinkProvider, type ReferringDomains } from './types.js'
+import {
+  BacklinkBudgetError,
+  type BacklinkProvider,
+  type LinkGap,
+  type ReferringDomains,
+} from './types.js'
 import type { SerpBudgetHooks } from '../serp/budgeted.js'
 
 /**
@@ -39,27 +44,40 @@ export function budgetedBacklinks(
     name: provider.name,
 
     async referringDomains(domain: string, limit?: number): Promise<ReferringDomains> {
-      const verdict = await options.checkBudget(options.tenantId)
-      if (!verdict.allowed) {
-        throw new BacklinkBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
-      }
-
-      try {
-        return await provider.referringDomains(domain, limit)
-      } finally {
-        // In a `finally`, so a query that fails after the vendor counted it still counts against
-        // the cap. A failure to record must not mask the original error: the money is already
-        // spent, and losing the outcome of the call on top would help nobody.
-        await options
-          .recordSpend(options.tenantId, {
-            provider: provider.name,
-            model: 'backlinks',
-            micros: options.costPerQueryMicros,
-          })
-          .catch((error: unknown) => {
-            console.error('backlinks: could not record what this query cost:', error)
-          })
-      }
+      return spend(() => provider.referringDomains(domain, limit))
     },
+
+    async intersection(
+      targets: readonly string[],
+      exclude: string,
+      limit?: number,
+    ): Promise<LinkGap> {
+      return spend(() => provider.intersection(targets, exclude, limit))
+    },
+  }
+
+  /** Refuse, then call, then record: the order ADR-0017 exists to fix. */
+  async function spend<T>(call: () => Promise<T>): Promise<T> {
+    const verdict = await options.checkBudget(options.tenantId)
+    if (!verdict.allowed) {
+      throw new BacklinkBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
+    }
+
+    try {
+      return await call()
+    } finally {
+      // In a `finally`, so a query that fails after the vendor counted it still counts against
+      // the cap. A failure to record must not mask the original error: the money is already
+      // spent, and losing the outcome of the call on top would help nobody.
+      await options
+        .recordSpend(options.tenantId, {
+          provider: provider.name,
+          model: 'backlinks',
+          micros: options.costPerQueryMicros,
+        })
+        .catch((error: unknown) => {
+          console.error('backlinks: could not record what this query cost:', error)
+        })
+    }
   }
 }

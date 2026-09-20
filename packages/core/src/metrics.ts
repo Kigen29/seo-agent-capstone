@@ -41,6 +41,22 @@ export const authorityMetricsSchema = z.object({
    * the same as an empty array meaning everybody links.
    */
   unlinkedMentions: z.array(z.string()).optional(),
+  /**
+   * The AUTH-005 link gap: publications linking to every tracked competitor and not to this site.
+   *
+   * Only the editorial ones are kept, because they are the only bucket that is work. The count of
+   * domains refused as spam travels with them, so the filtering is visible rather than something
+   * the reader has to take on trust. Undefined when no gap query ran, which again is not the same
+   * as an empty list.
+   */
+  linkGap: z
+    .object({
+      editorialDomains: z.array(z.string()),
+      refusedAsSpam: z.number().int().min(0),
+      directoryDomains: z.array(z.string()),
+      comparedWith: z.array(z.string()),
+    })
+    .optional(),
 })
 export type AuthorityMetrics = z.infer<typeof authorityMetricsSchema>
 

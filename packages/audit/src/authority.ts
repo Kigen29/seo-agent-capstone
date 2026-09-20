@@ -1,7 +1,9 @@
 import type { AuthorityMetrics, AxisCoverage, Finding } from '@seo/core'
 import {
+  classifyGap,
   classifyMentions,
   evaluateAuthority,
+  linkGapFinding,
   mentionQuery,
   SerpBudgetError,
   type BacklinkProvider,
@@ -145,6 +147,20 @@ export async function measureAuthority(
       ? await backlinks.referringDomains(options.domain).catch(() => undefined)
       : undefined
 
+    /**
+     * The link gap, which needs a backlink index *and* somebody to compare against.
+     *
+     * Settled like the index itself, and skipped entirely with no competitors configured rather
+     * than asked as a question with no subject: "who links to nobody in particular but not to
+     * you" has no answer worth paying for.
+     */
+    const gap =
+      backlinks && compared.length > 0
+        ? await backlinks.intersection(compared, options.domain).catch(() => undefined)
+        : undefined
+
+    const classifiedGap = gap ? classifyGap(gap) : undefined
+
     const report = evaluateAuthority({
       siteId: options.siteId,
       brand,
@@ -153,8 +169,13 @@ export async function measureAuthority(
       ...(links ? { backlinks: links } : {}),
     })
 
+    const gapFindings =
+      gap && classifiedGap
+        ? linkGapFinding({ siteId: options.siteId, gap, classified: classifiedGap })
+        : []
+
     return {
-      findings: report.findings,
+      findings: [...report.findings, ...gapFindings],
       measured: true,
       metrics: {
         referringDomains: links ? links.total : null,
@@ -162,11 +183,21 @@ export async function measureAuthority(
         earnedDomains: report.earnedCount,
         selfPublishedDomains: footprint.selfPublishedDomains.length,
         ...(report.unlinkedMentions ? { unlinkedMentions: report.unlinkedMentions } : {}),
+        ...(gap && classifiedGap
+          ? {
+              linkGap: {
+                editorialDomains: classifiedGap.editorial.map((entry) => entry.domain),
+                refusedAsSpam: classifiedGap.spam.length,
+                directoryDomains: classifiedGap.directory.map((entry) => entry.domain),
+                comparedWith: gap.targets,
+              },
+            }
+          : {}),
       },
       coverage: {
-        // One check per thing we actually looked at: the brand, each rival that answered, and the
-        // link index when it was consulted.
-        checksRun: 1 + competitors.length + (links ? 1 : 0),
+        // One check per thing we actually looked at: the brand, each rival that answered, the
+        // link index when it was consulted, and the gap query when it ran.
+        checksRun: 1 + competitors.length + (links ? 1 : 0) + (gap ? 1 : 0),
         note:
           `Measured from web mentions of "${brand}": ${report.earnedCount} distinct earned-media ` +
           `domain(s), plus ${footprint.selfPublishedDomains.length} self-published platform(s), ` +
@@ -181,7 +212,13 @@ export async function measureAuthority(
                 ? `, and ${report.unlinkedMentions.length} domain(s) mention the brand without ` +
                   `linking to it, which is the cheapest link work available here.`
                 : `, and every earned-media domain that mentions the brand already links to it.`)
-            : NO_BACKLINK_INDEX),
+            : NO_BACKLINK_INDEX) +
+          (classifiedGap
+            ? ` Against ${gap?.targets.join(', ')}, ${classifiedGap.editorial.length} ` +
+              `publication(s) link to all of them and not to this site, with ` +
+              `${classifiedGap.spam.length} refused as spam and ` +
+              `${classifiedGap.directory.length} routed to the local axis as directory listings.`
+            : ''),
       },
     }
   } catch (error) {

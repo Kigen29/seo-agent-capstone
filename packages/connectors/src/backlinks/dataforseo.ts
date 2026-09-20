@@ -3,6 +3,8 @@ import { postTask, type DataForSeoCredentials } from '../dataforseo/request.js'
 import {
   BacklinkRequestError,
   type BacklinkProvider,
+  type LinkGap,
+  type LinkGapDomain,
   type ReferringDomain,
   type ReferringDomains,
 } from './types.js'
@@ -17,6 +19,18 @@ import {
  */
 
 const PATH = '/v3/backlinks/referring_domains/live'
+const INTERSECTION_PATH = '/v3/backlinks/domain_intersection/live'
+
+/**
+ * The most competitors one intersection query will compare.
+ *
+ * The vendor allows twenty targets. Three matches `MAX_COMPARED_COMPETITORS` on the mention side,
+ * and the reason is the same: the question is whether a domain links to the client's whole
+ * competitive set and not to them, and a set of three already answers it. It also keeps the
+ * `intersection_mode: 'all'` result from collapsing to nothing, which is what a long target list
+ * does, since almost no domain links to eight rivals at once.
+ */
+export const MAX_INTERSECTION_TARGETS = 3
 
 /**
  * How many referring domains to enumerate by default.
@@ -27,6 +41,43 @@ const PATH = '/v3/backlinks/referring_domains/live'
  * it keeps a single audit comfortably inside a one-dollar daily cap.
  */
 export const DEFAULT_LIMIT = 100
+
+/**
+ * How many gap domains to enumerate by default.
+ *
+ * Smaller than the referring-domains slice, because this list is read by a human deciding who to
+ * contact rather than compared set-wise against a mention footprint. Fifty candidates is more
+ * outreach than any client will do between audits, and the request is billed per row.
+ */
+export const DEFAULT_INTERSECTION_LIMIT = 50
+
+/**
+ * The intersection response, as the vendor actually returns it.
+ *
+ * Verified against a live call rather than read off the documentation, because the shape is
+ * surprising in a way that matters: each row's `domain_intersection` is keyed by *target
+ * position*, and the `target` field inside each of those is the **referring** domain, repeated,
+ * not the target it links to. Reading `target` as the competitor would produce a gap list of the
+ * client's own rivals, which looks plausible and is nonsense.
+ */
+interface IntersectionResult {
+  total_count?: number
+  items?: {
+    domain_intersection?: Record<
+      string,
+      {
+        /** The referring domain. The same value under every key. */
+        target?: string
+        rank?: number
+        backlinks?: number
+        referring_pages?: number
+        referring_pages_nofollow?: number
+        backlinks_spam_score?: number
+      }
+    >
+    summary?: { intersections_count?: number }
+  }[]
+}
 
 /** The slice of DataForSEO's result we read. Everything else is ignored on purpose. */
 interface ReferringDomainsResult {
@@ -106,5 +157,86 @@ export function createDataForSeoBacklinks(credentials: DataForSeoCredentials): B
         limit,
       }
     },
+
+    async intersection(targets, exclude, limit = DEFAULT_INTERSECTION_LIMIT): Promise<LinkGap> {
+      const excluded = hostOf(exclude)
+      if (!excluded) {
+        throw new BacklinkRequestError(400, `Not a domain: "${exclude}".`)
+      }
+
+      const hosts = targets
+        .map((target) => hostOf(target))
+        .filter((host): host is string => host !== null)
+        .filter((host) => host !== excluded)
+        .slice(0, MAX_INTERSECTION_TARGETS)
+
+      // No comparable competitor is not a failure and not a gap: it is a question that cannot be
+      // asked. Returning empty here rather than calling means we never pay for a query whose
+      // answer we already know.
+      if (hosts.length === 0) {
+        return { targets: [], excluded, total: 0, domains: [], limit }
+      }
+
+      const result = await postTask<IntersectionResult>(credentials, INTERSECTION_PATH, {
+        // The vendor keys targets by position, starting at 1, and the same keys come back on
+        // every row.
+        targets: Object.fromEntries(hosts.map((host, index) => [String(index + 1), host])),
+        // The gap itself. Excluding the client here rather than filtering afterwards is what
+        // makes every row a domain that genuinely does not link to them.
+        exclude_targets: [excluded],
+        // Domains linking to *all* the compared targets. 'partial' would return anything linking
+        // to any one of them, which for three rivals is most of the web's link farms.
+        intersection_mode: 'all',
+        limit,
+        order_by: ['1.rank,desc'],
+      })
+
+      if (!result) return { targets: hosts, excluded, total: 0, domains: [], limit }
+
+      const domains: LinkGapDomain[] = []
+      for (const item of result.items ?? []) {
+        const entries = Object.values(item.domain_intersection ?? {})
+        const first = entries[0]
+        const host = typeof first?.target === 'string' ? hostOf(first.target) : null
+        if (!host) continue
+
+        const backlinks = sum(entries.map((entry) => entry.backlinks))
+        const pages = sum(entries.map((entry) => entry.referring_pages))
+        const nofollowPages = sum(entries.map((entry) => entry.referring_pages_nofollow))
+        // The worst score across the targets, because a domain is as spammy as its worst
+        // reading rather than as clean as its most flattering one.
+        const spam = entries
+          .map((entry) => entry.backlinks_spam_score)
+          .filter((score): score is number => typeof score === 'number')
+
+        domains.push({
+          domain: host,
+          intersections:
+            typeof item.summary?.intersections_count === 'number'
+              ? item.summary.intersections_count
+              : entries.length,
+          ...(backlinks === undefined ? {} : { backlinks }),
+          ...(typeof first.rank === 'number' ? { rank: first.rank } : {}),
+          ...(spam.length > 0 ? { spamScore: Math.max(...spam) } : {}),
+          ...(allNofollow(pages, nofollowPages) === undefined
+            ? {}
+            : { nofollow: allNofollow(pages, nofollowPages) as boolean }),
+        })
+      }
+
+      return {
+        targets: hosts,
+        excluded,
+        total: typeof result.total_count === 'number' ? result.total_count : domains.length,
+        domains,
+        limit,
+      }
+    },
   }
+}
+
+/** Add the numbers that are actually numbers, or undefined when none of them were. */
+function sum(values: (number | undefined)[]): number | undefined {
+  const numbers = values.filter((value): value is number => typeof value === 'number')
+  return numbers.length === 0 ? undefined : numbers.reduce((total, value) => total + value, 0)
 }
