@@ -305,6 +305,35 @@ export interface KeywordIdeasResult {
   note?: string
 }
 
+/** One keyword a competitor ranks for and this site does not. */
+export interface KeywordGapEntry extends KeywordIdea {
+  /** Where the competitor ranks, 1 being the top. Null when the vendor omits it. */
+  competitorPosition: number | null
+  competitorUrl?: string
+}
+
+export interface KeywordGapResult {
+  competitor: string
+  keywords: KeywordGapEntry[]
+  /**
+   * How many rows Search Console removed because this site already appears for them.
+   *
+   * Null means the subtraction never ran (Google not connected, or no matching property), which
+   * is a weaker answer than zero removed and has to read differently.
+   */
+  subtracted: number | null
+  /** Present when something is missing, explaining what and why it matters. */
+  note?: string
+}
+
+export interface KeywordGapQuery {
+  siteId: string
+  competitor: string
+  country?: string
+  language?: string
+  limit?: number
+}
+
 export interface KeywordIdeasQuery {
   seed: string
   /** ISO country, e.g. 'ke'. Search volume is per-market, so this changes the answer. */
@@ -592,6 +621,21 @@ export function createApiClient(options: ApiClientOptions) {
         if (value !== undefined && value !== '') params.set(key, String(value))
       }
       return request<KeywordIdeasResult>(`/keywords/ideas?${params.toString()}`)
+    },
+
+    /**
+     * What a competitor ranks for that this site does not, with the keywords it already appears
+     * for subtracted using its own Search Console data.
+     *
+     * `subtracted: null` on the result means that correction did not run, so the list is the
+     * vendor's raw view and will contain terms the site already ranks for.
+     */
+    keywordGap: async ({ siteId, ...query }: KeywordGapQuery) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      return request<KeywordGapResult>(`/sites/${siteId}/keywords/gap?${params.toString()}`)
     },
 
     /**

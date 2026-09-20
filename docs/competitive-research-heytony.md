@@ -216,6 +216,19 @@ output is this list, unfiltered, emailed as a PDF. Ours refused every one and sa
 
 #### 5. Keyword gap and competitor domain analysis, corrected by Search Console
 
+**Built, 2026-09-21.** `KeywordProvider.gap` against DataForSEO Labs' domain intersection with
+`intersections: false`, `subtractKnownQueries` applied above the seam, `GET
+/sites/:id/keywords/gap`, and a panel on `/keywords`.
+
+Two things the live run against `tileandcarpet.co.ke` taught:
+
+- The subtraction has to be reported, not assumed. `subtracted: null` (Google not connected) is a
+  materially weaker answer than `subtracted: 0`, and the UI says which one it got.
+- **Brand terms are left in on purpose.** The real gap list contained "tile and carpet nairobi"
+  and "tacc lavington", which are the rival's brand. Filtering brand terms would mean dropping the
+  words in the rival's domain, and for a tile retailer those words are "tile" and "carpet", the
+  whole category. The page says so instead.
+
 - Add `rankedKeywords(domain)` and `gap(client, competitor)` to `KeywordProvider`, backed by
   DataForSEO Labs' ranked keywords and domain intersection endpoints.
 - **Before anything is shown, subtract every query the client already has Search Console

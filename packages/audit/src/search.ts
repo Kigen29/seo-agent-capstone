@@ -125,12 +125,24 @@ export interface SearchDeps {
  * short-lived access token immediately before the query (ADR-0003). It is never logged and
  * never leaves this function.
  */
-export async function measureSearch(
+/**
+ * Open Search Console for a tenant's site: the stored grant, traded for an access token, pointed
+ * at the right property.
+ *
+ * Extracted because a second caller needed exactly this and nothing else. The keyword-gap route
+ * subtracts the queries a site already appears for, which is the correction that makes a
+ * third-party gap list usable, and it needs the same four steps and the same honest null when any
+ * of them is unavailable.
+ *
+ * The refresh token is decrypted here, in memory, only to trade it for a short-lived access token
+ * immediately before the query (ADR-0003). It is never logged and never leaves this function.
+ */
+export async function openSearchConsole(
   db: Database,
-  options: MeasureSearchOptions,
+  options: { tenantId: string; siteUrl: string; gscProperty?: string | null },
   deps: SearchDeps = {},
-): Promise<SearchResult> {
-  if (!deps.config) return { findings: [], measured: false }
+): Promise<{ gsc: ReturnType<typeof createGscClient>; property: string } | null> {
+  if (!deps.config) return null
 
   const [credential] = await withTenant(db, options.tenantId, (tx) =>
     tx
@@ -140,17 +152,62 @@ export async function measureSearch(
       .limit(1),
   )
 
-  if (!credential) return { findings: [], measured: false }
+  if (!credential) return null
 
+  const refreshToken = decryptToken(credential.token)
+  const { accessToken } = await refreshAccessToken(deps.config, refreshToken, deps.fetch)
+  const gsc = createGscClient({ accessToken, fetch: deps.fetch })
+
+  const property = options.gscProperty ?? matchProperty(await gsc.listProperties(), options.siteUrl)
+  if (!property) return null
+
+  return { gsc, property }
+}
+
+/**
+ * Every query this site drew impressions for in the window.
+ *
+ * The truth a third-party keyword index does not have. It is lowercased and deduplicated because
+ * the only thing it is used for is a set membership test.
+ */
+export async function siteQueries(
+  db: Database,
+  options: { tenantId: string; siteUrl: string; gscProperty?: string | null },
+  deps: SearchDeps = {},
+): Promise<Set<string> | null> {
   try {
-    const refreshToken = decryptToken(credential.token)
-    const { accessToken } = await refreshAccessToken(deps.config, refreshToken, deps.fetch)
-    const gsc = createGscClient({ accessToken, fetch: deps.fetch })
+    const open = await openSearchConsole(db, options, deps)
+    if (!open) return null
 
-    const property =
-      options.gscProperty ?? matchProperty(await gsc.listProperties(), options.siteUrl)
-    if (!property) return { findings: [], measured: false }
+    const rows = await open.gsc.searchAnalytics(open.property, {
+      ...defaultWindow(),
+      dimensions: ['query'],
+      rowLimit: 5000,
+    })
 
+    return new Set(
+      rows
+        .map((row) => row.keys[0]?.trim().toLowerCase())
+        .filter((query): query is string => Boolean(query)),
+    )
+  } catch {
+    // Revoked credentials, a rate limit, a property that stopped matching: none of these should
+    // fail the caller. Null means "not subtracted", which the caller has to say out loud rather
+    // than pass off as a clean gap.
+    return null
+  }
+}
+
+export async function measureSearch(
+  db: Database,
+  options: MeasureSearchOptions,
+  deps: SearchDeps = {},
+): Promise<SearchResult> {
+  try {
+    const open = await openSearchConsole(db, options, deps)
+    if (!open) return { findings: [], measured: false }
+
+    const { gsc, property } = open
     const window = defaultWindow()
     const rows = await gsc.searchAnalytics(property, {
       ...window,

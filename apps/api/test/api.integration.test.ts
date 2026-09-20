@@ -1,6 +1,12 @@
 import type { OutreachLlm } from '@seo/agent'
 import type { IdentityProvider, SocialIdentity } from '@seo/connectors'
-import { decryptToken, DEFAULT_KEYWORD_LIMIT, KeywordBudgetError, signState } from '@seo/connectors'
+import {
+  decryptToken,
+  DEFAULT_GAP_LIMIT,
+  DEFAULT_KEYWORD_LIMIT,
+  KeywordBudgetError,
+  signState,
+} from '@seo/connectors'
 import { priorityScore } from '@seo/core'
 import {
   apiTokens,
@@ -2150,11 +2156,17 @@ describe.skipIf(!shouldRun)('the API', () => {
     describe('with a provider configured', () => {
       let configured: Awaited<ReturnType<typeof buildApp>>
       let seen: { seed: string; options?: { country?: string; limit?: number } }[]
+      let gapCalls: {
+        client: string
+        competitor: string
+        options?: { country?: string; limit?: number }
+      }[]
       let askedFor: string[]
       let refuse: boolean
 
       beforeAll(async () => {
         seen = []
+        gapCalls = []
         askedFor = []
         refuse = false
 
@@ -2170,6 +2182,25 @@ describe.skipIf(!shouldRun)('the API', () => {
                 if (refuse) throw new KeywordBudgetError('the tenant is over its monthly budget')
                 seen.push({ seed, ...(options ? { options } : {}) })
                 return [{ keyword: `${seed} cost`, searchVolume: 2400, competition: 0.4, cpc: 1.2 }]
+              },
+              gap: async (client, competitor, options) => {
+                if (refuse) throw new KeywordBudgetError('the tenant is over its monthly budget')
+                gapCalls.push({ client, competitor, ...(options ? { options } : {}) })
+                return {
+                  client,
+                  competitor,
+                  limit: options?.limit ?? 25,
+                  keywords: [
+                    {
+                      keyword: 'floor tiles nairobi',
+                      searchVolume: 210,
+                      competition: 0.8,
+                      cpc: 0.12,
+                      competitorPosition: 3,
+                      competitorUrl: `https://${competitor}/tiles`,
+                    },
+                  ],
+                }
               },
             }
           },
@@ -2220,6 +2251,55 @@ describe.skipIf(!shouldRun)('the API', () => {
         expect(response.statusCode).toBe(429)
         expect(response.json()).toMatchObject({ error: 'Too Many Requests' })
         expect((response.json() as { message: string }).message).toMatch(/next calendar month/)
+      })
+
+      describe('the keyword gap', () => {
+        const compare = (query: string, bearer = token) =>
+          configured.inject({
+            method: 'GET',
+            url: `/sites/${siteId}/keywords/gap?${query}`,
+            headers: { authorization: `Bearer ${bearer}` },
+          })
+
+        it('reads the competitor against this site', async () => {
+          const response = await compare('competitor=rival.example&country=ke')
+
+          expect(response.statusCode).toBe(200)
+          expect(response.json()).toMatchObject({
+            competitor: 'rival.example',
+            keywords: [{ keyword: 'floor tiles nairobi', competitorPosition: 3 }],
+          })
+          // The client is the site, not something the caller can name: a gap between two domains
+          // neither of which is yours is a comparison with no meaning here.
+          expect(gapCalls.at(-1)?.client).toBe('https://owned.example.com')
+          expect(gapCalls.at(-1)?.options?.country).toBe('ke')
+        })
+
+        it('says when the Search Console subtraction did not run, rather than implying a clean gap', async () => {
+          // This tenant has no Google grant in this app instance, so nothing can be subtracted.
+          // Reporting that plainly is the difference between a weak answer and a wrong one.
+          const response = await compare('competitor=rival.example')
+
+          expect(response.json().subtracted).toBeNull()
+          expect((response.json() as { note: string }).note).toMatch(/not connected/)
+        })
+
+        it('applies a default limit rather than the vendor default', async () => {
+          await compare('competitor=rival.example')
+          expect(gapCalls.at(-1)?.options?.limit).toBe(DEFAULT_GAP_LIMIT)
+        })
+
+        it('is a 404 for another tenant, never a 403', async () => {
+          expect((await compare('competitor=rival.example', otherToken)).statusCode).toBe(404)
+        })
+
+        it('answers a tenant over budget with 429, not 500', async () => {
+          refuse = true
+          const response = await compare('competitor=rival.example')
+          refuse = false
+
+          expect(response.statusCode).toBe(429)
+        })
       })
     })
   })

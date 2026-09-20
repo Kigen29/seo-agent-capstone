@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { createDataForSeoBacklinks, MAX_INTERSECTION_TARGETS } from '../src/backlinks/dataforseo.js'
 import { BacklinkRequestError } from '../src/backlinks/types.js'
 import { DataForSeoError } from '../src/dataforseo/request.js'
-import { createDataForSeoKeywords, MAX_LIMIT } from '../src/keywords/dataforseo.js'
+import {
+  createDataForSeoKeywords,
+  MAX_LIMIT,
+  subtractKnownQueries,
+} from '../src/keywords/dataforseo.js'
 
 /**
  * The contract test for DataForSEO (CLAUDE.md: every external API client needs one).
@@ -372,5 +376,131 @@ describe('the DataForSEO keywords provider', () => {
     ).ideas('kenya safari')
 
     expect(ideas).toEqual([])
+  })
+})
+
+describe('the DataForSEO keyword gap', () => {
+  const provider = (fetchImpl: typeof fetch) =>
+    createDataForSeoKeywords({ ...CREDENTIALS, fetch: fetchImpl })
+
+  const gapRow = (keyword: string, volume: number | null, position: number | null) => ({
+    keyword_data: {
+      keyword,
+      keyword_info: { search_volume: volume, competition: 0.4, cpc: 0.2 },
+    },
+    first_domain_serp_element: { rank_absolute: position, url: `https://rival.example/${keyword}` },
+  })
+
+  it('reads the competitor rankings and where they rank', async () => {
+    const gap = await provider(
+      json(envelope({ items: [gapRow('floor tiles nairobi', 210, 3)] })),
+    ).gap('rangautiles.com', 'rival.example')
+
+    expect(gap.keywords).toEqual([
+      {
+        keyword: 'floor tiles nairobi',
+        searchVolume: 210,
+        competition: 0.4,
+        cpc: 0.2,
+        competitorPosition: 3,
+        competitorUrl: 'https://rival.example/floor tiles nairobi',
+      },
+    ])
+  })
+
+  it('asks the question in the only direction worth paying for', async () => {
+    const fetchImpl = json(envelope({ items: [] }))
+    await provider(fetchImpl).gap('https://rangautiles.com/', 'rival.example', { country: 'ke' })
+
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    const [task] = JSON.parse(init.body as string) as {
+      target1: string
+      target2: string
+      intersections: boolean
+      item_types: string[]
+      location_name: string
+    }[]
+
+    // target1 is the competitor, because its rankings are what comes back. Sending these the
+    // other way round and reading the same field reports the client's own rankings as the gap.
+    expect(task?.target1).toBe('rival.example')
+    expect(task?.target2).toBe('rangautiles.com')
+    expect(task?.intersections).toBe(false)
+    // Organic only: a paid placement is somebody's ad budget, not a ranking a client can earn.
+    expect(task?.item_types).toEqual(['organic'])
+    expect(task?.location_name).toBe('Kenya')
+  })
+
+  it('keeps a missing volume as null rather than zero', async () => {
+    const gap = await provider(json(envelope({ items: [gapRow('obscure term', null, 8)] }))).gap(
+      'client.com',
+      'rival.example',
+    )
+
+    expect(gap.keywords[0]?.searchVolume).toBeNull()
+  })
+
+  it('skips a row with no keyword', async () => {
+    const gap = await provider(
+      json(envelope({ items: [{ keyword_data: { keyword: '  ' } }, gapRow('real', 10, 2)] })),
+    ).gap('client.com', 'rival.example')
+
+    expect(gap.keywords.map((entry) => entry.keyword)).toEqual(['real'])
+  })
+
+  it('treats no gap as a fact rather than a failure', async () => {
+    const gap = await provider(
+      json({ status_code: 20000, tasks: [{ status_code: 20000, result: null }] }),
+    ).gap('client.com', 'rival.example')
+
+    expect(gap.keywords).toEqual([])
+  })
+})
+
+describe('subtractKnownQueries', () => {
+  const gap = {
+    client: 'client.com',
+    competitor: 'rival.example',
+    limit: 25,
+    keywords: [
+      {
+        keyword: 'Floor Tiles Nairobi',
+        searchVolume: 210,
+        competition: null,
+        cpc: null,
+        competitorPosition: 3,
+      },
+      {
+        keyword: 'bathroom tiles kenya',
+        searchVolume: 170,
+        competition: null,
+        cpc: null,
+        competitorPosition: 5,
+      },
+    ],
+  }
+
+  it('removes the keywords Search Console says the site already appears for', () => {
+    // The correction nothing else in the category can make: a third-party index sees a small site
+    // badly and reports terms it already ranks for as a gap.
+    const result = subtractKnownQueries(gap, ['floor tiles nairobi'])
+
+    expect(result.gap.keywords.map((entry) => entry.keyword)).toEqual(['bathroom tiles kenya'])
+    expect(result.removed).toBe(1)
+  })
+
+  it('matches regardless of case and surrounding space', () => {
+    expect(subtractKnownQueries(gap, ['  FLOOR TILES NAIROBI ']).removed).toBe(1)
+  })
+
+  it('changes nothing when Search Console had no queries at all', () => {
+    // An empty set is "this site draws no impressions", not "subtract everything".
+    const result = subtractKnownQueries(gap, [])
+
+    expect(result.gap.keywords).toHaveLength(2)
+    expect(result.removed).toBe(0)
   })
 })
