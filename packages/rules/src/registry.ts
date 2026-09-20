@@ -1,6 +1,7 @@
 import { AGENT_001, AGENT_002, AGENT_003, AGENT_004 } from './rules/agent.js'
 import { LOCAL_001, LOCAL_002 } from './rules/local.js'
 import { LOCAL_003, LOCAL_004 } from './rules/nap.js'
+import { PROD_001, PROD_002 } from './rules/product.js'
 import {
   TECH_015,
   TECH_016,
@@ -56,6 +57,8 @@ export const ALL_RULES: readonly Rule[] = [
   LOCAL_002,
   LOCAL_003,
   LOCAL_004,
+  PROD_001,
+  PROD_002,
 ]
 
 export const ruleById = (id: string): Rule | undefined => ALL_RULES.find((rule) => rule.id === id)

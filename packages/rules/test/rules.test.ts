@@ -1064,6 +1064,160 @@ describe('LOCAL-004: a connected profile the site never links to', () => {
   })
 })
 
+describe('PROD-001 and PROD-002: product pages', () => {
+  const ldScript = (data: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify(data)}</script>`
+
+  const COMPLETE = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: 'Porcelain floor tile',
+    image: 'https://example.com/tile.jpg',
+    offers: {
+      '@type': 'Offer',
+      price: '12500.00',
+      priceCurrency: 'KES',
+      availability: 'https://schema.org/InStock',
+    },
+  }
+
+  const shop = (body: string, data?: unknown) =>
+    html.doc(body, data === undefined ? '' : ldScript(data))
+
+  /** A page that is evidently selling something, with no structured data at all. */
+  const cartOnly = html.doc(
+    '<h1>Porcelain floor tile</h1><p>KSh 12,500</p>' +
+      '<form action="/cart/add"><button>Add to cart</button></form>',
+  )
+
+  describe('PROD-001', () => {
+    it('stays silent on a product page whose markup is complete', () => {
+      const complete = shop('<h1>Tile</h1><p>KSh 12,500</p>', COMPLETE)
+
+      expect(
+        fire('PROD-001', context({ pages: [page({ path: '/tile', html: complete })] })),
+      ).toEqual([])
+    })
+
+    it('fires when an add-to-cart page has no Product block', () => {
+      const findings = fire(
+        'PROD-001',
+        context({ pages: [page({ path: '/tile', html: cartOnly })] }),
+      )
+
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.axis).toBe('structure')
+      expect(findings[0]?.title).toContain('no Product structured data')
+    })
+
+    it('names the properties that are missing rather than saying "improve your schema"', () => {
+      const thin = shop('<h1>Tile</h1>', {
+        '@type': 'Product',
+        name: 'Tile',
+        offers: { '@type': 'Offer', price: '12500' },
+      })
+
+      const findings = fire('PROD-001', context({ pages: [page({ path: '/tile', html: thin })] }))
+
+      const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+      expect(carried.missing).toContain('image')
+      expect(carried.missing).toContain('offers.priceCurrency')
+      expect(carried.missing).toContain('offers.availability')
+    })
+
+    it('accepts one complete offer among several variants', () => {
+      const variants = shop('<h1>Tile</h1>', {
+        '@type': 'Product',
+        name: 'Tile',
+        image: 'https://example.com/t.jpg',
+        offers: [
+          { '@type': 'Offer', price: '12500' },
+          {
+            '@type': 'Offer',
+            price: '13500',
+            priceCurrency: 'KES',
+            availability: 'https://schema.org/InStock',
+          },
+        ],
+      })
+
+      expect(
+        fire('PROD-001', context({ pages: [page({ path: '/tile', html: variants })] })),
+      ).toEqual([])
+    })
+
+    it('leaves an ordinary page alone, however much it talks about products', () => {
+      // No Product node, no og:type, no cart form. Firing here would report a missing price on
+      // a blog post, which is how a rule teaches people to ignore it.
+      const article = html.doc(
+        '<h1>How to choose floor tiles</h1><p>Tiles cost from KSh 1,200.</p>',
+      )
+
+      expect(
+        fire('PROD-001', context({ pages: [page({ path: '/blog/tiles', html: article })] })),
+      ).toEqual([])
+    })
+
+    it('recognises a product page by og:type alone', () => {
+      const og = html.doc('<h1>Tile</h1>', '<meta property="og:type" content="product">')
+
+      expect(
+        fire('PROD-001', context({ pages: [page({ path: '/tile', html: og })] })),
+      ).toHaveLength(1)
+    })
+  })
+
+  describe('PROD-002', () => {
+    it('fires when the marked-up price is nowhere in the page text', () => {
+      // The template still emits a cached price while the page shows the new one. Both halves
+      // look right on their own, which is why this survives for months.
+      const stale = shop('<h1>Tile</h1><p>Now KSh 9,900</p>', COMPLETE)
+
+      const findings = fire('PROD-002', context({ pages: [page({ path: '/tile', html: stale })] }))
+
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.severity).toBe('high')
+    })
+
+    it('matches across formatting, so a thousands separator is never a mismatch', () => {
+      const formatted = shop('<h1>Tile</h1><p>KSh 12,500</p>', COMPLETE)
+
+      expect(
+        fire('PROD-002', context({ pages: [page({ path: '/tile', html: formatted })] })),
+      ).toEqual([])
+    })
+
+    it('stays silent when a variant picker shows one of several marked-up prices', () => {
+      const variants = shop('<h1>Tile</h1><p>From KSh 12,500</p>', {
+        ...COMPLETE,
+        offers: [
+          { '@type': 'Offer', price: '12500', priceCurrency: 'KES', availability: 'InStock' },
+          { '@type': 'Offer', price: '13500', priceCurrency: 'KES', availability: 'InStock' },
+        ],
+      })
+
+      expect(
+        fire('PROD-002', context({ pages: [page({ path: '/tile', html: variants })] })),
+      ).toEqual([])
+    })
+
+    it('leaves a page with no Product block to PROD-001', () => {
+      expect(
+        fire('PROD-002', context({ pages: [page({ path: '/tile', html: cartOnly })] })),
+      ).toEqual([])
+    })
+
+    it('tells the reader the two innocent explanations before they change anything', () => {
+      const stale = shop('<h1>Tile</h1><p>Now KSh 9,900</p>', COMPLETE)
+
+      const [finding] = fire('PROD-002', context({ pages: [page({ path: '/tile', html: stale })] }))
+
+      expect(finding?.falsification).toContain('image')
+      expect(finding?.falsification).toContain('script')
+    })
+  })
+})
+
 /**
  * The rules that stopped offering a fix, and what they owe the reader instead.
  *
