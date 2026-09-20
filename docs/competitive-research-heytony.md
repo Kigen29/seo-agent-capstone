@@ -97,6 +97,8 @@ measured. This closes that, using data we already fetch.
 
 #### 2. Local business identity, done as a pull request
 
+**Built, 2026-09-20.** The parser is `packages/connectors/src/local/maps-url.ts`, the profile is stored per site and edited from the dashboard, and LOCAL-002 with `packages/fixers/src/fixers/local-profile-links.ts` turns a thin LocalBusiness block into a pull request. LOCAL-003 and LOCAL-004 below are still to do.
+
 What Is My CID decodes a share link and stops. We decode it, store it, and put it in the client's
 markup.
 

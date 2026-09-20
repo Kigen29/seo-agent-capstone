@@ -860,6 +860,92 @@ describe('LOCAL-001: contact details but no LocalBusiness schema', () => {
   })
 })
 
+describe('LOCAL-002: LocalBusiness markup that does not link to the Google profile', () => {
+  const ldScript = (data: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify(data)}</script>`
+
+  const CID = '1234567890123456789'
+  const PROFILE = `https://maps.google.com/?cid=${CID}`
+
+  const business = (extra: Record<string, unknown> = {}) =>
+    html.doc(
+      '<h1>Acme Cafe</h1>',
+      ldScript({
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name: 'Acme Cafe',
+        telephone: '+254700000000',
+        ...extra,
+      }),
+    )
+
+  const withProfile = (pageHtml: string, profile = { cid: CID }) => ({
+    ...context({ pages: [page({ path: '/', html: pageHtml })] }),
+    businessProfile: profile,
+  })
+
+  it('fires when a profile is connected and the markup does not link to it', () => {
+    const findings = fire('LOCAL-002', withProfile(business()))
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.axis).toBe('local')
+    expect(findings[0]?.fixable).toBe(true)
+    // The evidence carries exactly what the fixer writes, so nothing is re-derived downstream.
+    const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(carried.profileUrl).toBe(PROFILE)
+    expect(carried.missing).toEqual(['hasMap', 'sameAs'])
+  })
+
+  it('stays silent when no profile is connected, because the link cannot be guessed', () => {
+    // A CID is not derivable from a site. Inventing one would point a client's markup at
+    // whichever business happened to match their name.
+    expect(fire('LOCAL-002', context({ pages: [page({ path: '/', html: business() })] }))).toEqual(
+      [],
+    )
+  })
+
+  it('stays silent when both links are already there', () => {
+    const linked = business({ hasMap: PROFILE, sameAs: [PROFILE] })
+
+    expect(fire('LOCAL-002', withProfile(linked))).toEqual([])
+  })
+
+  it('still fires when only one of the two is present', () => {
+    const findings = fire('LOCAL-002', withProfile(business({ hasMap: PROFILE })))
+
+    const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(carried.missing).toEqual(['sameAs'])
+  })
+
+  it('does not count a link to somebody else as a link to this profile', () => {
+    const wrong = business({
+      hasMap: 'https://maps.google.com/?cid=999',
+      sameAs: ['https://maps.google.com/?cid=999'],
+    })
+
+    const findings = fire('LOCAL-002', withProfile(wrong))
+
+    expect(findings).toHaveLength(1)
+    // Both are present and both point at the wrong business, so both are still missing as far
+    // as this site is concerned. Matching on "has a hasMap at all" would call this linked.
+    const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(carried.missing).toEqual(['hasMap', 'sameAs'])
+  })
+
+  it('leaves a site with no LocalBusiness markup to LOCAL-001', () => {
+    // Raising both would ask the user to act twice on what is one edit.
+    const org = html.doc('<h1>Acme</h1>', ldScript({ '@type': 'Organization', telephone: '1' }))
+
+    expect(fire('LOCAL-002', withProfile(org))).toEqual([])
+  })
+
+  it('tells the reader to check the profile link before merging', () => {
+    // The one way this fix can be actively harmful is a profile that is not theirs, so the
+    // falsification has to send them to look rather than to re-crawl.
+    expect(fire('LOCAL-002', withProfile(business()))[0]?.falsification).toContain(PROFILE)
+  })
+})
+
 /**
  * The rules that stopped offering a fix, and what they owe the reader instead.
  *
