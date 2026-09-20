@@ -62,6 +62,88 @@ export const LOCAL_001: Rule = {
   },
 }
 
+/**
+ * LOCAL-002: the LocalBusiness markup does not link to the business's Google profile.
+ *
+ * A LocalBusiness block says "a business exists here". It does not say *which* business, and that
+ * is the gap this closes. `hasMap` and `sameAs`, pointing at the profile's own Maps link, are how
+ * markup names the entity Google already holds a profile for: the reviews, the hours, the photos,
+ * the place in the map pack.
+ *
+ * It fires only when the client has connected a profile, because the link cannot be guessed. There
+ * is no way to derive a CID from a site, which is exactly why it is a stored field, and a rule that
+ * invented one would point a client's markup at whatever business happened to match a name.
+ *
+ * Deliberately modest in severity. This is entity linking, not a documented ranking factor, and the
+ * finding says so rather than implying a position change.
+ */
+export const LOCAL_002: Rule = {
+  id: 'LOCAL-002',
+  axis: 'local',
+  severity: 'low',
+  estimatedEffort: 'trivial',
+  fixable: true,
+  description:
+    'The LocalBusiness structured data does not link to the connected Google Business Profile.',
+
+  evaluate: (context) => {
+    const cid = context.businessProfile?.cid
+    if (!cid) return [] // no profile connected: nothing to link to, and nothing to guess
+
+    const seed = normaliseUrl(context.seed) ?? context.seed
+    const home = context.pages.find(
+      (page) => page.status === 200 && (normaliseUrl(page.finalUrl) ?? page.finalUrl) === seed,
+    )
+    if (!home) return []
+
+    const business = flattenNodes(home.extract.jsonLd).find(isLocalBusiness)
+    // No LocalBusiness block at all is LOCAL-001's finding, and raising both would ask the user
+    // to act twice on one edit.
+    if (!business) return []
+
+    const profileUrl = `https://maps.google.com/?cid=${cid}`
+    const missing = [
+      linksToProfile(business['hasMap'], cid) ? null : 'hasMap',
+      linksToProfile(business['sameAs'], cid) ? null : 'sameAs',
+    ].filter((name): name is string => name !== null)
+
+    if (missing.length === 0) return []
+
+    return [
+      {
+        title: `${home.finalUrl} has LocalBusiness markup that does not link to the Google Business Profile (${missing.join(' and ')} missing)`,
+        // The evidence carries the profile link, which is both what was missing and exactly what
+        // the fixer writes. Nothing here is inferred from the page.
+        evidence: markupEvidence(
+          home,
+          'script[type="application/ld+json"] LocalBusiness',
+          JSON.stringify({
+            profileUrl,
+            missing,
+            placeId: context.businessProfile?.placeId ?? null,
+          }),
+        ),
+        affectedUrls: [home.finalUrl],
+        confidence: 1,
+        estimatedImpact: 20,
+        falsification:
+          `Re-crawl ${home.finalUrl}: the LocalBusiness node should carry ${missing.join(' and ')} ` +
+          `pointing at ${profileUrl}. Open that link first. If it does not open this exact ` +
+          'business in Google Maps, the connected profile is wrong and this fix would tie the ' +
+          'markup to somebody else, which is worse than the markup being thin.',
+      },
+    ]
+  },
+}
+
+/** Does a `hasMap` or `sameAs` value already point at this profile? */
+function linksToProfile(value: unknown, cid: string): boolean {
+  const matches = (entry: unknown): boolean =>
+    typeof entry === 'string' && entry.includes(`cid=${cid}`)
+
+  return Array.isArray(value) ? value.some(matches) : matches(value)
+}
+
 type JsonObject = Record<string, unknown>
 
 /** The contact fields the fixer needs to build a LocalBusiness block. */

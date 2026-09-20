@@ -4,8 +4,8 @@ import { ALL_RULES } from '../src/registry.js'
 import { context, html, page, u } from './context.js'
 
 describe('the rule registry', () => {
-  it('ships the twenty-six rules the sprint asked for', () => {
-    expect(ALL_RULES).toHaveLength(26)
+  it('ships the twenty-seven rules the registry declares', () => {
+    expect(ALL_RULES).toHaveLength(27)
   })
 
   it('has no duplicate rule ids', () => {

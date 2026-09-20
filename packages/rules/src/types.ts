@@ -21,6 +21,17 @@ export interface RuleContext {
   sitemapUrls: string[]
   graph: LinkGraph
   skipped: SkippedUrl[]
+  /**
+   * The Google Business Profile the client connected, when they have connected one.
+   *
+   * Configuration rather than observation, and the only thing in this context that is not from
+   * the crawl. It is here because the alternative is worse: a rule that checked whether markup
+   * links to the right profile would otherwise have to go and look one up, which would put a
+   * network call inside a pure function and break ADR-0001 outright. A stored fact passed in
+   * keeps every rule a pure function of its input, and a site with no profile connected simply
+   * has no value here, so the rules that need one stay silent.
+   */
+  businessProfile?: { cid?: string | null; placeId?: string | null }
 }
 
 /**

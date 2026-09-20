@@ -273,9 +273,25 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         .where(eq(audits.id, auditId)),
     )
 
+    /**
+     * The connected Google Business Profile, read once and handed to the rule engine.
+     *
+     * The only configuration a rule sees, and it is passed in rather than looked up because a
+     * rule that fetched anything would stop being a pure function of the crawl (ADR-0001). A
+     * site with no profile connected passes nothing, and the rules that need one stay silent.
+     */
+    const [profile] = await withTenant(db, tenantId, (tx) =>
+      tx
+        .select({ cid: sites.gbpCid, placeId: sites.gbpPlaceId })
+        .from(sites)
+        .where(eq(sites.id, siteId))
+        .limit(1),
+    )
+
     const crawlFindings = runRules({
       siteId,
       seed,
+      businessProfile: profile,
       pages: result.pages,
       robots: result.robots,
       posture: result.posture,
