@@ -162,11 +162,16 @@ DataForSEO is enabled only when both `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD
 
 | Where it runs | What it powers | State |
 |---|---|---|
-| Worker, on GitHub Actions (`packages/audit/src/run.ts`) | Referring domains on the authority axis, and AUTH-004 (mentions without a link) | **Off.** `.github/workflows/worker.yml` passes neither variable, and the repo has no `DATAFORSEO_*` secret. Every audit reports referring domains as not measured. `BACKLINK_COST_PER_QUERY_USD`, also read here, is not passed either. |
-| API, on Render (`apps/api/src/server.ts`) | `/keywords` and the MCP `keyword_ideas` tool | **Almost certainly off.** `render.yaml` does not list the variables. The Render dashboard was not inspected, so a value added there by hand cannot be ruled out. When off, the route returns an empty list with a "not configured" note, and the API logs a warning at boot. |
+| Worker, on GitHub Actions (`packages/audit/src/run.ts`) | Referring domains on the authority axis, and AUTH-004 (mentions without a link) | **Wired, 2026-09-21.** `worker.yml` passes `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `DATAFORSEO_USE_SANDBOX` and `BACKLINK_COST_PER_QUERY_USD`. It stays off until the two secrets hold values. |
+| API, on Render (`apps/api/src/server.ts`) | `/keywords` and the MCP `keyword_ideas` tool | **Declared, 2026-09-21.** `render.yaml` lists both with `sync: false`; the values are set by hand in the Render dashboard. When absent, the route returns an empty list with a "not configured" note, and the API logs a warning at boot. |
 
 `.env.example` sets `DATAFORSEO_USE_SANDBOX=true`. The sandbox returns fabricated data for free,
 which is right for contract tests and demos and wrong for a real audit.
+
+**The password is not the one you log in with.** DataForSEO issues a separate API password at
+`app.dataforseo.com/api-access`. The dashboard password fails every call with status 40100, "you
+are not authorized to access this resource", which reads like a broken integration rather than
+like the wrong string. This cost an attempt on 2026-09-21.
 
 To switch it on:
 

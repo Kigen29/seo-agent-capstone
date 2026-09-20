@@ -105,6 +105,13 @@ hand-written and hand-registered in `meta/_journal.json`.** `packages/db/test/mi
 catches the forgotten journal entry. `.github/workflows/migrate.yml` applies them on merge to main;
 before it existed, a missing ALTER TABLE took production down for hours with every check green.
 
+### DataForSEO's API password is not its login password
+
+The vendor issues a separate API password at `app.dataforseo.com/api-access`. Authenticating with
+the dashboard login password returns status 40100, "you are not authorized to access this
+resource", on every endpoint, which looks exactly like a broken integration. Check this first if
+the authority axis reports referring domains as unmeasured while the credentials look present.
+
 ### Google's API ceilings
 
 Search Analytics: 25,000 rows per request, ~50,000 page-keyword pairs per property per day, 2 to 3
