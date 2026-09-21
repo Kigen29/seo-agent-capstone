@@ -1,3 +1,4 @@
+import { nameTopics } from '@seo/agent'
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
 import {
@@ -11,6 +12,7 @@ import {
   enqueueConfirmVerify,
   enqueueVerifyFix,
 } from '@seo/queue'
+import { createWorkerLlm } from './llm.js'
 import { enqueueDuePolls, runPollAi } from './poll.js'
 import { runFix } from './fix.js'
 import { reconcilePullRequests } from './reconcile.js'
@@ -30,6 +32,12 @@ import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './veri
  * and dies. Durability lives in the queue, not in this process staying up.
  */
 const { db, pool } = createDb()
+
+/**
+ * One client for the run. The topic map's embeddings and its naming call both go through it, and
+ * both are guarded and recorded per tenant like every other model call on this worker.
+ */
+const llm = createWorkerLlm(db)
 const queue = await createQueue()
 
 console.log('worker: draining the audit queue')
@@ -46,6 +54,10 @@ try {
       auditId: job.auditId,
       seed: job.seed,
       maxPages: job.maxPages,
+      // The topic map: this worker's LLM client supplies the vectors, and the naming prompt
+      // comes from @seo/agent, which the audit package deliberately does not depend on.
+      topics: llm,
+      nameTopics: (clusters) => nameTopics(llm, job.tenantId, clusters),
     })
   })
 

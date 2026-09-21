@@ -271,6 +271,14 @@ honestly needs a gazetteer or the client's own locality, and neither is stored y
 
 #### 7. Topic map, measured rather than guessed
 
+**Built, 2026-09-21**, under ADR-0024. Pages are embedded (`LLM_EMBED`, which until now had no
+caller anywhere in the product), grouped by `clusterByCosine` in `packages/audit/src/cluster.ts`,
+and only then named by a `fast` model call whose prompt tells it the grouping is not its to
+question. The figure is on the audit page.
+
+The findings listed below are **not built yet**: the map is measured and shown, and it adds no
+checks to any axis, because a measurement that raises no advice should not inflate a score.
+
 - Embed each crawled page (title, H1, lead text), cluster deterministically, let the model name the
   clusters, and draw the treemap on the dashboard.
 - Findings come from the measurement, not the naming:

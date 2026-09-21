@@ -73,8 +73,36 @@ export const searchMetricsSchema = z.object({
 })
 export type SearchMetrics = z.infer<typeof searchMetricsSchema>
 
+/**
+ * What the site is about, as measured rather than as claimed (ADR-0024).
+ *
+ * `pagesEmbedded` and `pagesCrawled` travel together because every share here is a share of the
+ * former. A treemap computed over 50 of 200 pages is a statement about those 50, and a reader who
+ * is not told that will take it for the whole site.
+ *
+ * `model` records the instrument. Embeddings are model output, so the same site under a different
+ * `LLM_EMBED` can group differently, and a map that did not say which model produced it would be
+ * comparing two things that look identical.
+ */
+export const topicMapSchema = z.object({
+  pagesEmbedded: z.number().int().min(0),
+  pagesCrawled: z.number().int().min(0),
+  model: z.string().optional(),
+  clusters: z.array(
+    z.object({
+      /** Named by a model, or by the cluster's own most common words when that call failed. */
+      name: z.string(),
+      /** 0..1, of the embedded pages. */
+      share: z.number().min(0).max(1),
+      pages: z.array(z.string()),
+    }),
+  ),
+})
+export type TopicMap = z.infer<typeof topicMapSchema>
+
 export const auditMetricsSchema = z.object({
   authority: authorityMetricsSchema.optional(),
   search: searchMetricsSchema.optional(),
+  topics: topicMapSchema.optional(),
 })
 export type AuditMetrics = z.infer<typeof auditMetricsSchema>

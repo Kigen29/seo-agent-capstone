@@ -2,6 +2,7 @@ import type { Finding } from '@seo/core'
 import { describe, expect, it } from 'vitest'
 import { generateContentFix, type ContentLlm } from '../src/content-fix.js'
 import { draftOutreach, type OutreachLlm } from '../src/outreach.js'
+import { nameTopics, type TopicNamingLlm } from '../src/topic-names.js'
 
 /**
  * The prompts, pinned.
@@ -133,5 +134,34 @@ describe('the outreach prompt', () => {
     expect(llm.sent[0]!.prompt).not.toContain('- (source: https://ex.com/ignored)')
     expect(llm.sent[0]!.system).toMatchSnapshot('system')
     expect(llm.sent[0]!.prompt).toMatchSnapshot('prompt')
+  })
+})
+
+describe('the topic naming prompt', () => {
+  it('tells the model the grouping is not its to question', async () => {
+    const sent: { system?: string; prompt: string }[] = []
+    const llm = {
+      object: async (opts: { system?: string; prompt: string }) => {
+        sent.push({ ...(opts.system ? { system: opts.system } : {}), prompt: opts.prompt })
+        return { output: { clusters: [{ id: 0, name: 'Tile prices' }] } }
+      },
+    } as unknown as TopicNamingLlm
+
+    await nameTopics(llm, 'tenant-1', [
+      {
+        id: 0,
+        titles: ['Floor tile prices', 'Wall tile prices', 'Mosaic tile prices'],
+      },
+      { id: 1, titles: ['Carpet delivery', 'Carpet fitting'] },
+    ])
+
+    expect(sent).toHaveLength(1)
+    /*
+      The load-bearing sentence is the one telling the model it is not deciding what belongs
+      together (ADR-0024). Deleting it compiles, passes every behavioural test, and quietly
+      re-opens the door to the model regrouping pages by talking about them differently.
+    */
+    expect(sent[0]!.system).toMatchSnapshot('system')
+    expect(sent[0]!.prompt).toMatchSnapshot('prompt')
   })
 })

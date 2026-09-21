@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
+import { TopicMapFigure } from '@/components/topic-map'
 import { SeverityBadge } from '@/components/severity'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { PageHeader } from '@/components/ui/page-header'
@@ -87,6 +88,28 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
 
             <ScorecardGrid scorecard={audit.scorecard} />
           </section>
+
+          {audit.metrics?.topics && audit.metrics.topics.clusters.length > 0 && (
+            <section style={{ marginTop: 'var(--space-8)' }}>
+              <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
+                What this site is about
+              </h2>
+              <p
+                style={{
+                  marginBottom: 'var(--space-4)',
+                  fontSize: 14,
+                  opacity: 0.75,
+                  maxWidth: '64ch',
+                }}
+              >
+                Pages grouped by how close they are in meaning, then labelled. Useful for the
+                question a finding cannot answer: whether the site is mostly about the thing you
+                want to be found for.
+              </p>
+
+              <TopicMapFigure map={audit.metrics.topics} />
+            </section>
+          )}
 
           <section style={{ marginTop: 'var(--space-8)' }}>
             <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
