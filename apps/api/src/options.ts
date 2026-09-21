@@ -1,5 +1,6 @@
 import type { OutreachLlm } from '@seo/agent'
 import type { IdentityProvider, KeywordProvider, OAuthConfig, SerpProvider } from '@seo/connectors'
+import type { runQuickCheck } from '@seo/audit'
 import type { Database } from '@seo/db'
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { GitHubApp } from '@seo/vcs'
@@ -126,6 +127,16 @@ export interface AppOptions {
    * drive the redirect chain, including the hop that leaves Google, without a network.
    */
   mapsFetch?: typeof globalThis.fetch
+  /**
+   * The fetch the anonymous check uses to reach the page it was asked about.
+   *
+   * Injected for the same reason `mapsFetch` is, and with more at stake: this one fetches a URL
+   * chosen by a stranger, so the test that proves a refusal is refused must not depend on somebody
+   * else's DNS. In production this is unset and `publicFetch` uses the platform's own.
+   */
+  checkFetch?: typeof globalThis.fetch
+  /** DNS resolution for the check's guard, injected with `checkFetch` so a test is hermetic. */
+  checkResolve?: NonNullable<Parameters<typeof runQuickCheck>[1]>['resolve']
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }

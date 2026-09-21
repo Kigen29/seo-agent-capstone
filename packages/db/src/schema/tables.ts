@@ -606,3 +606,40 @@ export const TENANT_SCOPED = [
   userIdentities,
   authHandoffs,
 ] as const
+
+/**
+ * A check run by somebody with no account (ADR-0025).
+ *
+ * The one table in the schema with no `tenantId`, and the omission is the design. An anonymous
+ * check has no tenant to be scoped by, so it is kept structurally apart from everything that does:
+ * it holds no foreign key into tenant data and the route that writes it never opens a tenant
+ * context. That is a stronger guarantee than a policy, because there is nothing here to leak.
+ */
+export const publicChecks = pgTable(
+  'public_checks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** What the visitor asked for. */
+    url: text('url').notNull(),
+    /** What was actually checked, after redirects. */
+    finalUrl: text('final_url').notNull(),
+    /** The findings, scorecard and limitations, stored whole so a share link renders what ran. */
+    result: jsonb('result').notNull(),
+    /**
+     * A salted hash of the caller's address, for rate limiting.
+     *
+     * Hashed rather than stored, because the limiter needs to recognise a repeat visitor and does
+     * not need to identify one. An IP column would be personal data held for no purpose we could
+     * defend.
+     */
+    ipHash: text('ip_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Share links are for this week, not forever, and a free-tier table has to be pruned. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Both limits read from here: per-hash since a timestamp, and the global count since one.
+    index('public_checks_rate_idx').on(table.createdAt, table.ipHash),
+    index('public_checks_expiry_idx').on(table.expiresAt),
+  ],
+)
