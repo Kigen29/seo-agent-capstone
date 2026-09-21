@@ -241,6 +241,18 @@ Two things the live run against `tileandcarpet.co.ke` taught:
 
 #### 6. Question mining from several sources, feeding AI visibility
 
+**Built, 2026-09-21**, minus the embeddings. `packages/connectors/src/questions/mine.ts` merges
+Search Console's question queries (free) with People Also Ask (`SerpProvider.relatedQuestions`,
+one billed query, only when a subject is given), groups phrasings on the same deterministic
+subject key CONTENT-002 uses, and `GET /sites/:id/questions` serves it. The panel on `/visibility`
+turns a selection into tracked prompts, which is the first time that axis has been able to suggest
+its own inputs.
+
+**Not built, and deliberately:** the embedding-based clustering. The subject-word key already
+collapses phrasings of one question, and a second clustering mechanism here would compete with the
+one Tier 3 item 7 needs for the topic map. Geographic scope tagging is also deferred: doing it
+honestly needs a gazetteer or the client's own locality, and neither is stored yet.
+
 - Sources, cheapest first:
   - Search Console question queries (item 1): free.
   - People Also Ask (`related_questions`) from SerpApi responses we already pay for.

@@ -34,6 +34,13 @@ export interface AiOverviewResult {
   present: boolean
 }
 
+/** The questions Google showed alongside a query: its People Also Ask box. */
+export interface RelatedQuestionsResult {
+  query: string
+  /** The questions, verbatim, in the order Google listed them. Empty is a common, real answer. */
+  questions: string[]
+}
+
 /** One place the web mentions a brand. */
 export interface MentionResult {
   query: string
@@ -57,6 +64,16 @@ export interface SerpProvider {
 
   /** Where the web mentions a brand. Used by the authority axis, which leads with mentions. */
   mentions(brand: string, options?: SerpQueryOptions): Promise<MentionResult>
+
+  /**
+   * The questions Google shows for a query: People Also Ask.
+   *
+   * Worth its own method rather than a field on the others, because it is asked at a different
+   * time and for a different reason. A person planning content asks it once, deliberately; the
+   * visibility poll runs daily and has no use for it. Bundling it would make every poll pay for
+   * data nothing reads.
+   */
+  relatedQuestions(query: string, options?: SerpQueryOptions): Promise<RelatedQuestionsResult>
 }
 
 export interface SerpQueryOptions {

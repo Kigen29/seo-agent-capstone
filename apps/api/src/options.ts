@@ -1,5 +1,5 @@
 import type { OutreachLlm } from '@seo/agent'
-import type { IdentityProvider, KeywordProvider, OAuthConfig } from '@seo/connectors'
+import type { IdentityProvider, KeywordProvider, OAuthConfig, SerpProvider } from '@seo/connectors'
 import type { Database } from '@seo/db'
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { GitHubApp } from '@seo/vcs'
@@ -48,6 +48,17 @@ export interface AppOptions {
    * hard connection ceiling is a real cost for no benefit.
    */
   keywords?: (tenantId: string, db: Database) => KeywordProvider | undefined
+  /**
+   * A SERP provider for a tenant, already wrapped in that tenant's budget guard.
+   *
+   * The same factory shape as `keywords`, and present for one route: the People Also Ask half of
+   * question mining. Every other SERP query in the product runs on the worker to a schedule; this
+   * one is interactive, because somebody planning content asks for it and waits.
+   *
+   * Absent means the route returns the Search Console half and says the paid half is not
+   * configured, rather than erroring or pretending.
+   */
+  serp?: (tenantId: string, db: Database) => SerpProvider | undefined
   /**
    * A model client for a tenant, already wrapped in that tenant's budget guard.
    *

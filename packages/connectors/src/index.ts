@@ -59,6 +59,9 @@ export { evaluateCannibalisation, CANNIBALISATION_CHECKS } from './gsc/cannibali
 export type { CannibalisationInput } from './gsc/cannibalisation.js'
 
 export { evaluateQuestionGaps, QUESTION_GAP_CHECKS } from './gsc/questions.js'
+
+export { DEFAULT_QUESTION_LIMIT, mineQuestions } from './questions/mine.js'
+export type { MinedQuestion, MineQuestionsInput, QuestionSource } from './questions/mine.js'
 export type { QuestionGapInput, PageSummary } from './gsc/questions.js'
 
 export {
@@ -76,6 +79,7 @@ export { SerpBudgetError, SerpRequestError } from './serp/types.js'
 export type {
   AiOverviewResult,
   MentionResult,
+  RelatedQuestionsResult,
   SerpProvider,
   SerpQueryOptions,
   SerpSource,
