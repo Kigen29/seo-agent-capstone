@@ -3,6 +3,7 @@ import {
   type AiOverviewResult,
   type MentionResult,
   type SerpProvider,
+  type RelatedQuestionsResult,
   type SerpQueryOptions,
 } from './types.js'
 
@@ -89,5 +90,10 @@ export function budgeted(provider: SerpProvider, options: BudgetedSerpOptions): 
       guarded(() => provider.aiOverview(query, queryOptions)),
     mentions: (brand: string, queryOptions?: SerpQueryOptions): Promise<MentionResult> =>
       guarded(() => provider.mentions(brand, queryOptions)),
+    relatedQuestions: (
+      query: string,
+      queryOptions?: SerpQueryOptions,
+    ): Promise<RelatedQuestionsResult> =>
+      guarded(() => provider.relatedQuestions(query, queryOptions)),
   }
 }

@@ -2304,6 +2304,100 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('mining questions', () => {
+    /**
+     * Search Console is not connected for this tenant in these tests, so the free half
+     * contributes nothing and the route has to say so rather than return a bare empty list. What
+     * is under test is the wiring and the honesty, not Google.
+     */
+    const askedFor: string[] = []
+
+    const withSerp = (questions: string[] | Error) =>
+      buildApp({
+        db,
+        serp: () => ({
+          name: 'fake-serp',
+          aiOverview: async (query: string) => ({ query, text: '', sources: [], present: false }),
+          mentions: async (query: string) => ({ query, sources: [] }),
+          relatedQuestions: async (query: string) => {
+            askedFor.push(query)
+            if (questions instanceof Error) throw questions
+            return { query, questions }
+          },
+        }),
+      })
+
+    it('returns the free half and says the paid half was not asked', async () => {
+      const response = await get(`/sites/${siteId}/questions`, token)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().questions).toEqual([])
+      expect((response.json() as { note: string }).note).toMatch(/Search Console/)
+    })
+
+    it('asks People Also Ask only when a subject is given', async () => {
+      const app2 = await withSerp(['How much do floor tiles cost?'])
+      try {
+        const before = askedFor.length
+        await app2.inject({
+          method: 'GET',
+          url: `/sites/${siteId}/questions`,
+          headers: { authorization: `Bearer ${token}` },
+        })
+        // No seed, no paid query. The free half runs on its own and costs nothing.
+        expect(askedFor).toHaveLength(before)
+
+        const response = await app2.inject({
+          method: 'GET',
+          url: `/sites/${siteId}/questions?seed=floor%20tiles`,
+          headers: { authorization: `Bearer ${token}` },
+        })
+
+        expect(askedFor.at(-1)).toBe('floor tiles')
+        expect(response.json().questions).toEqual([
+          {
+            question: 'How much do floor tiles cost?',
+            source: 'people-also-ask',
+            variants: [],
+          },
+        ])
+      } finally {
+        await app2.close()
+      }
+    })
+
+    it('says so when the SERP vendor is not configured, rather than failing', async () => {
+      const response = await get(`/sites/${siteId}/questions?seed=tiles`, token)
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { note: string }).note).toMatch(/SERPAPI_API_KEY/)
+    })
+
+    it('keeps the free half when the paid half errors', async () => {
+      const app2 = await withSerp(new Error('vendor down'))
+      try {
+        const response = await app2.inject({
+          method: 'GET',
+          url: `/sites/${siteId}/questions?seed=tiles`,
+          headers: { authorization: `Bearer ${token}` },
+        })
+
+        expect(response.statusCode).toBe(200)
+        expect((response.json() as { note: string }).note).toMatch(/did not answer/)
+      } finally {
+        await app2.close()
+      }
+    })
+
+    it('is a 404 for another tenant, never a 403', async () => {
+      expect((await get(`/sites/${siteId}/questions`, otherToken)).statusCode).toBe(404)
+    })
+
+    it('needs a token like everything else', async () => {
+      expect((await get(`/sites/${siteId}/questions`)).statusCode).toBe(401)
+    })
+  })
+
   describe('bearerToken', () => {
     it.each([
       ['Bearer abc', 'abc'],

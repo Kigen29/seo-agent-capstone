@@ -4,6 +4,7 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
+import { QuestionMiner } from './question-miner'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
@@ -64,9 +65,10 @@ export default async function VisibilityPage({
 
   let sites
   let report: VisibilityReport | undefined
+  let site
   try {
     sites = await api.listSites()
-    const site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
+    site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
     if (site) report = await api.getVisibilityReport(site.id)
   } catch (error) {
     handleApiError(error)
@@ -249,6 +251,13 @@ export default async function VisibilityPage({
           )}
         </>
       )}
+
+      {/*
+        Outside the report block on purpose. The case that needs this most is the site with no
+        prompts at all, where the report renders its empty state and a person is looking at a
+        button that asks them to invent questions from memory.
+      */}
+      {site && <QuestionMiner siteId={site.id} />}
     </main>
   )
 }

@@ -45,6 +45,8 @@ interface SerpApiResponse {
     page_token?: string
   }
   organic_results?: { link?: string; title?: string; snippet?: string }[]
+  /** People Also Ask. SerpApi returns the questions with their expanded answers; we read the ask. */
+  related_questions?: { question?: string }[]
   search_information?: { total_results?: number }
 }
 
@@ -143,6 +145,20 @@ export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
         sources,
         present: Boolean(overview) && (text !== '' || sources.length > 0),
       }
+    },
+
+    async relatedQuestions(query, queryOptions) {
+      const body = await search(query, queryOptions)
+
+      const questions: string[] = []
+      for (const entry of body.related_questions ?? []) {
+        const question = typeof entry.question === 'string' ? entry.question.trim() : ''
+        // A row with no question text is not a question. Keeping it would put an empty string in
+        // front of somebody deciding what to write about.
+        if (question) questions.push(question)
+      }
+
+      return { query, questions }
     },
 
     async mentions(brand, queryOptions) {

@@ -12,6 +12,7 @@ const fakeProvider = (overrides: Partial<SerpProvider> = {}): SerpProvider => ({
     present: true,
   }),
   mentions: async (query) => ({ query, sources: [] }),
+  relatedQuestions: async (query) => ({ query, questions: [] }),
   ...overrides,
 })
 

@@ -120,3 +120,50 @@ describe('the SerpApi provider', () => {
     expect(url).toContain('hl=en')
   })
 })
+
+describe('People Also Ask', () => {
+  const provider = (fetchImpl: typeof fetch) =>
+    createSerpApiProvider({ apiKey: 'k', fetch: fetchImpl })
+
+  it('reads the questions Google showed', () => {
+    return provider(
+      json({
+        related_questions: [
+          { question: 'How much do floor tiles cost in Kenya?' },
+          { question: 'What is the best tile for a bathroom?' },
+        ],
+      }),
+    )
+      .relatedQuestions('floor tiles nairobi')
+      .then((result) => {
+        expect(result.questions).toEqual([
+          'How much do floor tiles cost in Kenya?',
+          'What is the best tile for a bathroom?',
+        ])
+      })
+  })
+
+  it('skips a row with no question text', async () => {
+    // An empty string in front of somebody deciding what to write about is worse than one fewer
+    // suggestion.
+    const result = await provider(
+      json({ related_questions: [{ question: '  ' }, {}, { question: 'A real one?' }] }),
+    ).relatedQuestions('tiles')
+
+    expect(result.questions).toEqual(['A real one?'])
+  })
+
+  it('treats no People Also Ask box as a fact, not a failure', async () => {
+    const result = await provider(json({})).relatedQuestions('tiles')
+
+    expect(result.questions).toEqual([])
+  })
+
+  it('asks from the country it was given, because the box is geographic', async () => {
+    const fetchImpl = json({ related_questions: [] })
+    await provider(fetchImpl).relatedQuestions('tiles', { country: 'ke' })
+
+    const [url] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    expect(url).toContain('gl=ke')
+  })
+})

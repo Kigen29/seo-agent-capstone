@@ -1,9 +1,11 @@
 import { createBudgetGuard, recordSpend } from '@seo/budget'
 import {
+  budgeted,
   budgetedKeywords,
   createDataForSeoKeywords,
   createGitHubIdentity,
   createGoogleIdentity,
+  createSerpApiProvider,
   dataForSeoFromEnv,
   googleOAuthConfigFromEnv,
   type IdentityProvider,
@@ -172,6 +174,21 @@ const newTenantBudgetMicros = (() => {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined
 })()
 
+/**
+ * The SERP vendor, for the People Also Ask half of question mining.
+ *
+ * The API had no SERP provider until now: every other SERP query in the product runs on the
+ * worker, on a schedule. This one is interactive, like the outreach drafter, because a person
+ * planning content asks for it and waits for the answer. Same guard, same ledger, same posture
+ * when unconfigured: the route answers with the free half and says the paid half is off.
+ */
+const serpCostMicros = (() => {
+  const usd = Number(process.env.SERP_COST_PER_QUERY_USD)
+  return Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.015) * 1_000_000)
+})()
+
+const serpApiKey = process.env.SERPAPI_API_KEY
+
 const keywordCostMicros = (() => {
   const usd = Number(process.env.KEYWORD_COST_PER_QUERY_USD)
   // The vendor's published rate at the default row count, rounded up. Errs high when unset,
@@ -202,6 +219,30 @@ const app = await buildApp({
             }),
           costPerQueryMicros: keywordCostMicros,
         })
+      }
+    : undefined,
+  serp: serpApiKey
+    ? (tenantId, db) => {
+        const guard = createBudgetGuard(db)
+
+        return budgeted(
+          createSerpApiProvider({
+            apiKey: serpApiKey,
+            ...(process.env.SERP_COUNTRY ? { country: process.env.SERP_COUNTRY } : {}),
+          }),
+          {
+            tenantId,
+            checkBudget: guard.checkBudget,
+            recordSpend: (id, entry) =>
+              recordSpend(db, id, {
+                kind: 'serp',
+                provider: entry.provider,
+                model: entry.model,
+                micros: entry.micros,
+              }),
+            costPerQueryMicros: serpCostMicros,
+          },
+        )
       }
     : undefined,
   /*

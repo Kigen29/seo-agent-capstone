@@ -326,6 +326,27 @@ export interface KeywordGapResult {
   note?: string
 }
 
+/** One question a site's customers actually ask, and where we learned it. */
+export interface MinedQuestion {
+  question: string
+  /**
+   * Which source produced it. They are not equivalent: `search-console` means this site is
+   * already being shown for the question, `people-also-ask` means Google offers it alongside the
+   * subject. Only the first is demand this site receives.
+   */
+  source: 'search-console' | 'people-also-ask'
+  impressions?: number
+  position?: number
+  /** Other phrasings of the same question, grouped so one gap is one row. */
+  variants: string[]
+}
+
+export interface MinedQuestions {
+  questions: MinedQuestion[]
+  /** Present when a source contributed nothing, saying which and why. */
+  note?: string
+}
+
 export interface KeywordGapQuery {
   siteId: string
   competitor: string
@@ -647,6 +668,18 @@ export function createApiClient(options: ApiClientOptions) {
      */
     getVisibilityReport: async (siteId: string) =>
       request<VisibilityReport>(`/sites/${siteId}/visibility/report`),
+
+    /**
+     * The questions this site's customers actually ask: Search Console's question queries, plus
+     * People Also Ask when a seed is given (one billed query) and a SERP vendor is configured.
+     */
+    mineQuestions: async (siteId: string, query: { seed?: string; country?: string } = {}) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      return request<MinedQuestions>(`/sites/${siteId}/questions?${params.toString()}`)
+    },
 
     /** The questions this site's AI visibility is measured on, and the rivals it is measured against. */
     getVisibility: async (siteId: string) =>
