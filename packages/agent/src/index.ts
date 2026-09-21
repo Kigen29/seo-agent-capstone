@@ -24,3 +24,6 @@ export type {
   OutreachResult,
   OutreachTarget,
 } from './outreach.js'
+
+export { nameTopics, topicNamingPrompt, TOPIC_NAMING_SYSTEM } from './topic-names.js'
+export type { ClusterToName, TopicNamingLlm } from './topic-names.js'

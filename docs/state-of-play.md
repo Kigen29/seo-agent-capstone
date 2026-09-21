@@ -221,7 +221,19 @@ The embedding clustering and the geographic scope tagging were deliberately left
 document says why. The API composes a SERP provider for the first time: every other SERP call in
 the product runs on the worker, and this one is interactive like the outreach drafter.
 
-**Tier 2 is complete. Not started:** Tier 3.
+**Tier 2 is complete.**
+
+**Done (2026-09-21):** Tier 3 item 7, the topic map, under ADR-0024. Embeddings are the
+instrument, the grouping is deterministic, and the model only labels groups that already exist;
+two runs over one crawl produce the same map, asserted by a test. **The `embed` role finally has a
+caller**, which had been recorded here as a loose end since Sprint 3. Vectors are not persisted and
+pgvector stays unused, which corrects a claim the stack documents have carried since Sprint 1:
+nothing queries vectors across audits, so a vector column would be storage with no reader.
+
+Still to do on that item: the cluster findings (a cluster with no internal hub, a tracked prompt
+with no matching cluster). The map currently adds no checks to any axis for exactly that reason.
+
+**Not started:** Tier 3 items 8, 9 and 10 (#170, #171, #172).
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free

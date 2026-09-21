@@ -278,10 +278,25 @@ export interface SearchMetrics {
   endDate: string
 }
 
+/**
+ * What the site is about, measured by grouping pages rather than by asking a model (ADR-0024).
+ *
+ * `pagesEmbedded` and `pagesCrawled` travel together because every share is a share of the
+ * former, and a reader not told that will take the figure for the whole site.
+ */
+export interface TopicMap {
+  pagesEmbedded: number
+  pagesCrawled: number
+  /** Which embedding model produced the vectors. The map is comparable only within one. */
+  model?: string
+  clusters: { name: string; share: number; pages: string[] }[]
+}
+
 /** The figures an audit recorded, beyond the scorecard. Absent on audits older than the column. */
 export interface AuditMetrics {
   authority?: AuthorityMetrics
   search?: SearchMetrics
+  topics?: TopicMap
 }
 
 /** One keyword idea, with the numbers the vendor reports for it. */

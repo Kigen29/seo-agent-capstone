@@ -26,6 +26,7 @@ import { createBudgetGuard, recordSpend } from '@seo/budget'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
 import { measurePerformance } from './performance.js'
+import { measureTopics, type NameClusters, type TopicsLlm } from './topics.js'
 import { measureSearch } from './search.js'
 import { measureVisibility } from './visibility.js'
 import { measureAuthority } from './authority.js'
@@ -135,6 +136,18 @@ export interface RunAuditOptions {
    * the finding with a fake and no spend.
    */
   backlinks?: BacklinkProvider
+  /**
+   * The embedding client for the topic map, and the naming call that labels what it measured.
+   *
+   * Both injected rather than built here, and for different reasons. The client is a paid
+   * dependency like every other, so a test drives it with a fake and no spend. The namer lives in
+   * `@seo/agent`, which this package does not depend on: apps compose the two, exactly as they do
+   * for the content fixer (ADR-0024).
+   *
+   * Absent means no topic map and a note saying which key is missing, never an empty treemap.
+   */
+  topics?: TopicsLlm
+  nameTopics?: NameClusters
 }
 
 export interface AuditResult {
@@ -340,6 +353,24 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     )
 
     /**
+     * What the site is about, measured rather than claimed (ADR-0024).
+     *
+     * Embeddings group the pages deterministically and a model only labels the groups, so two
+     * runs over one crawl produce the same map. Its own step like performance and search: the
+     * data comes from a model rather than the crawl, it costs money, and "not measured" has
+     * several honest meanings that each say which one applies.
+     */
+    const topics = await measureTopics(
+      {
+        tenantId,
+        pages: result.pages,
+        ...(process.env.LLM_EMBED ? { model: process.env.LLM_EMBED } : {}),
+      },
+      options.topics,
+      options.nameTopics,
+    )
+
+    /**
      * The AI-visibility axis, read from the poll window the daily saga has been filling.
      *
      * This one only reads. The polls happen once a day on their own schedule, over days, because
@@ -423,6 +454,21 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       }
     }
 
+    /**
+     * The topic map is described on the structure axis and adds no checks to it.
+     *
+     * Deliberate: it measures how the site's subject matter is distributed and currently raises
+     * no findings, so counting it as a check would inflate an axis score with work that produced
+     * no advice. When the cluster findings land (a cluster with no hub page, a tracked prompt
+     * with no matching cluster) they bring their own count with them.
+     */
+    if (topics.map) {
+      coverage.structure = {
+        checksRun: coverage.structure.checksRun,
+        note: `${coverage.structure.note ?? ''} ${topics.coverage.note ?? ''}`.trim(),
+      }
+    }
+
     const scorecard = buildScorecard({ siteId, findings: found, coverage })
 
     /**
@@ -433,6 +479,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     const metrics: AuditMetrics = {
       ...(authority.metrics ? { authority: authority.metrics } : {}),
       ...(search.metrics ? { search: search.metrics } : {}),
+      ...(topics.map ? { topics: topics.map } : {}),
     }
 
     await withTenant(db, tenantId, async (tx) => {

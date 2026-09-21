@@ -39,6 +39,9 @@ export type { VisibilityReport, VisibilityResult } from './visibility.js'
 
 export { measureAuthority, MAX_COMPARED_COMPETITORS } from './authority.js'
 export { openSearchConsole, siteQueries } from './search.js'
+export { measureTopics, MAX_EMBEDDED_PAGES, pageText } from './topics.js'
+export type { NameClusters, TopicsLlm, TopicsResult } from './topics.js'
+export { clusterByCosine, cosine, SIMILARITY_THRESHOLD } from './cluster.js'
 export type { AuthorityResult } from './authority.js'
 
 export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'

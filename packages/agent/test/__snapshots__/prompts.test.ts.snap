@@ -26,3 +26,18 @@ Write the subject, the body, and one line explaining why this publication specif
 `;
 
 exports[`the outreach prompt > is sent verbatim, and carries only the facts it was given > system 1`] = `"You write short digital-PR pitches to journalists and editors. Rules, all of them absolute. Use ONLY the facts given to you; never invent a statistic, an award, a client name, a date, or a quote. Do not flatter the recipient. Do not describe the company as leading, premier, passionate, or world-class. Lead with the one concrete fact that is genuinely useful to their readers, not with a request. Under 200 words. Plain sentences. No em dashes."`;
+
+exports[`the topic naming prompt > tells the model the grouping is not its to question > prompt 1`] = `
+"Name each group of pages.
+
+Group 0 (3 pages):
+  - Floor tile prices
+  - Wall tile prices
+  - Mosaic tile prices
+
+Group 1 (2 pages):
+  - Carpet delivery
+  - Carpet fitting"
+`;
+
+exports[`the topic naming prompt > tells the model the grouping is not its to question > system 1`] = `"You name groups of web pages that have already been grouped for you. You are not deciding what belongs together: the grouping is fixed and is not yours to question, even when a page looks out of place. Give each group the shortest noun phrase a person browsing the site would recognise, two or three words, in the language of the titles. No marketing adjectives, no invented categories, nothing that is not evidenced by the titles you were shown. Echo each group id back exactly as given."`;
