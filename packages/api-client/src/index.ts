@@ -362,6 +362,28 @@ export interface MinedQuestions {
   note?: string
 }
 
+/** One place that might publish this client, after its own page has been read. */
+export interface ContributorCandidate {
+  domain: string
+  url: string
+  title?: string
+  snippet?: string
+  /** `inviting` is an opportunity; `selling` was refused for selling placements. */
+  verdict: 'inviting' | 'selling' | 'neither'
+  /** The phrases that decided the verdict, so a human can disagree with the evidence. */
+  matched: string[]
+  relevance: number
+}
+
+export interface ContributorSearch {
+  niche: string
+  opportunities: ContributorCandidate[]
+  /** Named rather than dropped: a filter nobody can see is a filter nobody can check. */
+  refused: ContributorCandidate[]
+  queriesRun: number
+  note?: string
+}
+
 export interface KeywordGapQuery {
   siteId: string
   competitor: string
@@ -709,6 +731,21 @@ export function createApiClient(options: ApiClientOptions) {
       request<VisibilitySettings>(`/sites/${siteId}/visibility`, {
         method: 'PUT',
         body: JSON.stringify(settings),
+      }),
+
+    /**
+     * Places that might publish this client, checked before they are shown.
+     *
+     * Mention building, not link building: the ask is coverage, and anything selling placements
+     * is refused and named. Each call runs billed searches, which is why it is a POST.
+     */
+    findContributors: async (
+      siteId: string,
+      body: { niche: string; locale?: string; country?: string },
+    ) =>
+      request<ContributorSearch>(`/sites/${siteId}/contributors`, {
+        method: 'POST',
+        body: JSON.stringify(body),
       }),
 
     /** The Google Business Profile connected to this site, with the links derived from it. */

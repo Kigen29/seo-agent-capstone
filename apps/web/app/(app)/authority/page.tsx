@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { ContributorSearchPanel } from './contributor-search'
 import { OutreachPitch } from './outreach-pitch'
 
 export const dynamic = 'force-dynamic'
@@ -240,6 +241,8 @@ export default async function AuthorityPage({
               )}
             </section>
           )}
+
+          {site && <ContributorSearchPanel siteId={site.id} />}
 
           <p className="text-muted m-0 text-[13px]">
             Measured on the audit of{' '}

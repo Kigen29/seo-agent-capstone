@@ -60,6 +60,15 @@ export type { CannibalisationInput } from './gsc/cannibalisation.js'
 
 export { evaluateQuestionGaps, QUESTION_GAP_CHECKS } from './gsc/questions.js'
 
+export { findContributors } from './authority/contributors.js'
+export type {
+  ContributorCandidate,
+  ContributorSearch,
+  FindContributorsOptions,
+} from './authority/contributors.js'
+export { classifyContributorPage, contributorQueries } from './authority/link-sellers.js'
+export type { ContributorCheck, ContributorVerdict } from './authority/link-sellers.js'
+
 export { assertFetchable, publicFetch, UnsafeUrlError } from './http/public-fetch.js'
 export type { PublicFetchOptions, PublicFetchResult } from './http/public-fetch.js'
 

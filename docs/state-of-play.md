@@ -249,7 +249,16 @@ Two things about it worth knowing before changing anything:
   address, re-checks every redirect hop, and caps bytes and time. Its tests are written as the
   attacks they defend against.
 
-**Not started:** Tier 3 items 9 and 10 (#171, #172).
+**Done (2026-09-21):** Tier 3 item 9, contributor opportunities, reframed as mention building
+(ADR-0018's evidence, rule 7's constraint). Every candidate page is read before it is shown, and
+selling beats inviting whenever both appear, which is the property that makes the list safe: paid
+link sites optimise for "write for us" precisely because that is what their customers search for.
+
+One thing it taught about this suite: **the anonymous check's rate limiter is stateful**, so the
+API tests were failing on their own leftovers from previous runs. The limits are now injectable,
+the tests clear only their own IP hash, and the per-IP refusal has a test of its own.
+
+**Not started:** Tier 3 item 10 (#172), competitor watch.
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free

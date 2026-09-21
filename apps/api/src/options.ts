@@ -137,6 +137,15 @@ export interface AppOptions {
   checkFetch?: typeof globalThis.fetch
   /** DNS resolution for the check's guard, injected with `checkFetch` so a test is hermetic. */
   checkResolve?: NonNullable<Parameters<typeof runQuickCheck>[1]>['resolve']
+  /**
+   * What the anonymous check allows per address and in total, per day.
+   *
+   * Injectable because the limiter is *stateful*: it counts rows in the database, so a test suite
+   * that ran it a few times would start failing on its own leftovers, and one that wanted to
+   * assert the 429 would have to run six checks to get there. Production leaves this unset and
+   * takes the constants in the route.
+   */
+  checkLimits?: { perIpDaily?: number; globalDaily?: number }
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }
