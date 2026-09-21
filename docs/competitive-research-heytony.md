@@ -316,6 +316,16 @@ to build one without its grade.
 
 #### 9. Contributor opportunities, reframed as mention building
 
+**Built, 2026-09-21.** `findContributors` runs the footprint searches, fetches each candidate's
+page through the SSRF guard, and `classifyContributorPage` decides what it is offering. The panel
+is on `/authority`, with the existing outreach drafter attached to every opportunity.
+
+The safety property, and the reason the feature is shippable at all: **selling beats inviting
+whenever both appear on a page.** Nearly every paid-link site also says "write for us", because
+that is the phrase its customers search for, so a filter letting "inviting" win would pass almost
+all of them. Refused domains are named with the phrases that condemned them, so the filter can be
+argued with rather than trusted.
+
 - LinkSeeker's output as a mention-building list rather than a link-building one, because ADR-0018's
   evidence says mentions are the stronger signal.
 - SERP footprints per niche and locale, then crawl each guidelines page and apply a deterministic

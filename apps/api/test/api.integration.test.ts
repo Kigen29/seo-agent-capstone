@@ -15,6 +15,7 @@ import {
   createDb,
   findings,
   oauthCredentials,
+  publicChecks,
   sites,
   tenants,
   userIdentities,
@@ -24,7 +25,7 @@ import {
 } from '@seo/db'
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
-import { createHmac, randomBytes } from 'node:crypto'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -2398,7 +2399,128 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('finding places that might publish you', () => {
+    /**
+     * Mention building rather than link building, and the safety property is that a site selling
+     * placements never reaches the opportunity list. These drive the route with a fake SERP
+     * provider and no network.
+     */
+    const withSerp = (sources: { url: string; title: string }[]) =>
+      buildApp({
+        db,
+        serp: () => ({
+          name: 'fake-serp',
+          aiOverview: async (query: string) => ({ query, text: '', sources: [], present: false }),
+          relatedQuestions: async (query: string) => ({ query, questions: [] }),
+          mentions: async (query: string) => ({ query, sources }),
+        }),
+        checkFetch: (async (input: string) =>
+          new Response(
+            input.includes('linkshop')
+              ? '<h1>Write for us</h1><p>Guest post price: $80, dofollow link.</p>'
+              : '<h1>Write for us</h1><p>We take pitches from the trade.</p>',
+            { status: 200 },
+          )) as unknown as typeof globalThis.fetch,
+        checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+      })
+
+    const ask = (instance: Awaited<ReturnType<typeof buildApp>>, body: unknown, bearer = token) =>
+      instance.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/contributors`,
+        headers: { authorization: `Bearer ${bearer}` },
+        payload: body as object,
+      })
+
+    it('says so plainly when no SERP source is configured', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/contributors`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { niche: 'floor tiles' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ opportunities: [], refused: [], queriesRun: 0 })
+      expect((response.json() as { note: string }).note).toMatch(/SERPAPI_API_KEY/)
+    })
+
+    it('keeps the publication and refuses the site selling placements', async () => {
+      // The safety property, end to end through the route: a seller optimises for the same
+      // phrase a publication uses, so the page itself has to be read before either is shown.
+      const instance = await withSerp([
+        { url: 'https://trade-journal.test/write-for-us', title: 'Write for us' },
+        { url: 'https://linkshop.test/guest-posts', title: 'Guest posts' },
+      ])
+
+      try {
+        const response = await ask(instance, { niche: 'floor tiles', locale: 'Kenya' })
+
+        expect(response.statusCode).toBe(200)
+        const body = response.json() as {
+          opportunities: { domain: string }[]
+          refused: { domain: string; matched: string[] }[]
+        }
+
+        expect(body.opportunities.map((entry) => entry.domain)).toEqual(['trade-journal.test'])
+        expect(body.refused.map((entry) => entry.domain)).toEqual(['linkshop.test'])
+        // Named with its evidence, so a client can disagree with the specific reason.
+        expect(body.refused[0]?.matched.length).toBeGreaterThan(0)
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('rejects a niche too short to search for', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/contributors`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { niche: 'x' },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('is a 404 for another tenant, never a 403', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/contributors`,
+        headers: { authorization: `Bearer ${otherToken}` },
+        payload: { niche: 'floor tiles' },
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+
+    it('needs a token like everything else', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/sites/${siteId}/contributors`,
+        payload: { niche: 'floor tiles' },
+      })
+
+      expect(response.statusCode).toBe(401)
+    })
+  })
+
   describe('the anonymous check', () => {
+    /**
+     * Clear this suite's own rate-limit history before asserting anything about limits.
+     *
+     * The limiter counts rows in a real database, so a suite that has run before today would
+     * otherwise be refused by its own leftovers, which is exactly what happened when these tests
+     * were first written. Scoped to the hash this process produces for 127.0.0.1, so it can never
+     * touch a check somebody actually ran.
+     */
+    const clearMyChecks = async () => {
+      const salt = process.env.TOKEN_ENCRYPTION_KEY ?? 'unsalted'
+      const mine = createHash('sha256').update(`${salt}:127.0.0.1`).digest('hex')
+      await asOwner(db, (tx) => tx.delete(publicChecks).where(eq(publicChecks.ipHash, mine)))
+    }
+
+    beforeAll(clearMyChecks)
+
     /**
      * The one route in this API that runs with no tenant (ADR-0025). What these assert is the
      * boundary rather than the rule engine: that it needs no token, that it cannot be looped, and
@@ -2469,6 +2591,10 @@ describe.skipIf(!shouldRun)('the API', () => {
             return new Response(PAGE, { status: 200, headers: { 'content-type': 'text/html' } })
           }) as unknown as typeof globalThis.fetch,
           checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+          // The limiter counts rows in a shared database, so a suite run twice would otherwise
+          // start failing on its own leftovers. The limits themselves are asserted below, with a
+          // limit of one, which is a better test than waiting to hit the real five.
+          checkLimits: { perIpDaily: 1000, globalDaily: 10_000 },
         })
 
       it('runs, stores the result, and reads it back by id', async () => {
@@ -2515,6 +2641,47 @@ describe.skipIf(!shouldRun)('the API', () => {
           await instance.close()
         }
       })
+    })
+
+    it('refuses a sixth check from the same address, and says why', async () => {
+      // The per-IP limit, driven with a limit of one so the assertion is about the mechanism
+      // rather than about running five checks first.
+      const instance = await buildApp({
+        db,
+        checkFetch: (async () =>
+          new Response(
+            '<html><head><title>x</title></head><body><main><h1>x</h1></main></body></html>',
+            {
+              status: 200,
+            },
+          )) as unknown as typeof globalThis.fetch,
+        checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+        checkLimits: { perIpDaily: 1, globalDaily: 10_000 },
+      })
+
+      try {
+        // The tests above ran checks from this same address, and the limiter counts them.
+        await clearMyChecks()
+
+        const first = await instance.inject({
+          method: 'POST',
+          url: '/check',
+          payload: { url: 'https://example.com/' },
+        })
+        expect(first.statusCode).toBe(200)
+
+        const second = await instance.inject({
+          method: 'POST',
+          url: '/check',
+          payload: { url: 'https://example.com/' },
+        })
+
+        expect(second.statusCode).toBe(429)
+        // A quota answer about a working system, with somewhere to go next.
+        expect((second.json() as { message: string }).message).toMatch(/sign in/i)
+      } finally {
+        await instance.close()
+      }
     })
 
     it('hides the prune route unless the caller knows the token', async () => {

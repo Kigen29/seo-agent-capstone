@@ -54,6 +54,8 @@ function hashAddress(request: FastifyRequest): string {
 
 export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, options } = deps
+  const perIpDaily = options.checkLimits?.perIpDaily ?? PER_IP_DAILY
+  const globalDaily = options.checkLimits?.globalDaily ?? GLOBAL_DAILY
 
   /**
    * Run a check for anybody.
@@ -82,7 +84,7 @@ export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
             .where(gt(publicChecks.createdAt, since)),
         )
 
-        if ((limits?.global ?? 0) >= GLOBAL_DAILY) {
+        if ((limits?.global ?? 0) >= globalDaily) {
           return reply.status(429).send({
             error: 'Too Many Requests',
             message:
@@ -91,10 +93,10 @@ export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
           })
         }
 
-        if (Number(limits?.mine ?? 0) >= PER_IP_DAILY) {
+        if (Number(limits?.mine ?? 0) >= perIpDaily) {
           return reply.status(429).send({
             error: 'Too Many Requests',
-            message: `That is ${PER_IP_DAILY} checks from here today, which is the limit. Sign in to audit a whole site.`,
+            message: `That is ${perIpDaily} checks from here today, which is the limit. Sign in to audit a whole site.`,
           })
         }
 

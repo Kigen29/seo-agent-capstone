@@ -11,6 +11,7 @@ import type { AppOptions, RouteDeps } from './options.js'
 import { auditRoutes } from './routes/audits.js'
 import { checkRoutes } from './routes/check.js'
 import { connectionRoutes } from './routes/connections.js'
+import { contributorRoutes } from './routes/contributors.js'
 import { findingRoutes } from './routes/findings.js'
 import { keywordRoutes } from './routes/keywords.js'
 import { localRoutes } from './routes/local.js'
@@ -131,6 +132,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     auditRoutes(protectedRoutes, deps)
     connectionRoutes(protectedRoutes, deps)
     outreachRoutes(protectedRoutes, deps)
+    contributorRoutes(protectedRoutes, deps)
     identityRoutes(protectedRoutes, deps)
     keywordRoutes(protectedRoutes, deps)
     localRoutes(protectedRoutes, deps)
