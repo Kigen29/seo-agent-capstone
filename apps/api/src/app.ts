@@ -9,6 +9,7 @@ import {
 import { bearerToken, tenantForToken } from './auth.js'
 import type { AppOptions, RouteDeps } from './options.js'
 import { auditRoutes } from './routes/audits.js'
+import { checkRoutes } from './routes/check.js'
 import { connectionRoutes } from './routes/connections.js'
 import { findingRoutes } from './routes/findings.js'
 import { keywordRoutes } from './routes/keywords.js'
@@ -89,6 +90,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
   // Unauthenticated on purpose, and each says why in its own file.
   oauthCallbackRoutes(app, deps)
+  // The one anonymous door (ADR-0025). It touches one table, which has no tenant_id.
+  checkRoutes(app, deps)
   // Unauthenticated by necessity: somebody signing in has no session yet. See the file.
   signinRoutes(app, deps)
   await githubWebhookRoutes(app, deps)

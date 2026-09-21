@@ -18,6 +18,7 @@ export {
   authHandoffs,
   findings,
   oauthCredentials,
+  publicChecks,
   sites,
   spend,
   tenants,

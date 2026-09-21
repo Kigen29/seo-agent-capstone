@@ -2398,6 +2398,137 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('the anonymous check', () => {
+    /**
+     * The one route in this API that runs with no tenant (ADR-0025). What these assert is the
+     * boundary rather than the rule engine: that it needs no token, that it cannot be looped, and
+     * that a refused URL comes back as something the visitor can act on.
+     *
+     * The network is never touched. `runQuickCheck` fetches through the SSRF guard, which has its
+     * own tests; here the URL is always one the guard refuses, so the handler's error path is
+     * exercised without a DNS lookup of somebody else's domain.
+     */
+    const check = (url: string) => app.inject({ method: 'POST', url: '/check', payload: { url } })
+
+    it('needs no token at all, which is the entire point of it', async () => {
+      const response = await check('http://example.com')
+
+      // 400 because the URL is not https, not 401. Reaching the validation means the route let an
+      // anonymous caller in.
+      expect(response.statusCode).toBe(400)
+      expect(response.json().message).toMatch(/https/)
+    })
+
+    it('refuses a URL that is not fetchable, with a reason a visitor can act on', async () => {
+      const response = await check('https://localhost')
+
+      expect(response.statusCode).toBe(400)
+      expect(typeof response.json().message).toBe('string')
+    })
+
+    it('rejects a payload with no URL rather than checking nothing', async () => {
+      const response = await app.inject({ method: 'POST', url: '/check', payload: {} })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('answers 404 for a check id that does not exist', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/check/00000000-0000-4000-8000-00000000dead',
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+
+    it('rejects an id that is not a uuid, rather than querying with it', async () => {
+      expect((await app.inject({ method: 'GET', url: '/check/not-a-uuid' })).statusCode).toBe(400)
+    })
+
+    describe('a check that actually runs', () => {
+      /**
+       * The happy path, with both the transport and DNS stubbed so no real site is fetched.
+       *
+       * It also proves something the RLS migration made non-obvious: `public_checks` has row-level
+       * security forced and no policies at all, so the only role that can write it is the owner.
+       * If these routes ever stopped using `asOwner`, this test would fail rather than the leak
+       * being discovered in production.
+       */
+      const PAGE =
+        '<!doctype html><html><head><title>A page</title></head>' +
+        '<body><main><h1>A page</h1><p>Some words.</p></main></body></html>'
+
+      const stubbed = async () =>
+        buildApp({
+          db,
+          checkFetch: (async (input: string) => {
+            if (input.endsWith('/robots.txt'))
+              return new Response(['User-agent: *', 'Allow: /'].join('\n'), { status: 200 })
+            if (input.endsWith('/llms.txt')) return new Response('', { status: 404 })
+            if (input.endsWith('/sitemap.xml')) return new Response('', { status: 404 })
+            return new Response(PAGE, { status: 200, headers: { 'content-type': 'text/html' } })
+          }) as unknown as typeof globalThis.fetch,
+          checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+        })
+
+      it('runs, stores the result, and reads it back by id', async () => {
+        const instance = await stubbed()
+        try {
+          const ran = await instance.inject({
+            method: 'POST',
+            url: '/check',
+            payload: { url: 'https://example.com/' },
+          })
+
+          expect(ran.statusCode).toBe(200)
+          const body = ran.json() as { id: string; findings: unknown[]; limitations: string[] }
+          expect(body.id).toBeTruthy()
+          // The limitations are not decoration: a thin check that does not say what it skipped
+          // reads as a clean bill of health.
+          expect(body.limitations.length).toBeGreaterThan(0)
+
+          const read = await instance.inject({ method: 'GET', url: `/check/${body.id}` })
+          expect(read.statusCode).toBe(200)
+          expect(read.json().finalUrl).toBe('https://example.com/')
+        } finally {
+          await instance.close()
+        }
+      })
+
+      it('scores the axes it could not check as unmeasured rather than as passing', async () => {
+        const instance = await stubbed()
+        try {
+          const ran = await instance.inject({
+            method: 'POST',
+            url: '/check',
+            payload: { url: 'https://example.com/' },
+          })
+
+          const axes = (ran.json() as { scorecard: { axes: { axis: string; status: string }[] } })
+            .scorecard.axes
+          const performance = axes.find((axis) => axis.axis === 'performance')
+
+          // Core Web Vitals need a connected account. An axis that quietly scored 100 here would
+          // be the single most misleading thing on a free report.
+          expect(performance?.status).toBe('not_measured')
+        } finally {
+          await instance.close()
+        }
+      })
+    })
+
+    it('hides the prune route unless the caller knows the token', async () => {
+      // A 404 rather than a 401: an endpoint that says "wrong token" has confirmed it exists.
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/check/expired',
+        headers: { 'x-prune-token': 'not-the-token' },
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+  })
+
   describe('bearerToken', () => {
     it.each([
       ['Bearer abc', 'abc'],

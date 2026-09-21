@@ -60,6 +60,9 @@ export type { CannibalisationInput } from './gsc/cannibalisation.js'
 
 export { evaluateQuestionGaps, QUESTION_GAP_CHECKS } from './gsc/questions.js'
 
+export { assertFetchable, publicFetch, UnsafeUrlError } from './http/public-fetch.js'
+export type { PublicFetchOptions, PublicFetchResult } from './http/public-fetch.js'
+
 export { DEFAULT_QUESTION_LIMIT, mineQuestions } from './questions/mine.js'
 export type { MinedQuestion, MineQuestionsInput, QuestionSource } from './questions/mine.js'
 export type { QuestionGapInput, PageSummary } from './gsc/questions.js'

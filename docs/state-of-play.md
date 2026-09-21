@@ -233,7 +233,23 @@ nothing queries vectors across audits, so a vector column would be storage with 
 Still to do on that item: the cluster findings (a cluster with no internal hub, a tracked prompt
 with no matching cluster). The map currently adds no checks to any axis for exactly that reason.
 
-**Not started:** Tier 3 items 8, 9 and 10 (#170, #171, #172).
+**Done (2026-09-21):** Tier 3 item 8, the public check, under ADR-0025. `POST /check` and
+`GET /check/:id` are the only anonymous routes in the API and the only ones that run with no
+tenant. `/check` on the web app shows the eight-axis breakdown with the evidence for every
+finding, and no score out of 100.
+
+Two things about it worth knowing before changing anything:
+
+- **`public_checks` has RLS enabled and forced with no policies at all.** `seo_app` can read no
+  row; the only way in is `asOwner`, whose role carries BYPASSRLS. So a signed-in tenant cannot
+  enumerate the URLs strangers have checked, and the schema keeps its every-table-protected
+  invariant rather than being allow-listed out of it.
+- **The SSRF guard is one function** (`packages/connectors/src/http/public-fetch.ts`) and must
+  stay one. It resolves DNS before fetching, refuses a name that answers with any private
+  address, re-checks every redirect hop, and caps bytes and time. Its tests are written as the
+  attacks they defend against.
+
+**Not started:** Tier 3 items 9 and 10 (#171, #172).
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free

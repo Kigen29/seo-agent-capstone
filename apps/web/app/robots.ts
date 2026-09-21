@@ -16,7 +16,14 @@ export default function robots(): MetadataRoute.Robots {
   }
 
   return {
-    rules: [{ userAgent: '*', allow: '/' }],
+    /*
+      `/check/` results are disallowed, and the page that creates them is not. A result is an
+      unsolicited audit of somebody else's website, created by whoever pasted the URL; publishing
+      those under our domain would be a different product from the one we are advertising
+      (ADR-0025). The pages also carry a noindex meta tag, because robots.txt asks and a meta tag
+      tells.
+    */
+    rules: [{ userAgent: '*', allow: '/', disallow: '/check/' }],
     sitemap: `${siteUrl}/sitemap.xml`,
     host: siteUrl,
   }

@@ -61,6 +61,13 @@ export default function Home() {
             <Link href="/login" className="btn btn-primary">
               Run an audit
             </Link>
+            {/*
+              The free check, second rather than first. It is the cheapest way to see whether any
+              of this is true, and it is still not the product: the product opens the pull request.
+            */}
+            <Link href="/check" className="btn btn-secondary">
+              Check one page free
+            </Link>
             <a href="#how" className="btn btn-secondary">
               See how it works
             </a>

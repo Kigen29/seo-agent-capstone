@@ -291,7 +291,12 @@ checks to any axis, because a measurement that raises no advice should not infla
   here: yes, because the clustering is deterministic and every finding is confirmed by the link
   graph or Search Console, never by the model's say-so.
 
-#### 8. Public check page: approved in principle, ADR first
+#### 8. Public check page: built, 2026-09-21
+
+Shipped under ADR-0025, which amends ADR-0009 to allow exactly one anonymous door. What Rank
+Report Card does that we do not: a letter grade out of 100, and the explanations behind an email
+gate. What we do that it does not: the eight-axis breakdown, the evidence for every finding, and a
+list of what the check could not look at.
 
 Rank Report Card's lesson is that an instant, no-login result is a powerful front door. The plan is
 to build one without its grade.
