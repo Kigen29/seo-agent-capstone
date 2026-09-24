@@ -14,12 +14,12 @@ import { PgBoss } from 'pg-boss'
  * worker.yml drains anyway.
  */
 
-export const AUDIT_QUEUE = 'audit'
-export const VERIFY_QUEUE = 'verify'
-export const CONFIRM_VERIFY_QUEUE = 'confirm-verify'
-export const FIX_QUEUE = 'fix'
-export const VERIFY_FIX_QUEUE = 'verify-fix'
-export const POLL_AI_QUEUE = 'poll-ai'
+export const AUDIT_QUEUE = 'audit-v2'
+export const VERIFY_QUEUE = 'verify-v2'
+export const CONFIRM_VERIFY_QUEUE = 'confirm-verify-v2'
+export const FIX_QUEUE = 'fix-v2'
+export const VERIFY_FIX_QUEUE = 'verify-fix-v2'
+export const POLL_AI_QUEUE = 'poll-ai-v2'
 
 /** Kept out of the `public` schema so it never collides with our tables or their RLS. */
 const SCHEMA = 'pgboss'
@@ -105,12 +105,18 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
 
   const boss = new PgBoss({ connectionString, schema: SCHEMA })
   await boss.start()
-  await boss.createQueue(AUDIT_QUEUE)
-  await boss.createQueue(VERIFY_QUEUE)
-  await boss.createQueue(CONFIRM_VERIFY_QUEUE)
-  await boss.createQueue(FIX_QUEUE)
-  await boss.createQueue(VERIFY_FIX_QUEUE)
-  await boss.createQueue(POLL_AI_QUEUE)
+  await boss.createQueue(AUDIT_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(AUDIT_QUEUE.replace(/-v2$/, ''))
+  await boss.createQueue(VERIFY_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(VERIFY_QUEUE.replace(/-v2$/, ''))
+  await boss.createQueue(CONFIRM_VERIFY_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(CONFIRM_VERIFY_QUEUE.replace(/-v2$/, ''))
+  await boss.createQueue(FIX_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(FIX_QUEUE.replace(/-v2$/, ''))
+  await boss.createQueue(VERIFY_FIX_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(VERIFY_FIX_QUEUE.replace(/-v2$/, ''))
+  await boss.createQueue(POLL_AI_QUEUE, { policy: 'exclusive' })
+  await boss.createQueue(POLL_AI_QUEUE.replace(/-v2$/, ''))
   return boss
 }
 
@@ -125,6 +131,8 @@ export async function createQueue(connectionString = process.env.DATABASE_URL): 
  */
 export async function enqueueAudit(queue: Queue, job: AuditJob): Promise<string | null> {
   return queue.send(AUDIT_QUEUE, job, {
+    id: job.auditId,
+    singletonKey: job.auditId,
     retryLimit: 2,
     retryDelay: 30,
     expireInSeconds: 30 * 60,
@@ -140,6 +148,7 @@ export async function enqueueAudit(queue: Queue, job: AuditJob): Promise<string 
  */
 export async function enqueueVerify(queue: Queue, job: VerifyJob): Promise<string | null> {
   return queue.send(VERIFY_QUEUE, job, {
+    singletonKey: job.siteId,
     retryLimit: 2,
     retryDelay: 30,
     expireInSeconds: 10 * 60,
@@ -239,22 +248,29 @@ async function drain<T extends object>(
   queue: Queue,
   name: string,
   handler: (job: T) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
   let completed = 0
   let failed = 0
 
   for (;;) {
-    const jobs = await queue.fetch<T>(name, { batchSize: 1 })
+    if (completed + failed >= maxJobs) break
+    let source = name
+    let jobs = await queue.fetch<T>(source, { batchSize: 1 })
+    if ((!jobs || jobs.length === 0) && name.endsWith('-v2')) {
+      source = name.replace(/-v2$/, '')
+      jobs = await queue.fetch<T>(source, { batchSize: 1 })
+    }
     if (!jobs || jobs.length === 0) break
 
     for (const job of jobs) {
       try {
         await handler(job.data)
-        await queue.complete(name, job.id)
+        await queue.complete(source, job.id)
         completed += 1
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        await queue.fail(name, job.id, { message })
+        await queue.fail(source, job.id, { message })
         failed += 1
       }
     }
@@ -267,46 +283,52 @@ async function drain<T extends object>(
 export function drainAudits(
   queue: Queue,
   handler: (job: AuditJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, AUDIT_QUEUE, handler)
+  return drain(queue, AUDIT_QUEUE, handler, maxJobs)
 }
 
 /** Drain the verification queue. See {@link drain}. */
 export function drainVerify(
   queue: Queue,
   handler: (job: VerifyJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, VERIFY_QUEUE, handler)
+  return drain(queue, VERIFY_QUEUE, handler, maxJobs)
 }
 
 /** Drain the confirm-verification queue. See {@link drain}. */
 export function drainConfirmVerify(
   queue: Queue,
   handler: (job: ConfirmVerifyJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, CONFIRM_VERIFY_QUEUE, handler)
+  return drain(queue, CONFIRM_VERIFY_QUEUE, handler, maxJobs)
 }
 
 /** Drain the fix queue. See {@link drain}. */
 export function drainFix(
   queue: Queue,
   handler: (job: FixJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, FIX_QUEUE, handler)
+  return drain(queue, FIX_QUEUE, handler, maxJobs)
 }
 
 /** Drain the verify-fix queue. See {@link drain}. */
 export function drainVerifyFix(
   queue: Queue,
   handler: (job: VerifyFixJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, VERIFY_FIX_QUEUE, handler)
+  return drain(queue, VERIFY_FIX_QUEUE, handler, maxJobs)
 }
 
 /** Drain the AI-visibility poll queue. See {@link drain}. */
 export function drainPollAi(
   queue: Queue,
   handler: (job: PollAiJob) => Promise<void>,
+  maxJobs = Number.POSITIVE_INFINITY,
 ): Promise<{ completed: number; failed: number }> {
-  return drain(queue, POLL_AI_QUEUE, handler)
+  return drain(queue, POLL_AI_QUEUE, handler, maxJobs)
 }

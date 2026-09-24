@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 /**
@@ -19,6 +19,7 @@ import { useState } from 'react'
 export function SeedForm({ seed, country }: { seed: string; country: string }) {
   const router = useRouter()
   const pathname = usePathname()
+  const currentSearch = useSearchParams()
 
   const [value, setValue] = useState(seed)
   const [market, setMarket] = useState(country)
@@ -31,6 +32,7 @@ export function SeedForm({ seed, country }: { seed: string; country: string }) {
 
     setPending(true)
     const search = new URLSearchParams({ seed: term })
+    if (currentSearch.get('siteId')) search.set('siteId', currentSearch.get('siteId')!)
     if (market.trim()) search.set('country', market.trim().toLowerCase())
     router.push(`${pathname}?${search.toString()}`)
   }

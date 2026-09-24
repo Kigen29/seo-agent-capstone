@@ -134,7 +134,7 @@ export interface Account {
   tenantName: string | null
   createdAt: string | null
   identity: SignedInIdentity | null
-  budget: { capMicros: number; spentMicros: number; allowed: boolean }
+  budget: { capMicros: number; spentMicros: number; reservedMicros?: number; allowed: boolean }
 }
 
 /** The three scalars the finding page polls while a fix job is in flight. */
@@ -434,24 +434,18 @@ export async function fetchAuthProviders(
   baseUrl: string,
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
 ): Promise<string[]> {
-  try {
-    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/auth/providers`, {
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-    })
-    if (!response.ok) return []
-
-    const body = (await response.json()) as { providers?: string[] }
-    return body.providers ?? []
-  } catch {
-    /*
-      An empty list, never a thrown error.
-
-      This runs on the login page, and the API is on a free instance that sleeps. A cold start
-      here must degrade to "no social buttons, use a token" rather than to a broken sign-in page,
-      because this is the first screen a new user ever sees.
-    */
-    return []
+  const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/auth/providers`, {
+    signal: AbortSignal.timeout(5_000),
+  })
+  if (!response.ok) throw new ApiRequestError(response.status, 'Sign-in service is unavailable.')
+  const body = (await response.json()) as { providers?: unknown }
+  if (
+    !Array.isArray(body.providers) ||
+    !body.providers.every((provider) => typeof provider === 'string')
+  ) {
+    throw new Error('Invalid sign-in provider response.')
   }
+  return body.providers
 }
 
 /**

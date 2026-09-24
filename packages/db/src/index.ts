@@ -27,3 +27,5 @@ export {
   visibilityPrompts,
   TENANT_SCOPED,
 } from './schema/tables.js'
+
+export { appendJob, publishJobs } from './outbox.js'

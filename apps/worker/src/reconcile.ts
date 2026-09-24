@@ -41,7 +41,6 @@ export async function reconcilePullRequests(
     confirmVerify?: (job: { tenantId: string; siteId: string }) => Promise<unknown>
   } = {},
 ): Promise<ReconcileReport> {
-  const provider = new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
   const report: ReconcileReport = {
     checked: 0,
     merged: 0,
@@ -49,6 +48,9 @@ export async function reconcilePullRequests(
     unchanged: 0,
     unreadable: 0,
   }
+
+  if (!process.env.GH_APP_ID || !process.env.GH_APP_PRIVATE_KEY) return report
+  const provider = new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
 
   /**
    * Only findings still waiting on a PR. A `merged` finding is already where the webhook or an

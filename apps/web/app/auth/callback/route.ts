@@ -1,4 +1,5 @@
 import { exchangeAuthCode } from '@seo/api-client'
+import { safeNext } from '@seo/core'
 import { NextResponse, type NextRequest } from 'next/server'
 import { apiUrl, setToken } from '@/lib/session'
 
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
   // Only a path, and never one starting with two slashes: `//evil.example` is a
   // protocol-relative URL a browser resolves to another origin. The API checks this too; doing
   // it on both sides means neither has to trust the other to have done it.
-  const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+  const target = safeNext(next) ?? '/dashboard'
 
   return NextResponse.redirect(new URL(target, origin))
 }

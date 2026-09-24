@@ -8,7 +8,7 @@ import { Note, type NoteTone } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
-import { getClient } from '@/lib/session'
+import { getClient, getSites } from '@/lib/session'
 import { startAudit, verifySite } from '../actions'
 import { AddSite } from '../add-site'
 import { ConnectRepo } from '../connect-repo'
@@ -74,7 +74,7 @@ export default async function Dashboard({
   let audit: Audit | undefined
   let visibility: VisibilityReport | undefined
   try {
-    ;[sites, connections] = await Promise.all([api.listSites(), api.getConnections()])
+    ;[sites, connections] = await Promise.all([getSites(), api.getConnections()])
 
     /**
      * The overview is about one site, and the switcher in the sidebar says which. Falling back to

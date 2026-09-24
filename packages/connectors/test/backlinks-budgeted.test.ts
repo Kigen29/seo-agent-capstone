@@ -39,7 +39,7 @@ describe('a budgeted BacklinkProvider', () => {
 
     await wrap(fakeProvider({ intersection }), guard).intersection(['rival.com'], 'client.com')
 
-    expect(guard.checkBudget).toHaveBeenCalledWith('tenant-1')
+    expect(guard.checkBudget).toHaveBeenCalledWith('tenant-1', 30_000)
     expect(intersection).toHaveBeenCalledWith(['rival.com'], 'client.com', undefined)
     expect(guard.recordSpend).toHaveBeenCalledWith('tenant-1', {
       provider: 'fake-backlinks',

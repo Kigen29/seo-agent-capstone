@@ -1,7 +1,7 @@
 import { runQuickCheck, type QuickCheckResult } from '@seo/audit'
 import { UnsafeUrlError } from '@seo/connectors'
 import { asOwner, publicChecks } from '@seo/db'
-import { and, count, eq, gt, sql } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { createHash } from 'node:crypto'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
@@ -74,15 +74,23 @@ export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
         const since = new Date(Date.now() - DAY_MS)
         const ipHash = hashAddress(request)
 
-        const [limits] = await asOwner(db, (tx) =>
-          tx
-            .select({
-              global: count(),
-              mine: sql<number>`count(*) filter (where ${publicChecks.ipHash} = ${ipHash})`,
-            })
-            .from(publicChecks)
-            .where(gt(publicChecks.createdAt, since)),
-        )
+        // Serialize count-and-reserve, then release the transaction before fetching a URL.
+        // Attempts count even when the subsequent fetch fails.
+        const limits = await asOwner(db, async (tx) => {
+          await tx.execute(sql`select pg_advisory_xact_lock(19287, 1)`)
+          await tx.execute(
+            sql`delete from public_check_attempts where created_at < now() - interval '2 days'`,
+          )
+          const counted = await tx.execute<{ global: number; mine: number }>(sql`
+            select count(*)::int as global,
+              count(*) filter (where ip_hash = ${ipHash})::int as mine
+            from public_check_attempts where created_at > ${since}`)
+          const limits = counted.rows[0] ?? { global: 0, mine: 0 }
+          if (limits.global < globalDaily && limits.mine < perIpDaily) {
+            await tx.execute(sql`insert into public_check_attempts (ip_hash) values (${ipHash})`)
+          }
+          return limits
+        })
 
         if ((limits?.global ?? 0) >= globalDaily) {
           return reply.status(429).send({

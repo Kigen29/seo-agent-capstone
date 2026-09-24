@@ -37,7 +37,7 @@ describe('a budgeted SerpProvider', () => {
       costPerQueryMicros: 15_000,
     }).aiOverview('q')
 
-    expect(guard.checkBudget).toHaveBeenCalledWith('tenant-1')
+    expect(guard.checkBudget).toHaveBeenCalledWith('tenant-1', 15000)
     expect(aiOverview).toHaveBeenCalled()
     expect(guard.recordSpend).toHaveBeenCalledWith('tenant-1', {
       provider: 'fake-serp',

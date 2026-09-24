@@ -88,6 +88,7 @@ export interface AppOptions {
    * from process.env directly. Absent means those routes report 503 rather than pretend.
    */
   github?: {
+    userAuthorization?: import('@seo/connectors').InstallationAccessOptions
     app: GitHubApp
     /** The App's URL slug, for building the install link `github.com/apps/<slug>`. */
     slug: string

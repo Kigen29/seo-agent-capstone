@@ -100,8 +100,8 @@ async function attemptFix(db: Database, job: FixJob): Promise<void> {
   }
 
   const pr = await provider.openPullRequest(repo, {
-    // The finding's id is the rule key ('TECH-007#0'); the branch namespace needs it git-safe.
-    finding: { ...finding, id: branchSafeId(finding.id) },
+    // Use the persisted observation ID, not the positional rule key shared by other audits.
+    finding: { ...finding, id: branchSafeId(finding.rowId) },
     files: fix.files,
     expectedEffect: fix.expectedEffect,
     rollback: fix.rollback,

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "drain": "node --env-file-if-exists=../../.env dist/drain.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/daemon.js"
   },
   "dependencies": {
     "@seo/agent": "workspace:*",

@@ -51,6 +51,7 @@ export interface FrontierEntry {
 
 export interface FrontierState {
   queue: FrontierEntry[]
+  inFlight?: FrontierEntry[]
   visited: string[]
   seen: string[]
 }
@@ -63,6 +64,7 @@ export interface FrontierOptions {
 
 export class Frontier {
   private readonly queue: FrontierEntry[] = []
+  private readonly inFlight = new Map<string, FrontierEntry>()
   private readonly visited = new Set<string>()
   /** Every URL ever enqueued, so a page linked from fifty places is queued once. */
   private readonly seen = new Set<string>()
@@ -106,12 +108,15 @@ export class Frontier {
    * branch of a paginated archive forever.
    */
   next(): FrontierEntry | undefined {
-    if (this.visited.size >= this.maxPages) return undefined
-    return this.queue.shift()
+    if (this.visited.size + this.inFlight.size >= this.maxPages) return undefined
+    const entry = this.queue.shift()
+    if (entry) this.inFlight.set(entry.url, entry)
+    return entry
   }
 
   /** Call once a page is fully processed AND persisted, never before. */
   complete(url: string): void {
+    this.inFlight.delete(url)
     this.visited.add(url)
   }
 
@@ -134,6 +139,7 @@ export class Frontier {
   toState(): FrontierState {
     return {
       queue: [...this.queue],
+      inFlight: [...this.inFlight.values()],
       visited: [...this.visited],
       seen: [...this.seen],
     }
@@ -148,7 +154,13 @@ export class Frontier {
 
     for (const url of state.seen) frontier.seen.add(url)
     for (const url of state.visited) frontier.visited.add(url)
-    for (const entry of state.queue) frontier.queue.push(entry)
+    for (const entry of [...(state.inFlight ?? []), ...state.queue]) {
+      if (
+        !frontier.visited.has(entry.url) &&
+        !frontier.queue.some((queued) => queued.url === entry.url)
+      )
+        frontier.queue.push(entry)
+    }
 
     return frontier
   }

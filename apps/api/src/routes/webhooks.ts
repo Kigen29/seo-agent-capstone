@@ -1,7 +1,7 @@
 import { applyFixPrOutcome, applyVerifyPrOutcome } from '@seo/audit'
 import { asOwner, sites } from '@seo/db'
 import { SIGNATURE_HEADER, verifyWebhookSignature } from '@seo/vcs'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { RouteDeps } from '../options.js'
 
@@ -9,6 +9,7 @@ import type { RouteDeps } from '../options.js'
 interface GithubWebhookPayload {
   action?: string
   installation?: { id?: number }
+  repository?: { full_name?: string }
   pull_request?: { merged?: boolean; head?: { ref?: string }; html_url?: string }
 }
 
@@ -95,7 +96,14 @@ export async function githubWebhookRoutes(app: FastifyInstance, deps: RouteDeps)
             tx
               .select({ tenantId: sites.tenantId, status: sites.gscVerificationStatus })
               .from(sites)
-              .where(eq(sites.id, siteId))
+              .where(
+                and(
+                  eq(sites.id, siteId),
+                  eq(sites.gscVerificationPrUrl, payload.pull_request?.html_url ?? ''),
+                  eq(sites.repoFullName, payload.repository?.full_name ?? ''),
+                  eq(sites.githubInstallationId, payload.installation?.id ?? -1),
+                ),
+              )
               .limit(1),
           )
 

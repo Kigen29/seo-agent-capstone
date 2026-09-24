@@ -21,8 +21,15 @@ export interface MergedFindingRef {
   affectedUrls: string[]
 }
 
-/** A verified fix is gone; a rejected one is still present. Never invents a third state here. */
-export type FixVerdict = 'verified' | 'rejected'
+/** A verified fix is gone; a rejected one is still present. Incomplete evidence is inconclusive. */
+export type FixVerdict = 'verified' | 'rejected' | 'inconclusive'
+
+export interface VerificationCoverage {
+  successfulUrls: readonly string[]
+  evaluatedRuleIds: readonly string[]
+  /** Established by deployment evidence, never inferred from a merge alone. */
+  deploymentConfirmed: boolean
+}
 
 /**
  * Whether a fresh audit still reproduces a merged finding.
@@ -48,10 +55,19 @@ export function stillPresent(merged: MergedFindingRef, current: readonly Finding
 export function reconcileFixVerifications(
   merged: readonly MergedFindingRef[],
   current: readonly Finding[],
+  coverage?: VerificationCoverage,
 ): Map<string, FixVerdict> {
   const verdicts = new Map<string, FixVerdict>()
   for (const finding of merged) {
-    verdicts.set(finding.id, stillPresent(finding, current) ? 'rejected' : 'verified')
+    const covered =
+      coverage?.deploymentConfirmed &&
+      coverage.evaluatedRuleIds.includes(finding.ruleId) &&
+      finding.affectedUrls.length > 0 &&
+      finding.affectedUrls.every((url) => coverage.successfulUrls.includes(url))
+    verdicts.set(
+      finding.id,
+      covered ? (stillPresent(finding, current) ? 'rejected' : 'verified') : 'inconclusive',
+    )
   }
   return verdicts
 }

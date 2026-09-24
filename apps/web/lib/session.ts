@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createApiClient, type ApiClient } from '@seo/api-client'
 import { cookies } from 'next/headers'
 
@@ -59,9 +60,12 @@ export const apiUrl = (): string => process.env.API_URL ?? 'http://localhost:400
  * on this page came through the API, authenticated, and was scoped by row-level security on
  * the way out.
  */
-export async function getClient(): Promise<ApiClient | undefined> {
+export const getClient = cache(async (): Promise<ApiClient | undefined> => {
   const token = await getToken()
   if (!token) return undefined
 
   return createApiClient({ baseUrl: apiUrl(), token, fetch: (...args) => fetch(...args) })
-}
+})
+
+// React cache is scoped to one server render, never shared across tenant requests.
+export const getSites = cache(async () => (await getClient())?.listSites() ?? [])

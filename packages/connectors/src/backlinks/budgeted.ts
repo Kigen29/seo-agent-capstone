@@ -58,7 +58,7 @@ export function budgetedBacklinks(
 
   /** Refuse, then call, then record: the order ADR-0017 exists to fix. */
   async function spend<T>(call: () => Promise<T>): Promise<T> {
-    const verdict = await options.checkBudget(options.tenantId)
+    const verdict = await options.checkBudget(options.tenantId, options.costPerQueryMicros)
     if (!verdict.allowed) {
       throw new BacklinkBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
     }
@@ -74,6 +74,7 @@ export function budgetedBacklinks(
           provider: provider.name,
           model: 'backlinks',
           micros: options.costPerQueryMicros,
+          ...(verdict.reservationId ? { reservationId: verdict.reservationId } : {}),
         })
         .catch((error: unknown) => {
           console.error('backlinks: could not record what this query cost:', error)

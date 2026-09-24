@@ -1,6 +1,6 @@
 /**
  * USD per million tokens. Used only for spend estimation and the budget guard.
- * Unknown models return 0 cost and are logged, so add yours here when you add a key.
+ * Unknown models are refused before invocation. Verify tariffs before enabling paid work.
  * Keep this file boring and easy to edit. It is config, not logic.
  */
 export interface Price {

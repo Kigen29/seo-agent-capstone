@@ -48,7 +48,10 @@ export default async function AccountSettingsPage() {
   }
 
   const { budget } = account
-  const remaining = Math.max(0, budget.capMicros - budget.spentMicros)
+  const remaining = Math.max(
+    0,
+    budget.capMicros - budget.spentMicros - (budget.reservedMicros ?? 0),
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,6 +87,7 @@ export default async function AccountSettingsPage() {
 
         <StatRow>
           <Stat label="Spent" value={money(budget.spentMicros)} />
+          <Stat label="Reserved" value={money(budget.reservedMicros ?? 0)} />
           <Stat label="Monthly cap" value={money(budget.capMicros)} />
           <Stat label="Remaining" value={money(remaining)} />
         </StatRow>
@@ -102,9 +106,9 @@ export default async function AccountSettingsPage() {
           </Note>
         ) : budget.allowed ? null : (
           <Note tone="warn" className="mt-3">
-            The cap for this month has been reached, so paid work is paused until the 1st. Nothing
-            is lost and nothing is charged; the axes that need paid data will report themselves
-            unmeasured until then.
+            The available account budget is spent or reserved, so new paid work is paused.
+            Reservations cover running calls and calls awaiting charge confirmation. Confirmed
+            unused amounts become available after reconciliation.
           </Note>
         )}
       </section>

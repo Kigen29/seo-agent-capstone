@@ -1,7 +1,7 @@
 import type { SignedInIdentity } from '@seo/api-client'
 import { redirect } from 'next/navigation'
 import { Sidebar, type SidebarSite } from '@/components/sidebar'
-import { getClient, getToken } from '@/lib/session'
+import { getClient, getToken, getSites } from '@/lib/session'
 
 /**
  * One gate and one shell for every authenticated page.
@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (api) {
       // Both at once: two round trips to a sleeping free instance is twice the cold start, and
       // neither of these blocks the other.
-      const [siteList, who] = await Promise.all([api.listSites(), api.getIdentity()])
+      const [siteList, who] = await Promise.all([getSites(), api.getIdentity()])
       sites = siteList.map((site) => ({ id: site.id, url: site.url }))
       identity = who
     }

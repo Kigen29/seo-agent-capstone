@@ -173,3 +173,6 @@ export type {
   PromptWindow,
   VisibilityReport,
 } from './visibility/evaluate.js'
+
+export { verifyGitHubInstallationAccess } from './identity/github-installation.js'
+export type { InstallationAccessOptions } from './identity/github-installation.js'

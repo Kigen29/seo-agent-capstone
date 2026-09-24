@@ -20,3 +20,6 @@ apps/web/screens/
 # TypeScript incremental build cache
 *.tsbuildinfo
 .playwright/
+
+# Deployment credentials are local-only.
+.env.runtime

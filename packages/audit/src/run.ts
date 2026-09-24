@@ -69,6 +69,7 @@ function serpFromEnv(db: Database, tenantId: string): SerpProvider | undefined {
           provider: entry.provider,
           model: entry.model,
           micros: entry.micros,
+          reservationId: entry.reservationId,
         }),
       // Errs high when unset, which is the safe direction for a cost guard.
       costPerQueryMicros: Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.015) * 1_000_000),
@@ -99,6 +100,7 @@ function backlinksFromEnv(db: Database, tenantId: string): BacklinkProvider | un
         provider: entry.provider,
         model: entry.model,
         micros: entry.micros,
+        reservationId: entry.reservationId,
       }),
     // The vendor's published rate for a live referring-domains request at the default row limit,
     // rounded up. Errs high when unset, which is the safe direction for a cost guard.
@@ -155,6 +157,7 @@ export interface AuditResult {
   findings: Finding[]
   scorecard: Scorecard
   pagesCrawled: number
+  verificationCoverage: { successfulUrls: string[]; evaluatedRuleIds: string[] }
 }
 
 /**
@@ -535,7 +538,35 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         .where(eq(audits.id, auditId))
     })
 
-    return { auditId, findings: found, scorecard, pagesCrawled: result.pages.length }
+    return {
+      auditId,
+      findings: found,
+      scorecard,
+      pagesCrawled: result.pages.length,
+      verificationCoverage: {
+        successfulUrls: result.pages
+          .filter(
+            (page) =>
+              page.status === 200 &&
+              !page.error &&
+              page.extract.metaRobots.index &&
+              !(page.xRobotsTag ?? '').toLowerCase().includes('noindex'),
+          )
+          .flatMap((page) => [page.url, page.finalUrl]),
+        // Site-wide and graph rules require additional resource coverage before verification.
+        evaluatedRuleIds: [
+          'TECH-005',
+          'TECH-006',
+          'TECH-015',
+          'TECH-016',
+          'TECH-017',
+          'TECH-018',
+          'TECH-019',
+          'TECH-020',
+          'TECH-021',
+        ],
+      },
+    }
   } catch (error) {
     /**
      * Record the failure rather than leaving the audit stuck on 'crawling' forever. A user

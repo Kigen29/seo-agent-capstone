@@ -113,9 +113,4 @@ export function readCookie(header: string | undefined, name: string): string | u
  * protocol-relative URL that a browser resolves to another origin, so the second character has
  * to be checked as well as the first, and that is the whole open-redirect class in two lines.
  */
-export function safeNext(next: string | undefined): string | undefined {
-  if (!next) return undefined
-  if (!next.startsWith('/') || next.startsWith('//')) return undefined
-
-  return next
-}
+export { safeNext } from '@seo/core'

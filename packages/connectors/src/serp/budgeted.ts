@@ -23,11 +23,14 @@ import {
 
 export interface SerpBudgetHooks {
   /** Called before every paid query. A refusal stops the call; the money is never spent. */
-  checkBudget: (tenantId: string) => Promise<{ allowed: boolean; reason?: string }>
+  checkBudget: (
+    tenantId: string,
+    reserveMicros?: number,
+  ) => Promise<{ allowed: boolean; reason?: string; reservationId?: string }>
   /** Called after a query returns, with what it cost. */
   recordSpend: (
     tenantId: string,
-    entry: { provider: string; model: string; micros: number },
+    entry: { provider: string; model: string; micros: number; reservationId?: string },
   ) => Promise<void>
 }
 
@@ -54,7 +57,7 @@ export interface BudgetedSerpOptions extends SerpBudgetHooks {
  */
 export function budgeted(provider: SerpProvider, options: BudgetedSerpOptions): SerpProvider {
   async function guarded<T>(run: () => Promise<T>): Promise<T> {
-    const verdict = await options.checkBudget(options.tenantId)
+    const verdict = await options.checkBudget(options.tenantId, options.costPerQueryMicros)
     if (!verdict.allowed) {
       throw new SerpBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
     }
@@ -77,6 +80,7 @@ export function budgeted(provider: SerpProvider, options: BudgetedSerpOptions): 
           provider: provider.name,
           model: 'search',
           micros: options.costPerQueryMicros,
+          ...(verdict.reservationId ? { reservationId: verdict.reservationId } : {}),
         })
         .catch((error: unknown) => {
           console.error('serp: could not record what this query cost:', error)

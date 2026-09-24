@@ -249,6 +249,19 @@ describe('the pull-request cap', () => {
     harness = await connect({ writes: true, maxPrs: 2 })
   })
 
+  it('reserves capacity before concurrent requests reach the API', async () => {
+    const { client, recorder } = await connect({ writes: true, maxPrs: 1 })
+    const results = await Promise.all([
+      call(client, 'fix_finding', { rowId: FINDING_ROW_ID }),
+      call(client, 'verify_site', { siteId: SITE_ID }),
+      call(client, 'fix_finding', { rowId: FINDING_ROW_ID }),
+    ])
+    expect(results.filter((result) => result.text.includes('Refusing:'))).toHaveLength(2)
+    expect(
+      recorder.calls.filter((c) => ['fixFinding', 'verifySite'].includes(c.method)),
+    ).toHaveLength(1)
+  })
+
   it('opens pull requests up to the cap', async () => {
     const first = await call(harness.client, 'fix_finding', { rowId: FINDING_ROW_ID })
     const second = await call(harness.client, 'fix_finding', { rowId: FINDING_ROW_ID })

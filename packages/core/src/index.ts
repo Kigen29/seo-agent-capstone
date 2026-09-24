@@ -1,4 +1,5 @@
 export { AXES, axisSchema } from './axis.js'
+export { safeNext } from './safe-next.js'
 export type { Axis } from './axis.js'
 
 export { severitySchema, severityWeight } from './severity.js'
@@ -68,3 +69,5 @@ export {
   scorecardSchema,
 } from './scorecard.js'
 export type { AxisCoverage, AxisScore, AxisStatus, Scorecard, ScorecardInput } from './scorecard.js'
+
+export { assertTestDatabase } from './test-database.js'

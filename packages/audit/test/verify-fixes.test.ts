@@ -77,7 +77,11 @@ describe('reconcileFixVerifications', () => {
     ]
     const current = [finding('TECH-002', ['https://ex.com/'])]
 
-    const verdicts = reconcileFixVerifications(mergedFindings, current)
+    const verdicts = reconcileFixVerifications(mergedFindings, current, {
+      successfulUrls: ['https://ex.com/about', 'https://ex.com/'],
+      evaluatedRuleIds: ['TECH-007', 'TECH-002'],
+      deploymentConfirmed: true,
+    })
 
     expect(verdicts.get('gone')).toBe('verified')
     expect(verdicts.get('remains')).toBe('rejected')
@@ -86,7 +90,30 @@ describe('reconcileFixVerifications', () => {
 
   it('verifies everything when a clean re-audit finds nothing', () => {
     const mergedFindings = [merged('a', 'TECH-007', ['https://ex.com/about'])]
-    const verdicts = reconcileFixVerifications(mergedFindings, [])
+    const verdicts = reconcileFixVerifications(mergedFindings, [], {
+      successfulUrls: ['https://ex.com/about'],
+      evaluatedRuleIds: ['TECH-007'],
+      deploymentConfirmed: true,
+    })
     expect(verdicts.get('a')).toBe('verified')
   })
+})
+
+it('never verifies absence without successful coverage and deployment evidence', () => {
+  const refs = [merged('a', 'TECH-007', ['https://ex.com/unvisited'])]
+  expect(reconcileFixVerifications(refs, []).get('a')).toBe('inconclusive')
+  expect(
+    reconcileFixVerifications(refs, [], {
+      successfulUrls: [],
+      evaluatedRuleIds: ['TECH-007'],
+      deploymentConfirmed: true,
+    }).get('a'),
+  ).toBe('inconclusive')
+  expect(
+    reconcileFixVerifications(refs, [], {
+      successfulUrls: ['https://ex.com/unvisited'],
+      evaluatedRuleIds: ['TECH-007'],
+      deploymentConfirmed: false,
+    }).get('a'),
+  ).toBe('inconclusive')
 })

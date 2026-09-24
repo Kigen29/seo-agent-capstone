@@ -1,0 +1,50 @@
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      WEB_HOST: ${WEB_HOST:?Set WEB_HOST}
+      API_HOST: ${API_HOST:?Set API_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    mem_limit: 256m
+  web:
+    image: ${APP_IMAGE:?Set an immutable image tag}
+    restart: unless-stopped
+    command: ['node', 'apps/web/.next/standalone/apps/web/server.js']
+    environment:
+      PORT: '3000'
+      HOSTNAME: '0.0.0.0'
+      API_URL: http://api:4000
+    mem_limit: 1g
+  api:
+    image: ${APP_IMAGE:?Set an immutable image tag}
+    restart: unless-stopped
+    env_file: .env.runtime
+    environment:
+      PORT: '4000'
+    mem_limit: 1g
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    image: ${APP_IMAGE:?Set an immutable image tag}
+    restart: unless-stopped
+    env_file: .env.runtime
+    command: ['node', 'apps/worker/dist/daemon.js']
+    mem_limit: 3g
+    cpus: 2
+    shm_size: 512m
+    stop_grace_period: 35m
+volumes:
+  caddy_data:

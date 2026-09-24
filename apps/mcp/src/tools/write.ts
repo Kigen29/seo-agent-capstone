@@ -1,4 +1,4 @@
-import type { ApiClient } from '@seo/api-client'
+import { ApiRequestError, type ApiClient } from '@seo/api-client'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { guard, text, type ToolResult } from './result.js'
@@ -45,18 +45,21 @@ function createPrBudget(max: number) {
 
   return {
     /** Returns a refusal to hand back, or undefined when there is room. */
-    check(): ToolResult | undefined {
-      if (opened < max) return undefined
+    reserve(): ToolResult | undefined {
+      if (opened < max) {
+        opened += 1
+        return undefined
+      }
 
       return text(
-        `Refusing: this session has already opened ${opened} pull request(s), which is the ` +
+        `Refusing: this session has already reserved ${opened} pull request(s), which is the ` +
           `limit (SEO_MCP_MAX_PRS, currently ${max}). This exists so a loop cannot open twenty ` +
           'pull requests on a repository. Review the ones already open and merge or close them, ' +
           'then restart the server, or raise SEO_MCP_MAX_PRS if you meant to open more.',
       )
     },
-    spend(): void {
-      opened += 1
+    release(): void {
+      opened -= 1
     },
     get opened(): number {
       return opened
@@ -108,12 +111,18 @@ export function registerWriteTools(server: McpServer, api: ApiClient, options: W
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async ({ rowId }) => {
-      const refusal = budget.check()
+      const refusal = budget.reserve()
       if (refusal) return refusal
 
       return guard(async () => {
-        await api.fixFinding(rowId)
-        budget.spend()
+        try {
+          await api.fixFinding(rowId)
+        } catch (error) {
+          // A definitive client rejection did not enqueue work. A timeout may have.
+          if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500)
+            budget.release()
+          throw error
+        }
         return (
           `Fix queued for ${rowId}. The worker is generating the diff and opening the pull ` +
           'request; it appears on the finding shortly, and get_finding will then show its URL ' +
@@ -136,12 +145,17 @@ export function registerWriteTools(server: McpServer, api: ApiClient, options: W
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async ({ siteId }) => {
-      const refusal = budget.check()
+      const refusal = budget.reserve()
       if (refusal) return refusal
 
       return guard(async () => {
-        await api.verifySite(siteId)
-        budget.spend()
+        try {
+          await api.verifySite(siteId)
+        } catch (error) {
+          if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500)
+            budget.release()
+          throw error
+        }
         return (
           `Verification queued for ${siteId}. The agent is opening a pull request that adds the ` +
           'verification meta tag; merge it and the property verifies. ' +

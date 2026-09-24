@@ -1,18 +1,14 @@
-import { config } from 'dotenv'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { assertTestDatabase } from '../core/src/test-database'
 import { defineConfig } from 'vitest/config'
 
-/**
- * The RLS tests need a real Postgres, so they need DATABASE_URL. Loaded from the repo root
- * .env, which is gitignored. In CI the variable comes from the workflow environment and
- * this call finds no file and does nothing, which is the intended behaviour.
- */
-config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') })
+// Integration tests mutate fixtures. Never accept a remote or unmarked database.
+if (process.env.DATABASE_URL) assertTestDatabase(process.env)
 
 export default defineConfig({
   test: {
-    // A round trip to a hosted Postgres is slower than the unit suites elsewhere.
+    // Global-budget assertions share a ledger with the legacy budget fixtures.
+    fileParallelism: false,
+    // Allow for database container startup and transaction contention.
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },

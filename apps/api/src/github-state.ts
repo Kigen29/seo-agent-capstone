@@ -23,6 +23,7 @@ const STATE_TTL_MS = 10 * 60 * 1000
 export interface GithubInstallState {
   tenantId: string
   siteId: string
+  installationId?: number
 }
 
 function stateSecret(): Buffer {
@@ -38,7 +39,12 @@ const b64url = (buf: Buffer | string): string =>
 
 export function signInstallState(state: GithubInstallState, now = Date.now()): string {
   const payload = b64url(
-    JSON.stringify({ tenantId: state.tenantId, siteId: state.siteId, iat: now }),
+    JSON.stringify({
+      tenantId: state.tenantId,
+      siteId: state.siteId,
+      installationId: state.installationId,
+      iat: now,
+    }),
   )
   const sig = b64url(createHmac('sha256', stateSecret()).update(payload).digest())
   return `${payload}.${sig}`
@@ -61,12 +67,19 @@ export function verifyInstallState(
   if (a.length !== b.length || !timingSafeEqual(a, b)) return undefined
 
   try {
-    const { tenantId, siteId, iat } = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    const { tenantId, siteId, installationId, iat } = JSON.parse(
+      Buffer.from(payload, 'base64url').toString('utf8'),
+    )
     if (typeof tenantId !== 'string' || typeof siteId !== 'string' || typeof iat !== 'number') {
       return undefined
     }
     if (now - iat > STATE_TTL_MS || iat > now + 60_000) return undefined
-    return { tenantId, siteId }
+    if (
+      installationId !== undefined &&
+      (!Number.isSafeInteger(installationId) || installationId <= 0)
+    )
+      return undefined
+    return { tenantId, siteId, ...(installationId === undefined ? {} : { installationId }) }
   } catch {
     return undefined
   }

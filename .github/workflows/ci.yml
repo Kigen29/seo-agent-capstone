@@ -45,6 +45,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres@localhost:5432/seo_test
+      TEST_DATABASE: '1'
+      ALLOW_E2E_SEED: '1'
 
     steps:
       - uses: actions/checkout@v5

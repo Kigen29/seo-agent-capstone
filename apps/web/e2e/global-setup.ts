@@ -1,3 +1,4 @@
+import { assertTestDatabase } from '@seo/core'
 import { execFileSync } from 'node:child_process'
 
 /**
@@ -10,14 +11,9 @@ import { execFileSync } from 'node:child_process'
  * sidesteps the problem rather than contorting the build to satisfy a test runner.
  */
 export default function globalSetup(): void {
-  execFileSync(
-    'node',
-    ['--env-file-if-exists=../../.env', '../../packages/audit/dist/seed-cli.js'],
-    {
-      stdio: 'inherit',
-      // The seed refuses to run without this, because it writes a tenant whose API token is a
-      // public literal in the repo. Saying so here is the "yes, this database is disposable".
-      env: { ...process.env, ALLOW_E2E_SEED: '1' },
-    },
-  )
+  assertTestDatabase(process.env)
+  execFileSync('node', ['../../packages/audit/dist/seed-cli.js'], {
+    stdio: 'inherit',
+    env: process.env,
+  })
 }
