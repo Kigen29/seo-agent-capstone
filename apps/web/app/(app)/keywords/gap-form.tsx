@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 /**
@@ -28,6 +28,7 @@ export function GapForm({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const currentSearch = useSearchParams()
 
   const [value, setValue] = useState(competitor)
   const [pending, setPending] = useState(false)
@@ -39,6 +40,7 @@ export function GapForm({
 
     setPending(true)
     const search = new URLSearchParams()
+    if (currentSearch.get('siteId')) search.set('siteId', currentSearch.get('siteId')!)
     if (seed.trim()) search.set('seed', seed.trim())
     if (country.trim()) search.set('country', country.trim().toLowerCase())
     search.set('competitor', rival.replace(/^https?:\/\//i, '').replace(/\/.*$/, ''))

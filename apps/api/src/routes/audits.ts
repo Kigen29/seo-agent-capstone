@@ -1,5 +1,5 @@
 import { getAudit, getAuditProgress } from '@seo/audit'
-import { withTenant, audits, sites } from '@seo/db'
+import { withTenant, audits, sites, appendJob } from '@seo/db'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
@@ -62,6 +62,13 @@ export function auditRoutes(app: FastifyInstance, deps: RouteDeps): void {
             .values({ tenantId: request.tenantId, siteId: site.id, status: 'queued' })
             .returning({ id: audits.id })
 
+          if (options.enqueue)
+            await appendJob(tx, request.tenantId, `audit:${audit!.id}`, 'audit', {
+              auditId: audit!.id,
+              tenantId: request.tenantId,
+              siteId: site.id,
+              seed: site.url,
+            })
           return { auditId: audit!.id, seed: site.url }
         })
 
@@ -91,16 +98,9 @@ export function auditRoutes(app: FastifyInstance, deps: RouteDeps): void {
             siteId: request.body.siteId,
             seed: created.seed,
           })
-        } catch (error) {
-          // The row exists but the job does not, so the schedule would never pick it up. Mark
-          // it failed rather than leave a queued audit that hangs on the dashboard forever.
-          await withTenant(db, request.tenantId, (tx) =>
-            tx
-              .update(audits)
-              .set({ status: 'failed', error: 'Could not enqueue the audit. Try again shortly.' })
-              .where(eq(audits.id, created.auditId)),
-          )
-          throw error
+        } catch {
+          // The durable outbox owns retry. A dispatch failure must not mark accepted work failed.
+          request.log.warn('Audit queued in outbox; immediate queue publication unavailable.')
         }
 
         return reply.status(202).send({ auditId: created.auditId })

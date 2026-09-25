@@ -69,7 +69,20 @@ const github = (() => {
     if (!slug || !webhookSecret) {
       throw new Error('GH_APP_SLUG and GH_APP_WEBHOOK_SECRET are required.')
     }
-    return { app: createGitHubApp(githubAppConfigFromEnv()), slug, webhookSecret }
+    return {
+      app: createGitHubApp(githubAppConfigFromEnv()),
+      slug,
+      webhookSecret,
+      ...(process.env.GH_APP_CLIENT_ID && process.env.GH_APP_CLIENT_SECRET
+        ? {
+            userAuthorization: {
+              clientId: process.env.GH_APP_CLIENT_ID,
+              clientSecret: process.env.GH_APP_CLIENT_SECRET,
+              redirectUri: `${process.env.API_PUBLIC_URL ?? process.env.RENDER_EXTERNAL_URL ?? 'http://localhost:4000'}/connections/github/callback`,
+            },
+          }
+        : {}),
+    }
   } catch (error) {
     // Log the actual reason, not just that it is off. A swallowed error here means an operator
     // sees "not configured" with no clue whether a variable is missing or the key is malformed.
@@ -216,6 +229,7 @@ const app = await buildApp({
               provider: entry.provider,
               model: entry.model,
               micros: entry.micros,
+              reservationId: entry.reservationId,
             }),
           costPerQueryMicros: keywordCostMicros,
         })
@@ -239,6 +253,7 @@ const app = await buildApp({
                 provider: entry.provider,
                 model: entry.model,
                 micros: entry.micros,
+                reservationId: entry.reservationId,
               }),
             costPerQueryMicros: serpCostMicros,
           },

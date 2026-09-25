@@ -26,7 +26,7 @@ export function languageModel(target: ModelTarget): LanguageModel {
 
   switch (provider) {
     case 'openai':
-      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(model)
+      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY }).chat(model)
 
     case 'anthropic':
       return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(model)
@@ -40,19 +40,19 @@ export function languageModel(target: ModelTarget): LanguageModel {
       return createOpenAI({
         apiKey: process.env.GROQ_API_KEY,
         baseURL: OPENAI_COMPATIBLE_BASE_URLS.groq,
-      })(model)
+      }).chat(model)
 
     case 'openrouter':
       return createOpenAI({
         apiKey: process.env.OPENROUTER_API_KEY,
         baseURL: OPENAI_COMPATIBLE_BASE_URLS.openrouter,
-      })(model)
+      }).chat(model)
 
     case 'ollama':
       return createOpenAI({
         apiKey: 'ollama', // ignored, but the SDK wants a string
         baseURL: OPENAI_COMPATIBLE_BASE_URLS.ollama,
-      })(model)
+      }).chat(model)
 
     case 'custom':
       if (!baseUrl) {
@@ -63,7 +63,7 @@ export function languageModel(target: ModelTarget): LanguageModel {
       return createOpenAI({
         apiKey: process.env.CUSTOM_LLM_API_KEY ?? 'none',
         baseURL: baseUrl,
-      })(model)
+      }).chat(model)
   }
 }
 

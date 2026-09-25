@@ -1,3 +1,5 @@
+import { request as httpsRequest } from 'node:https'
+import { Readable } from 'node:stream'
 import { lookup } from 'node:dns/promises'
 
 /**
@@ -20,10 +22,8 @@ import { lookup } from 'node:dns/promises'
  *   4. **Caps.** A byte ceiling and a timeout, so a slow or enormous response cannot hold the
  *      request open or exhaust memory on a free-tier instance.
  *
- * What remains: DNS rebinding between the check and the request, which needs the socket-level hook
- * a `fetch` does not expose. Recorded honestly rather than papered over. The exposure is bounded
- * by everything else here, in particular that the response body is read but never executed, never
- * stored under a URL somebody else can retrieve, and never used to make a second request.
+ * The transport connects to an address from the validated DNS answer while retaining the
+ * original Host header and TLS server name. DNS cannot change the destination after validation.
  */
 
 /** Refused before anything was fetched, with a reason meant for the person who pasted the URL. */
@@ -39,6 +39,8 @@ function isPrivateAddress(address: string, family: number): boolean {
   if (family === 6) {
     const lower = address.toLowerCase()
     return (
+      !/^[23][0-9a-f]{3}:/.test(lower) ||
+      lower.startsWith('2001:db8:') ||
       lower === '::' ||
       lower === '::1' ||
       lower.startsWith('fc') || // unique local
@@ -50,10 +52,14 @@ function isPrivateAddress(address: string, family: number): boolean {
   }
 
   const parts = address.split('.').map(Number)
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) return true
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255))
+    return true
 
-  const [a = 0, b = 0] = parts
+  const [a = 0, b = 0, c = 0] = parts
   return (
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+    (a === 203 && b === 0 && c === 113) ||
     a === 0 || // "this network"
     a === 10 || // private
     a === 127 || // loopback
@@ -66,7 +72,10 @@ function isPrivateAddress(address: string, family: number): boolean {
 }
 
 /** Resolve a hostname and refuse it if *any* address it answers with is private. */
-async function assertPublicHost(hostname: string, resolve: typeof lookup = lookup): Promise<void> {
+async function assertPublicHost(
+  hostname: string,
+  resolve: typeof lookup = lookup,
+): Promise<{ address: string; family: number }[]> {
   let addresses: { address: string; family: number }[]
   try {
     addresses = await resolve(hostname, { all: true })
@@ -86,6 +95,7 @@ async function assertPublicHost(hostname: string, resolve: typeof lookup = looku
         'reaches sites on the public internet.',
     )
   }
+  return addresses
 }
 
 export interface PublicFetchOptions {
@@ -152,7 +162,43 @@ export async function publicFetch(
   options: PublicFetchOptions = {},
 ): Promise<PublicFetchResult> {
   const { maxRedirects, timeoutMs, maxBytes } = { ...DEFAULTS, ...options }
-  const doFetch = options.fetch ?? globalThis.fetch
+  const doFetch =
+    options.fetch ??
+    (async (input: string | URL | Request, init?: RequestInit) => {
+      const target = new URL(String(input))
+      const addresses = await assertPublicHost(target.hostname, options.resolve)
+      const address = addresses[0]!
+      return new Promise<Response>((resolve, reject) => {
+        const request = httpsRequest(
+          target,
+          {
+            hostname: address.address,
+            family: address.family,
+            servername: target.hostname,
+            headers: {
+              ...Object.fromEntries(new Headers(init?.headers).entries()),
+              host: target.host,
+            },
+            ...(init?.signal ? { signal: init.signal } : {}),
+          },
+          (response) => {
+            const headers = new Headers()
+            for (const [key, value] of Object.entries(response.headers)) {
+              if (value !== undefined)
+                headers.set(key, Array.isArray(value) ? value.join(', ') : value)
+            }
+            const status = response.statusCode ?? 502
+            const body = [204, 205, 304].includes(status)
+              ? null
+              : (Readable.toWeb(response) as unknown as ConstructorParameters<typeof Response>[0])
+            if (body === null) response.resume()
+            resolve(new Response(body, { status, headers }))
+          },
+        )
+        request.on('error', reject)
+        request.end()
+      })
+    })
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -186,6 +232,7 @@ export async function publicFetch(
         }
       }
 
+      await response.body?.cancel()
       if (hop === maxRedirects) {
         throw new UnsafeUrlError(`That URL redirects more than ${maxRedirects} times.`)
       }

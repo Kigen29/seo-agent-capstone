@@ -26,7 +26,7 @@ import {
 import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from '@seo/queue'
 import type { InstalledRepo } from '@seo/vcs'
 import { createHash, createHmac, randomBytes } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
@@ -131,6 +131,15 @@ describe.skipIf(!shouldRun)('the API', () => {
       outreach: () => outreachModel,
       identityProviders: { fake: fakeProvider },
       github: {
+        userAuthorization: {
+          clientId: 'test-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://api.example/connections/github/callback',
+          fetch: async (url) =>
+            String(url).includes('access_token')
+              ? Response.json({ access_token: 'user-test-token' })
+              : Response.json({ repositories: [] }),
+        },
         app: {
           // apiFor is exercised by the fixer stories, not here; listing is what the callback uses.
           apiFor: (() => {
@@ -203,6 +212,36 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
 
       expect(res.statusCode).toBe(401)
+    })
+
+    it.each([
+      ['Browser session', 31, 401],
+      ['Browser session', 29, 200],
+      ['automation token', 31, 200],
+    ])('enforces the session lifetime for %s aged %i days', async (name, days, status) => {
+      const plain = generateToken()
+      const [row] = await asOwner(db, (tx) =>
+        tx
+          .insert(apiTokens)
+          .values({
+            tenantId,
+            name,
+            tokenHash: hashToken(plain),
+            createdAt: new Date(Date.now() - days * 86_400_000),
+          })
+          .returning(),
+      )
+      try {
+        expect((await get('/sites', plain)).statusCode).toBe(status)
+        if (status === 401) {
+          const [stored] = await asOwner(db, (tx) =>
+            tx.select().from(apiTokens).where(eq(apiTokens.id, row!.id)),
+          )
+          expect(stored?.lastUsedAt).toBeNull()
+        }
+      } finally {
+        await asOwner(db, (tx) => tx.delete(apiTokens).where(eq(apiTokens.id, row!.id)))
+      }
     })
 
     it('never trusts a caller who simply asserts a tenant id', async () => {
@@ -671,12 +710,12 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
 
     it('records the installation and the resolved repo on the site (the demo path)', async () => {
-      const state = signInstallState({ tenantId, siteId })
+      const state = signInstallState({ tenantId, siteId, installationId: INSTALLATION_ID })
       const res = await app.inject({
         method: 'GET',
         url:
           `/connections/github/callback?installation_id=${INSTALLATION_ID}` +
-          `&setup_action=install&state=${encodeURIComponent(state)}`,
+          `&code=user-code&setup_action=install&state=${encodeURIComponent(state)}`,
       })
 
       expect(res.statusCode).toBe(302)
@@ -799,6 +838,9 @@ describe.skipIf(!shouldRun)('the API', () => {
             tenantId,
             url: 'https://vmerge.example.com',
             gscProperty: 'https://vmerge.example.com/',
+            repoFullName: 'o/r',
+            githubInstallationId: INSTALLATION_ID,
+            gscVerificationPrUrl: 'https://github.com/o/r/pull/1',
           })
           .returning()
         return row!.id
@@ -806,8 +848,11 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       const body = JSON.stringify({
         action: 'closed',
+        installation: { id: INSTALLATION_ID },
+        repository: { full_name: 'o/r' },
         pull_request: {
           merged: true,
+          html_url: 'https://github.com/o/r/pull/1',
           head: { ref: `seo-agent/AGENT-VERIFY-${vsiteId}-t1-verify` },
         },
       })
@@ -830,6 +875,8 @@ describe.skipIf(!shouldRun)('the API', () => {
           .values({
             tenantId,
             url: 'https://vclosed.example.com',
+            repoFullName: 'o/r',
+            githubInstallationId: INSTALLATION_ID,
             gscVerificationStatus: 'pr_open',
             gscVerificationPrUrl: 'https://github.com/o/r/pull/1',
           })
@@ -839,7 +886,13 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       const body = JSON.stringify({
         action: 'closed',
-        pull_request: { merged: false, head: { ref: `seo-agent/AGENT-VERIFY-${closedId}-t1-x` } },
+        installation: { id: INSTALLATION_ID },
+        repository: { full_name: 'o/r' },
+        pull_request: {
+          merged: false,
+          html_url: 'https://github.com/o/r/pull/1',
+          head: { ref: `seo-agent/AGENT-VERIFY-${closedId}-t1-x` },
+        },
       })
       const res = await webhook('pull_request', body, signWebhook(body))
       expect(res.statusCode).toBe(204)
@@ -2516,7 +2569,10 @@ describe.skipIf(!shouldRun)('the API', () => {
     const clearMyChecks = async () => {
       const salt = process.env.TOKEN_ENCRYPTION_KEY ?? 'unsalted'
       const mine = createHash('sha256').update(`${salt}:127.0.0.1`).digest('hex')
-      await asOwner(db, (tx) => tx.delete(publicChecks).where(eq(publicChecks.ipHash, mine)))
+      await asOwner(db, async (tx) => {
+        await tx.delete(publicChecks).where(eq(publicChecks.ipHash, mine))
+        await tx.execute(sql`delete from public_check_attempts where ip_hash = ${mine}`)
+      })
     }
 
     beforeAll(clearMyChecks)

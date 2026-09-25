@@ -59,13 +59,24 @@ export async function tenantForToken(db: Database, token: string): Promise<strin
 
   const [row] = await asOwner(db, (tx) =>
     tx
-      .select({ id: apiTokens.id, tenantId: apiTokens.tenantId, tokenHash: apiTokens.tokenHash })
+      .select({
+        id: apiTokens.id,
+        tenantId: apiTokens.tenantId,
+        tokenHash: apiTokens.tokenHash,
+        name: apiTokens.name,
+        createdAt: apiTokens.createdAt,
+      })
       .from(apiTokens)
       .where(eq(apiTokens.tokenHash, presented))
       .limit(1),
   )
 
   if (!row) return undefined
+  if (
+    row.name === 'Browser session' &&
+    row.createdAt.getTime() <= Date.now() - 30 * 24 * 60 * 60 * 1000
+  )
+    return undefined
 
   /**
    * The index lookup above already decided this, so the comparison is belt-and-braces

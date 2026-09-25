@@ -1,10 +1,15 @@
-import { encryptToken, exchangeCode, verifyState } from '@seo/connectors'
+import {
+  encryptToken,
+  exchangeCode,
+  verifyState,
+  verifyGitHubInstallationAccess,
+} from '@seo/connectors'
 import { withTenant, oauthCredentials, sites } from '@seo/db'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
-import { verifyInstallState } from '../github-state.js'
+import { signInstallState, verifyInstallState } from '../github-state.js'
 import type { RouteDeps } from '../options.js'
 import { chooseRepoForSite } from '../repo-match.js'
 
@@ -109,23 +114,40 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
     {
       schema: {
         querystring: z.object({
-          installation_id: z.coerce.number().optional(),
+          installation_id: z.coerce.number().int().positive().optional(),
+          code: z.string().optional(),
           setup_action: z.string().optional(),
           state: z.string().optional(),
         }),
       },
     },
     async (request, reply) => {
-      const { installation_id: installationId, state } = request.query
+      const { installation_id: suppliedInstallationId, state, code } = request.query
 
-      if (!state || !installationId) return reply.redirect(backToDashboardGithub('declined'))
+      if (!state) return reply.redirect(backToDashboardGithub('declined'))
       if (!options.github) return reply.redirect(backToDashboardGithub('unavailable'))
 
       const verified = verifyInstallState(state)
       if (!verified) return reply.redirect(backToDashboardGithub('invalid'))
       const { tenantId, siteId } = verified
+      const installationId = verified.installationId ?? suppliedInstallationId
+      if (!installationId) return reply.redirect(backToDashboardGithub('invalid'))
+      const authorization = options.github.userAuthorization
+      if (!authorization) return reply.redirect(backToDashboardGithub('unavailable'))
+      if (!verified.installationId) {
+        const params = new URLSearchParams({
+          client_id: authorization.clientId,
+          redirect_uri: authorization.redirectUri,
+          state: signInstallState({ tenantId, siteId, installationId }),
+        })
+        return reply.redirect(`https://github.com/login/oauth/authorize?${params}`)
+      }
+      if (!code) return reply.redirect(backToDashboardGithub('declined'))
 
       try {
+        if (!(await verifyGitHubInstallationAccess(code, installationId, authorization))) {
+          return reply.redirect(backToDashboardGithub('invalid'))
+        }
         const site = await withTenant(db, tenantId, async (tx) => {
           const [row] = await tx.select().from(sites).where(eq(sites.id, siteId)).limit(1)
           return row

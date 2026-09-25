@@ -51,7 +51,7 @@ export function budgetedKeywords(
 
   /** Refuse, then call, then record. The order is the decision ADR-0017 exists to hold. */
   async function spend<T>(call: () => Promise<T>): Promise<T> {
-    const verdict = await options.checkBudget(options.tenantId)
+    const verdict = await options.checkBudget(options.tenantId, options.costPerQueryMicros)
     if (!verdict.allowed) {
       throw new KeywordBudgetError(verdict.reason ?? 'the tenant is over its monthly budget')
     }
@@ -64,6 +64,7 @@ export function budgetedKeywords(
           provider: provider.name,
           model: 'keywords',
           micros: options.costPerQueryMicros,
+          ...(verdict.reservationId ? { reservationId: verdict.reservationId } : {}),
         })
         .catch((error: unknown) => {
           console.error('keywords: could not record what this query cost:', error)

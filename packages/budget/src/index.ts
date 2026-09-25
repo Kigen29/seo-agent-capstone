@@ -1,3 +1,5 @@
+import { assertMicros, reserveSpend } from './reservations.js'
+export { reserveSpend } from './reservations.js'
 import { spend, tenants, withTenant, type Database } from '@seo/db'
 import type { BudgetChecker, LlmUsage, SpendRecorder } from '@seo/llm'
 import { and, eq, gte, sql } from 'drizzle-orm'
@@ -28,6 +30,7 @@ export interface BudgetStatus {
   capMicros: number
   /** What it has spent so far this month. */
   spentMicros: number
+  reservedMicros: number
   /** Whether another paid call is allowed. */
   allowed: boolean
 }
@@ -75,7 +78,16 @@ export async function budgetStatus(
     const capMicros = tenant?.capMicros ?? 0
     const spentMicros = Number(total?.spentMicros ?? 0)
 
-    return { capMicros, spentMicros, allowed: spentMicros < capMicros }
+    const pending = await tx.execute<{ micros: string }>(sql`
+      select coalesce(sum(reserved_micros), 0) as micros from spend_reservations
+      where tenant_id = ${tenantId}::uuid and settled_at is null`)
+    const reservedMicros = Number(pending.rows[0]?.micros ?? 0)
+    return {
+      capMicros,
+      spentMicros,
+      reservedMicros,
+      allowed: spentMicros + reservedMicros < capMicros,
+    }
   })
 }
 
@@ -91,6 +103,7 @@ export async function recordSpend(
   db: Database,
   tenantId: string,
   entry: {
+    reservationId?: string
     kind: string
     provider: string
     model: string
@@ -99,8 +112,27 @@ export async function recordSpend(
     outputTokens?: number
   },
 ): Promise<void> {
-  await withTenant(db, tenantId, (tx) =>
-    tx.insert(spend).values({
+  assertMicros(entry.micros)
+  await withTenant(db, tenantId, async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(19287, 3)`)
+    if (entry.reservationId) {
+      const result = await tx.execute<{
+        settled_at: Date | null
+        actual_micros: string | null
+      }>(sql`
+        select settled_at, actual_micros from spend_reservations
+        where id = ${entry.reservationId}::uuid and tenant_id = ${tenantId}::uuid for update`)
+      const reservation = result.rows[0]
+      if (!reservation) throw new Error('Spend reservation does not belong to this tenant')
+      if (reservation.settled_at) {
+        if (Number(reservation.actual_micros) !== entry.micros)
+          throw new Error('Conflicting spend settlement')
+        return
+      }
+      await tx.execute(sql`update spend_reservations set settled_at = now(), actual_micros = ${entry.micros}
+        where id = ${entry.reservationId}::uuid`)
+    }
+    await tx.insert(spend).values({
       tenantId,
       kind: entry.kind,
       provider: entry.provider,
@@ -108,8 +140,8 @@ export async function recordSpend(
       micros: entry.micros,
       inputTokens: entry.inputTokens ?? 0,
       outputTokens: entry.outputTokens ?? 0,
-    }),
-  )
+    })
+  })
 }
 
 /**
@@ -131,7 +163,14 @@ export function createBudgetGuard(db: Database): {
      * being wrong in that direction is real money; the cost of being wrong the other way is a
      * job that retries.
      */
-    checkBudget: async (tenantId) => {
+    checkBudget: async (tenantId, reserveMicros) => {
+      if (reserveMicros !== undefined) {
+        try {
+          return await reserveSpend(db, tenantId, reserveMicros)
+        } catch {
+          return { allowed: false, reason: 'The spend reservation could not be secured.' }
+        }
+      }
       let status: BudgetStatus
       try {
         status = await budgetStatus(db, tenantId)
@@ -152,7 +191,7 @@ export function createBudgetGuard(db: Database): {
     },
 
     recordSpend: async (tenantId, usage: LlmUsage) => {
-      const micros = usdToMicros(usage.estimatedUsd)
+      const micros = Math.ceil(usage.estimatedUsd * MICROS_PER_USD)
 
       /**
        * An unpriced model bills real money and records zero, so it is invisible to the cap. That
@@ -169,6 +208,7 @@ export function createBudgetGuard(db: Database): {
       }
 
       await recordSpend(db, tenantId, {
+        reservationId: usage.reservationId,
         kind: 'llm',
         provider: usage.provider,
         model: usage.model,

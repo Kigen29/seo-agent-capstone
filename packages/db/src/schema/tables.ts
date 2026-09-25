@@ -13,6 +13,7 @@ import {
   bigint,
   boolean,
   customType,
+  check,
   date,
   index,
   integer,
@@ -59,9 +60,7 @@ export const tenants = pgTable('tenants', {
    * Per tenant, because a cap that is not per tenant is not a cap: one runaway prompt list would
    * spend everyone else's allowance (ADR-0016).
    */
-  monthlyBudgetMicros: bigint('monthly_budget_micros', { mode: 'number' })
-    .notNull()
-    .default(5_000_000),
+  monthlyBudgetMicros: bigint('monthly_budget_micros', { mode: 'number' }).notNull().default(0),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -641,5 +640,26 @@ export const publicChecks = pgTable(
     // Both limits read from here: per-hash since a timestamp, and the global count since one.
     index('public_checks_rate_idx').on(table.createdAt, table.ipHash),
     index('public_checks_expiry_idx').on(table.expiresAt),
+  ],
+)
+
+export const spendReservations = pgTable(
+  'spend_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    reservedMicros: bigint('reserved_micros', { mode: 'number' }).notNull(),
+    actualMicros: bigint('actual_micros', { mode: 'number' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('spend_reservations_pending_idx')
+      .on(table.tenantId)
+      .where(sql`${table.settledAt} is null`),
+    check('spend_reservations_reserved_micros_check', sql`${table.reservedMicros} >= 0`),
+    check('spend_reservations_actual_micros_check', sql`${table.actualMicros} >= 0`),
   ],
 )

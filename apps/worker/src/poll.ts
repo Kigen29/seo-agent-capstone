@@ -111,6 +111,7 @@ function serpEngine(db: Database, tenantId: string): AiEngine | null {
           provider: entry.provider,
           model: entry.model,
           micros: entry.micros,
+          reservationId: entry.reservationId,
         }),
       costPerQueryMicros: serpCostMicros(),
     },

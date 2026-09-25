@@ -29,6 +29,7 @@ export interface RoleChain {
 }
 
 export interface LlmUsage {
+  reservationId?: string
   inputTokens: number
   outputTokens: number
   provider: ProviderId

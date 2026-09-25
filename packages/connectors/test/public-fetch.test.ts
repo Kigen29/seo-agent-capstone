@@ -29,6 +29,20 @@ describe('assertFetchable', () => {
     expect(url.hostname).toBe('example.com')
   })
 
+  it.each(['192.0.3.1', '192.2.1.1', '198.51.99.1', '203.0.112.1'])(
+    'accepts public addresses adjacent to reserved ranges: %s',
+    async (address) => {
+      await expect(
+        assertFetchable(
+          'https://host.test/',
+          resolves({
+            'host.test': [{ address, family: 4 }],
+          }),
+        ),
+      ).resolves.toBeInstanceOf(URL)
+    },
+  )
+
   it('refuses a hostname that resolves to loopback', async () => {
     // The attack a hostname check alone misses: the name is public, the address is not, and the
     // attacker owns the zone.
@@ -50,6 +64,10 @@ describe('assertFetchable', () => {
   })
 
   it.each([
+    ['192.0.2.1', 4],
+    ['198.51.100.1', 4],
+    ['203.0.113.1', 4],
+    ['198.18.0.1', 4],
     ['10.0.0.5', 4],
     ['172.16.0.1', 4],
     ['192.168.1.1', 4],

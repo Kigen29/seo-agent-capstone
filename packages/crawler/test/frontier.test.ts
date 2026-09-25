@@ -152,3 +152,14 @@ describe('Frontier: resumability', () => {
     expect(resumed.add(['https://example.com/a'], 1)).toBe(0)
   })
 })
+
+it('restores in-flight URLs after a crash and reserves the page budget', () => {
+  const frontier = new Frontier('https://example.com/', { maxPages: 2 })
+  frontier.add(['https://example.com/a', 'https://example.com/b'], 1)
+  frontier.next()
+  frontier.next()
+  expect(frontier.next()).toBeUndefined()
+  const resumed = Frontier.fromState('https://example.com/', frontier.toState(), { maxPages: 2 })
+  expect(resumed.next()?.url).toBe('https://example.com/')
+  expect(resumed.next()?.url).toBe('https://example.com/a')
+})

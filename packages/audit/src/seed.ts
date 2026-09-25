@@ -1,3 +1,4 @@
+import { assertTestDatabase } from '@seo/core'
 import { canFixFinding } from '@seo/fixers'
 import { buildScorecard, priorityScore, type Finding } from '@seo/core'
 import { apiTokens, asOwner, audits, createDb, findings, sites, tenants, withTenant } from '@seo/db'
@@ -114,23 +115,7 @@ export function e2eDrafts(): Finding[] {
 }
 
 export async function seedE2E(): Promise<void> {
-  /**
-   * The token above is a literal in a public repository, so it is public. That is fine in a
-   * throwaway test database and catastrophic anywhere else: pointed at production, this
-   * script would cheerfully create a tenant whose API token is printed on the internet.
-   *
-   * Nothing about `DATABASE_URL` tells us which kind of database we are looking at, and
-   * guessing from the hostname would be exactly the sort of clever heuristic that is wrong
-   * once and then very expensive. So it refuses to run unless somebody has said, out loud
-   * and in the environment, that this database is disposable.
-   */
-  if (process.env.ALLOW_E2E_SEED !== '1') {
-    throw new Error(
-      'Refusing to seed. This writes a tenant whose API token is a public literal in the ' +
-        'repo, which is safe only in a disposable test database. Set ALLOW_E2E_SEED=1 to ' +
-        'confirm that DATABASE_URL points at one.',
-    )
-  }
+  assertTestDatabase(process.env)
 
   const { db, pool } = createDb()
 

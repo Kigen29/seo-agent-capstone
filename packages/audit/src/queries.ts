@@ -192,6 +192,7 @@ export async function listFindings(
     const latest = await tx
       .selectDistinctOn([audits.siteId], { auditId: audits.id })
       .from(audits)
+      .where(eq(audits.status, 'complete'))
       .orderBy(audits.siteId, desc(audits.startedAt))
 
     const auditIds = latest.map((row) => row.auditId)

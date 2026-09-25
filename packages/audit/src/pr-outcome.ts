@@ -1,4 +1,4 @@
-import { asOwner, findings, sites, type Database } from '@seo/db'
+import { appendJob, asOwner, findings, sites, type Database } from '@seo/db'
 import { eq } from 'drizzle-orm'
 
 /**
@@ -60,9 +60,13 @@ export async function applyFixPrOutcome(
     // verification on every sweep would re-crawl the site every fifteen minutes forever.
     if (finding.status === 'merged' || finding.status === 'verified') return 'unchanged'
 
-    await asOwner(db, (tx) =>
-      tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id)),
-    )
+    await asOwner(db, async (tx) => {
+      await tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id))
+      await appendJob(tx, finding.tenantId, `verify-fix:${finding.id}`, 'verify-fix', {
+        tenantId: finding.tenantId,
+        siteId: finding.siteId,
+      })
+    })
     if (enqueueVerifyFix) {
       await enqueueVerifyFix({ tenantId: finding.tenantId, siteId: finding.siteId })
     }
@@ -104,9 +108,13 @@ export async function applyVerifyPrOutcome(
   if (outcome.merged) {
     if (site.status === 'merged' || site.status === 'verified') return 'unchanged'
 
-    await asOwner(db, (tx) =>
-      tx.update(sites).set({ gscVerificationStatus: 'merged' }).where(eq(sites.id, siteId)),
-    )
+    await asOwner(db, async (tx) => {
+      await tx.update(sites).set({ gscVerificationStatus: 'merged' }).where(eq(sites.id, siteId))
+      await appendJob(tx, site.tenantId, `confirm-verify:${siteId}`, 'confirm-verify', {
+        tenantId: site.tenantId,
+        siteId,
+      })
+    })
     if (enqueueConfirmVerify) {
       await enqueueConfirmVerify({ tenantId: site.tenantId, siteId })
     }

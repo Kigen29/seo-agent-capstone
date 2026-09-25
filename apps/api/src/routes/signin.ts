@@ -223,6 +223,7 @@ export function identityRoutes(app: FastifyInstance, deps: RouteDeps): void {
       budget: {
         capMicros: budget.capMicros,
         spentMicros: budget.spentMicros,
+        reservedMicros: budget.reservedMicros,
         allowed: budget.allowed,
       },
     }

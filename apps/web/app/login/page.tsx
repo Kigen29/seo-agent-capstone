@@ -47,7 +47,13 @@ export default async function Login({
 
   // Asked at render time rather than configured here, so the page can never draw a button that
   // leads to a 503. It answers with an empty list rather than throwing if the API is asleep.
-  const providers = await fetchAuthProviders(apiUrl())
+  let providers: string[] = []
+  let providersUnavailable = false
+  try {
+    providers = await fetchAuthProviders(apiUrl())
+  } catch {
+    providersUnavailable = true
+  }
   const message = error ? (ERRORS[error] ?? ERRORS.failed) : undefined
 
   return (
@@ -104,7 +110,12 @@ export default async function Login({
             hidden behind a token field that looked like the intended way in. Saying it plainly is
             better than offering a credential prompt almost nobody can satisfy.
           */}
-          {providers.length === 0 && (
+          {providersUnavailable && (
+            <p role="alert" className="note note-warn m-0">
+              The sign-in service is temporarily unavailable. Please refresh this page in a moment.
+            </p>
+          )}
+          {!providersUnavailable && providers.length === 0 && (
             <p className="note note-warn m-0">
               No sign-in method is configured on this deployment yet, so there is no way in from
               this page. If you are running it, set the GitHub App or Google OAuth credentials and

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import cors from '@fastify/cors'
 import { createDb } from '@seo/db'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify'
@@ -47,7 +48,17 @@ export type { AppOptions } from './options.js'
 export async function buildApp(options: AppOptions = {}): Promise<FastifyInstance> {
   const db = options.db ?? createDb().db
 
-  const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>()
+  const app = Fastify({
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? {
+            redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers.set-cookie'],
+            serializers: {
+              req: (request) => ({ method: request.method, route: request.routeOptions?.url }),
+            },
+          }
+        : false,
+  }).withTypeProvider<ZodTypeProvider>()
 
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
@@ -82,6 +93,19 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
   /** Render's health check hits this, and it must not require a token. */
   app.get('/health', async () => ({ status: 'ok' }))
+  app.get('/ready', async (_request, reply) => {
+    try {
+      await db.execute(sql`select 1`)
+      return { status: 'ready' }
+    } catch {
+      return reply.status(503).send({ status: 'unavailable' })
+    }
+  })
+  app.addHook('onSend', async (request, reply, payload) => {
+    reply.header('x-request-id', request.id)
+    reply.header('server-timing', `api;dur=${reply.elapsedTime.toFixed(1)}`)
+    return payload
+  })
 
   const deps: RouteDeps = {
     db,

@@ -114,7 +114,7 @@ async function createTenantFor(
       .insert(tenants)
       .values({
         name: identity.name ?? identity.email ?? `${identity.provider} ${identity.accountId}`,
-        ...(budgetMicros === undefined ? {} : { monthlyBudgetMicros: budgetMicros }),
+        monthlyBudgetMicros: budgetMicros ?? 0,
       })
       .returning({ id: tenants.id })
 

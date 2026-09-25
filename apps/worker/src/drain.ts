@@ -1,3 +1,4 @@
+import { publishPendingJobs } from './outbox.js'
 import { nameTopics } from '@seo/agent'
 import { runAudit } from '@seo/audit'
 import { createDb } from '@seo/db'
@@ -43,6 +44,7 @@ const queue = await createQueue()
 console.log('worker: draining the audit queue')
 
 try {
+  await publishPendingJobs(db, queue)
   const result = await drainAudits(queue, async (job) => {
     console.log(`worker: auditing ${job.seed} (audit ${job.auditId})`)
 

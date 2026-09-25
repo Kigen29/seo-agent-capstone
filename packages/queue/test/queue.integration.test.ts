@@ -32,6 +32,21 @@ describe.skipIf(!shouldRun)('the audit queue', () => {
     }
   })
 
+  it('deduplicates concurrent submissions for the same audit', async () => {
+    const same = job()
+    const submitted = await Promise.all([
+      enqueueAudit(queue, same),
+      enqueueAudit(queue, same),
+      enqueueAudit(queue, same),
+    ])
+    expect(submitted.filter(Boolean)).toHaveLength(1)
+    const seen: string[] = []
+    await drainAudits(queue, async (entry) => {
+      seen.push(entry.auditId)
+    })
+    expect(seen.filter((id) => id === same.auditId)).toHaveLength(1)
+  })
+
   it('hands an enqueued job to the drain, with its payload intact', async () => {
     const seen: AuditJob[] = []
     const enqueued = job({ seed: 'https://intact.example.com', maxPages: 7 })

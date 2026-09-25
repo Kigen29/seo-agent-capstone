@@ -24,12 +24,12 @@ export const dynamic = 'force-dynamic'
 export default async function KeywordsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ seed?: string; country?: string; competitor?: string }>
+  searchParams: Promise<{ seed?: string; country?: string; competitor?: string; siteId?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { seed, country, competitor } = await searchParams
+  const { seed, country, competitor, siteId } = await searchParams
 
   let result: KeywordIdeasResult | undefined
   let gap: KeywordGapResult | undefined
@@ -42,7 +42,8 @@ export default async function KeywordsPage({
    * form is not offered at all.
    */
   try {
-    site = (await api.listSites())[0]
+    const sites = await api.listSites()
+    site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />

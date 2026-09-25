@@ -1,5 +1,9 @@
+import process from 'node:process'
+import { fileURLToPath, URL } from 'node:url'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(process.env.NEXT_STANDALONE === '1' ? { output: 'standalone' } : {}),
+  outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   // Root CI already runs ESLint across the whole workspace (pnpm lint). Running it a
   // second time inside next build only slows the deploy down and gives us two places
   // for a lint failure to hide.

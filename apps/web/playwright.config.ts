@@ -1,4 +1,4 @@
-import { config } from 'dotenv'
+import { assertTestDatabase } from '@seo/core'
 import { defineConfig, devices } from '@playwright/test'
 
 /**
@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
  * config through a CommonJS require (the web app has no `"type": "module"`), where
  * `import.meta` is a syntax error. Playwright always runs with the package as its cwd.
  */
-config({ path: '../../.env' })
+assertTestDatabase(process.env)
 
 const API_PORT = 4111
 const WEB_PORT = 3111
@@ -19,10 +19,7 @@ const WEB_PORT = 3111
 const DATABASE_URL = process.env.DATABASE_URL
 
 if (!DATABASE_URL) {
-  throw new Error(
-    'DATABASE_URL is not set. The e2e runs against a real Postgres: copy .env.example to .env, ' +
-      'or point it at a disposable database.',
-  )
+  throw new Error('DATABASE_URL must explicitly point at the disposable local test database.')
 }
 
 /**
@@ -39,18 +36,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
 
-  /**
-   * Generous, because the first authenticated request is genuinely slow and not because
-   * anything is wrong.
-   *
-   * It opens the connection pool to Neon, which cold-starts, and that took well over
-   * Playwright's five-second default. The first version of this suite therefore failed with
-   * six red tests and a sign-in that worked perfectly: the assertion had simply given up
-   * before the product had finished being correct. A test that is faster than the system it
-   * tests does not measure the system, it measures the timeout.
-   *
-   * The same latency is what the ApiAsleep page exists for in production.
-   */
+  // Browser startup has a separate allowance from measured production latency targets.
   timeout: 60_000,
   expect: { timeout: 30_000 },
 

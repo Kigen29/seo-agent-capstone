@@ -148,6 +148,27 @@
       "when": 1789200600000,
       "tag": "0020_public_checks_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790200000000,
+      "tag": "0021_public_check_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790200001000,
+      "tag": "0022_job_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790200002000,
+      "tag": "0023_spend_reservations",
+      "breakpoints": true
     }
   ]
 }

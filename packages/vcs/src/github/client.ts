@@ -117,6 +117,34 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
     // App hands back and is typed from the route string. That avoids depending on the .rest
     // plugin surface, whose types are not exposed on an installation client.
     return {
+      async isPullRequestDeployed(number, siteUrl) {
+        const octokit = await octokitFor(ctx.installationId)
+        const { data: pr } = await octokit.request(
+          'GET /repos/{owner}/{repo}/pulls/{pull_number}',
+          { owner, repo, pull_number: number },
+        )
+        if (!pr.merged_at || !pr.merge_commit_sha) return false
+        const { data: deployments } = await octokit.request(
+          'GET /repos/{owner}/{repo}/deployments',
+          { owner, repo, sha: pr.merge_commit_sha, per_page: 100 },
+        )
+        for (const deployment of deployments) {
+          if (!deployment.production_environment) continue
+          const { data: statuses } = await octokit.request(
+            'GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses',
+            { owner, repo, deployment_id: deployment.id, per_page: 1 },
+          )
+          const status = statuses[0]
+          if (status?.state !== 'success' || !status.environment_url) continue
+          try {
+            if (new URL(status.environment_url).origin === new URL(siteUrl).origin) return true
+          } catch {
+            /* An invalid environment URL is not deployment evidence. */
+          }
+        }
+        return false
+      },
+
       async getDefaultBranch() {
         const octokit = await octokitFor(ctx.installationId)
         const { data } = await octokit.request('GET /repos/{owner}/{repo}', { owner, repo })
