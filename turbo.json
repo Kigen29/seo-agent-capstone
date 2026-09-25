@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NEXT_STANDALONE"]
     },
     "typecheck": {
       "dependsOn": ["^build"]
@@ -20,10 +21,10 @@
       "dependsOn": ["^build"],
       // Turborepo runs tasks in a filtered environment by default, so a variable set in the
       // workflow does not reach the task unless it is declared here. The RLS suite needs a
-      // real database, and without this it cannot find one. It is also part of the cache
-      // key, which is correct: the same tests against a different database are a different
-      // run.
-      "env": ["DATABASE_URL", "CI"]
+      // real database, and without this it cannot find one. Tests are not cached: database contents
+      // and queue state can change even when the connection string stays the same.
+      "cache": false,
+      "env": ["DATABASE_URL", "CI", "TEST_DATABASE", "ALLOW_E2E_SEED"]
     }
   }
 }
