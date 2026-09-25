@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createQueue, drainAudits, enqueueAudit, type AuditJob, type Queue } from '../src/index.js'
+import {
+  createQueue,
+  drainAudits,
+  enqueueAudit,
+  drainFix,
+  enqueueFix,
+  type AuditJob,
+  type Queue,
+} from '../src/index.js'
 
 /**
  * Against a real Postgres, because a queue is only worth anything if it actually persists and
@@ -30,6 +38,28 @@ describe.skipIf(!shouldRun)('the audit queue', () => {
       await drainAudits(queue, async () => undefined)
       await queue.stop({ graceful: false })
     }
+  })
+
+  it('does not redeliver a completed fix request when its outbox publication is replayed', async () => {
+    const request = {
+      requestId: crypto.randomUUID(),
+      tenantId: crypto.randomUUID(),
+      siteId: crypto.randomUUID(),
+      findingRowId: crypto.randomUUID(),
+    }
+    expect(await enqueueFix(queue, request)).toBe(request.requestId)
+    let deliveries = 0
+    await drainFix(queue, async (entry) => {
+      if (entry.requestId === request.requestId) deliveries++
+    })
+    expect(await enqueueFix(queue, request)).toBeNull()
+    await drainFix(queue, async (entry) => {
+      if (entry.requestId === request.requestId) deliveries++
+    })
+    expect(deliveries).toBe(1)
+    const retry = { ...request, requestId: crypto.randomUUID() }
+    expect(await enqueueFix(queue, retry)).toBe(retry.requestId)
+    await drainFix(queue, async () => undefined)
   })
 
   it('deduplicates concurrent submissions for the same audit', async () => {

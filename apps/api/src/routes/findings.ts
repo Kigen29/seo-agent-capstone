@@ -1,7 +1,8 @@
-import { clearFixError, getFinding, getFixProgress, listFindings, MAX_PAGE_SIZE } from '@seo/audit'
+import { randomUUID } from 'node:crypto'
+import { getFinding, getFixProgress, listFindings, MAX_PAGE_SIZE } from '@seo/audit'
 import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
-import { withTenant, sites } from '@seo/db'
-import { eq } from 'drizzle-orm'
+import { appendJob, findings, withTenant, sites } from '@seo/db'
+import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
@@ -127,20 +128,33 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
           .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
       }
 
-      /*
-        Forget the previous attempt's failure before starting a new one.
-
-        Ordered before the enqueue on purpose. If it ran after, a worker fast enough to fail
-        again in between would have its reason wiped by this line, and the user would be left
-        watching a poll that never resolves. Clearing first can only ever lose a stale message.
-      */
-      await clearFixError(db, request.tenantId, finding.rowId)
-
-      await options.enqueueFix({
+      const job = {
+        requestId: randomUUID(),
         tenantId: request.tenantId,
         siteId: finding.siteId,
         findingRowId: finding.rowId,
+      }
+      const accepted = await withTenant(db, request.tenantId, async (tx) => {
+        const changed = await tx
+          .update(findings)
+          .set({ fixError: null })
+          .where(and(eq(findings.id, finding.rowId), eq(findings.status, 'open')))
+          .returning({ id: findings.id })
+        if (changed.length === 0) return false
+        // The error reset and the durable request must commit or roll back together.
+        await appendJob(tx, request.tenantId, `fix:${job.requestId}`, 'fix', job)
+        return true
       })
+      if (!accepted) {
+        return reply
+          .status(409)
+          .send({ error: 'Conflict', message: 'This finding is no longer open.' })
+      }
+      try {
+        await options.enqueueFix(job)
+      } catch {
+        request.log.warn('Fix queued in outbox; immediate queue publication unavailable.')
+      }
       return reply.status(202).send({ status: 'queued' })
     })
 }

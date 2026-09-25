@@ -1,6 +1,8 @@
 import { publishJobs, type Database } from '@seo/db'
 import {
   enqueueAudit,
+  enqueueFix,
+  type FixJob,
   enqueueVerifyFix,
   enqueueConfirmVerify,
   type Queue,
@@ -12,6 +14,8 @@ import {
 export async function publishPendingJobs(db: Database, queue: Queue): Promise<void> {
   await publishJobs(db, async (kind, payload) => {
     switch (kind) {
+      case 'fix':
+        return enqueueFix(queue, payload as FixJob)
       case 'audit':
         return enqueueAudit(queue, payload as AuditJob)
       case 'verify-fix':

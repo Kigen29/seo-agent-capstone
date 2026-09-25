@@ -116,7 +116,7 @@ Follow-up branch repair/outbox-retry-isolation adds migration 0024 and persisted
 
 ## Next priorities after PR #178
 
-1. Validate and merge fix-webhook binding repair (#180); matching and state/outbox updates now share a locked transaction, with regressions for mismatched metadata and concurrent duplicate deliveries.
+1. Fix-webhook binding repair #180 is complete in PR #181; matching and state/outbox updates share a locked transaction, and post-merge CI passed.
 2. Complete job durability across remaining producers, persisted fix attempts and crawl checkpoints; exercise crash/reorder recovery.
 3. Finish browser egress isolation, token/session revocation and trusted-proxy handling.
 4. Validate worker/container deployment, readiness and heartbeat reporting, load behavior, and backup restoration.
@@ -128,3 +128,12 @@ Follow-up branch repair/outbox-retry-isolation adds migration 0024 and persisted
 Repair epic #179 records merged PRs #177/#178, migrations, CI evidence and remaining release gates. Issue #180 tracks fix-webhook binding validation. Epic #173 now marks its already-closed public-check and contributor-opportunity stories complete; topic-map completion and competitor watch remain open. Implementation and merge evidence for the webhook follow-up belong on #180 before it is closed.
 
 Webhook binding validation: all 164 API tests passed against disposable local Postgres; audit build, API/worker type checks and lint passed. Full CI and merge evidence are tracked on #180.
+
+
+## Durable fix requests (#182)
+
+Fix submission now persists an outbox request and clears the previous error in one tenant transaction. A failure to write the request rolls back the error reset. Immediate queue failure leaves the durable request accepted for a later worker. The worker publisher supports fix events, and immediate delivery and replay share a UUID request ID. pg-boss rejects replay of a retained completed job ID; a new explicit request gets a new ID. This deduplication lasts only while the queue record is retained. Findings no longer open are skipped before provider or model work.
+
+Recovery coverage terminates only the dedicated test publisher's Postgres connection after delivery and before acknowledgement. The event remains pending and a new publisher delivers it again, establishing at-least-once delivery, not exactly-once external side effects. A separate queue test covers replay after completion. Site verification requests, sustained process/load recovery, persisted fix attempts and provider-side reconciliation remain open. No schema migration is required for this change.
+
+Local validation for #182: 18 database tests, 7 queue tests and 169 API tests passed; queue build, affected package type checks and lint passed. CI and merge evidence are recorded on the issue.

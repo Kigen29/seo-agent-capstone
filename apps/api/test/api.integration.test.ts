@@ -75,6 +75,7 @@ describe.skipIf(!shouldRun)('the API', () => {
   const verifyEnqueued: VerifyJob[] = []
   const confirmEnqueued: ConfirmVerifyJob[] = []
   const fixEnqueued: FixJob[] = []
+  let failFixQueue = false
   const verifyFixEnqueued: VerifyFixJob[] = []
 
   /**
@@ -123,6 +124,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         confirmEnqueued.push(job)
       },
       enqueueFix: async (job) => {
+        if (failFixQueue) throw new Error('simulated queue outage')
         fixEnqueued.push(job)
       },
       enqueueVerifyFix: async (job) => {
@@ -1424,6 +1426,104 @@ describe.skipIf(!shouldRun)('the API', () => {
       )
       expect(row?.fixError).toBeNull()
     })
+
+    it('rolls back the error reset when the durable fix request cannot be written', async () => {
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ fixError: 'keep this failure' })
+          .where(eq(findings.id, retryFindingId)),
+      )
+      const outbox = await import('@seo/db')
+      const append = vi
+        .spyOn(outbox, 'appendJob')
+        .mockRejectedValueOnce(new Error('simulated outbox write failure'))
+      const before = fixEnqueued.length
+      try {
+        const response = await app.inject({
+          method: 'POST',
+          url: `/findings/${retryFindingId}/fix`,
+          headers: { authorization: `Bearer ${token}` },
+        })
+        expect(response.statusCode).toBe(500)
+      } finally {
+        append.mockRestore()
+      }
+      expect(fixEnqueued.length).toBe(before)
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ fixError: findings.fixError })
+          .from(findings)
+          .where(eq(findings.id, retryFindingId)),
+      )
+      expect(row?.fixError).toBe('keep this failure')
+    })
+
+    it('keeps an accepted fix durable when immediate enqueue fails', async () => {
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ fixError: 'previous failure' })
+          .where(eq(findings.id, retryFindingId)),
+      )
+      const before = fixEnqueued.length
+      failFixQueue = true
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: `/findings/${retryFindingId}/fix`,
+          headers: { authorization: `Bearer ${token}` },
+        })
+        expect(res.statusCode).toBe(202)
+      } finally {
+        failFixQueue = false
+      }
+      expect(fixEnqueued.length).toBe(before)
+      const result = await withTenant(db, tenantId, (tx) =>
+        tx.execute<{ payload: FixJob }>(sql`
+        select payload from job_outbox where kind='fix' and payload->>'findingRowId'=${retryFindingId} order by created_at desc limit 1`),
+      )
+      expect(result.rows[0]?.payload).toMatchObject({
+        tenantId,
+        siteId: repoSiteId,
+        findingRowId: retryFindingId,
+        requestId: expect.any(String),
+      })
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ fixError: findings.fixError })
+          .from(findings)
+          .where(eq(findings.id, retryFindingId)),
+      )
+      expect(row?.fixError).toBeNull()
+    })
+
+    it.each(['pr_open', 'merged', 'verified'] as const)(
+      'does not regenerate a fix after it is %s',
+      async (status) => {
+        const { runFix } = await import('../../worker/src/fix.js')
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .update(findings)
+            .set({ status, fixError: null })
+            .where(eq(findings.id, retryFindingId)),
+        )
+        try {
+          await runFix(db, { tenantId, siteId: repoSiteId, findingRowId: retryFindingId })
+          const [row] = await withTenant(db, tenantId, (tx) =>
+            tx
+              .select({ status: findings.status, fixError: findings.fixError })
+              .from(findings)
+              .where(eq(findings.id, retryFindingId)),
+          )
+          expect(row).toEqual({ status, fixError: null })
+        } finally {
+          await withTenant(db, tenantId, (tx) =>
+            tx.update(findings).set({ status: 'open' }).where(eq(findings.id, retryFindingId)),
+          )
+        }
+      },
+    )
 
     it('refuses a second fix once one is already open', async () => {
       // Keep this last: it moves the finding out of `open`.

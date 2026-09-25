@@ -129,4 +129,40 @@ describe.skipIf(!process.env.DATABASE_URL && !process.env.CI)('transactional out
     )
     expect(count).toBe(1)
   })
+  it('retains an unacknowledged event when the publisher connection dies after delivery', async () => {
+    const publisher = createDb(process.env.DATABASE_URL!)
+    // The deliberately killed backend emits on its checked-out client, not only on the pool.
+    publisher.pool.on('connect', (client) => client.on('error', () => undefined))
+    publisher.pool.on('error', () => undefined)
+    const pid = await publisher.pool.query<{ pid: number }>('select pg_backend_pid() as pid')
+    let deliveries = 0
+    await withTenant(connection.db, tenantId, (tx) =>
+      appendJob(tx, tenantId, `${tenantId}:crash`, 'crash-fixture', { tenantId }),
+    )
+    try {
+      await expect(
+        publishJobs(publisher.db, async (kind) => {
+          if (kind !== 'crash-fixture') return
+          deliveries++
+          await connection.pool.query('select pg_terminate_backend($1)', [pid.rows[0]!.pid])
+        }),
+      ).rejects.toThrow()
+    } finally {
+      await publisher.pool.end()
+    }
+    const pending = await withTenant(connection.db, tenantId, (tx) =>
+      tx.execute(sql`
+      select id from job_outbox where event_key=${`${tenantId}:crash`} and published_at is null`),
+    )
+    expect(pending.rows).toHaveLength(1)
+    await publishJobs(connection.db, async (kind) => {
+      if (kind === 'crash-fixture') deliveries++
+    })
+    expect(deliveries).toBe(2) // At-least-once delivery; queue IDs/handlers must tolerate replay.
+    const remaining = await withTenant(connection.db, tenantId, (tx) =>
+      tx.execute(sql`
+      select id from job_outbox where event_key=${`${tenantId}:crash`} and published_at is null`),
+    )
+    expect(remaining.rows).toHaveLength(0)
+  })
 })
