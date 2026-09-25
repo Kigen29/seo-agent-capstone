@@ -121,11 +121,22 @@ export async function githubWebhookRoutes(app: FastifyInstance, deps: RouteDeps)
         //   merged -> mark merged, and enqueue a re-audit that verifies whether the fix held.
         //   closed -> if a PR was open, reset to open so the finding can be fixed again.
         const prUrl = payload.pull_request?.html_url
-        if (prUrl) {
+        const repoFullName = payload.repository?.full_name
+        const installationId = payload.installation?.id
+        if (
+          typeof prUrl === 'string' &&
+          prUrl.length > 0 &&
+          typeof repoFullName === 'string' &&
+          repoFullName.length > 0 &&
+          typeof installationId === 'number' &&
+          Number.isSafeInteger(installationId) &&
+          installationId > 0
+        ) {
           await applyFixPrOutcome(
             db,
             prUrl,
             { merged: Boolean(payload.pull_request?.merged), closed: true },
+            { repoFullName, installationId },
             options.enqueueVerifyFix,
           )
         }

@@ -2,7 +2,9 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last updated: 2026-09-20.
+Last updated: 2026-09-26.
+
+Repair status is tracked in [repair-progress.md](repair-progress.md) and GitHub epic #179. PRs #177 and #178 are merged, migrations through 0024 passed, and post-merge CI passed all 14 browser tests. Older measurements below retain their original dates; container deployment and live-provider acceptance are still open.
 
 This is the "read this first after a break" document. `CLAUDE.md` says what we are building and the
 laws it must obey; `docs/architecture.md` says how it is put together. This one says what is true

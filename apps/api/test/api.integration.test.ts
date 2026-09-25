@@ -967,6 +967,8 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       const body = JSON.stringify({
         action: 'closed',
+        repository: { full_name: 'octo/owned' },
+        installation: { id: INSTALLATION_ID },
         pull_request: {
           merged: true,
           html_url: prUrl,
@@ -984,6 +986,64 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(row?.status).toBe('merged')
     })
 
+    it.each([
+      ['wrong repository', { full_name: 'other/repo' }, { id: INSTALLATION_ID }],
+      ['wrong installation', { full_name: 'octo/owned' }, { id: INSTALLATION_ID + 1 }],
+      ['missing repository', undefined, { id: INSTALLATION_ID }],
+      ['missing installation', { full_name: 'octo/owned' }, undefined],
+      ['invalid installation', { full_name: 'octo/owned' }, { id: -1 }],
+      ['string installation', { full_name: 'octo/owned' }, { id: String(INSTALLATION_ID) }],
+    ])('ignores signed fix outcomes with %s', async (_label, repository, installation) => {
+      const prUrl = `https://github.com/octo/owned/pull/${Math.floor(Math.random() * 100000000) + 1000}`
+      const { findingId } = await seedFixFinding(
+        `https://${randomBytes(8).toString('hex')}.example.com`,
+        prUrl,
+      )
+      const before = verifyFixEnqueued.length
+      for (const merged of [true, false]) {
+        const body = JSON.stringify({
+          action: 'closed',
+          repository,
+          installation,
+          pull_request: { merged, html_url: prUrl },
+        })
+        expect((await webhook('pull_request', body, signWebhook(body))).statusCode).toBe(204)
+      }
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ status: findings.status, prUrl: findings.prUrl })
+          .from(findings)
+          .where(eq(findings.id, findingId)),
+      )
+      expect(row).toEqual({ status: 'pr_open', prUrl })
+      expect(verifyFixEnqueued.length).toBe(before)
+      const events = await withTenant(db, tenantId, (tx) =>
+        tx.execute(sql`select id from job_outbox where event_key = ${`verify-fix:${findingId}`}`),
+      )
+      expect(events.rows).toHaveLength(0)
+    })
+
+    it('serializes duplicate fix merge deliveries into one transition', async () => {
+      const prUrl = 'https://github.com/octo/owned/pull/503'
+      const { findingId } = await seedFixFinding('https://fixduplicate.example.com', prUrl)
+      const before = verifyFixEnqueued.length
+      const body = JSON.stringify({
+        action: 'closed',
+        repository: { full_name: 'octo/owned' },
+        installation: { id: INSTALLATION_ID },
+        pull_request: { merged: true, html_url: prUrl },
+      })
+      const responses = await Promise.all(
+        Array.from({ length: 3 }, () => webhook('pull_request', body, signWebhook(body))),
+      )
+      expect(responses.map((r) => r.statusCode)).toEqual([204, 204, 204])
+      expect(verifyFixEnqueued.length).toBe(before + 1)
+      const events = await withTenant(db, tenantId, (tx) =>
+        tx.execute(sql`select id from job_outbox where event_key = ${`verify-fix:${findingId}`}`),
+      )
+      expect(events.rows).toHaveLength(1)
+    })
+
     it('resets a finding to open when its fix PR is closed unmerged', async () => {
       const prUrl = 'https://github.com/octo/owned/pull/502'
       const before = verifyFixEnqueued.length
@@ -991,6 +1051,8 @@ describe.skipIf(!shouldRun)('the API', () => {
 
       const body = JSON.stringify({
         action: 'closed',
+        repository: { full_name: 'octo/owned' },
+        installation: { id: INSTALLATION_ID },
         pull_request: {
           merged: false,
           html_url: prUrl,
