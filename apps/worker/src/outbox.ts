@@ -3,6 +3,8 @@ import {
   enqueueAudit,
   enqueueFix,
   type FixJob,
+  enqueueVerify,
+  type VerifyJob,
   enqueueVerifyFix,
   enqueueConfirmVerify,
   type Queue,
@@ -16,6 +18,8 @@ export async function publishPendingJobs(db: Database, queue: Queue): Promise<vo
     switch (kind) {
       case 'fix':
         return enqueueFix(queue, payload as FixJob)
+      case 'verify':
+        return enqueueVerify(queue, payload as VerifyJob)
       case 'audit':
         return enqueueAudit(queue, payload as AuditJob)
       case 'verify-fix':

@@ -29,6 +29,8 @@ export async function runVerify(db: Database, job: VerifyJob): Promise<void> {
   })
 
   if (!site) throw new Error(`Site ${job.siteId} not found.`)
+  // A delayed or replayed delivery must not open a second PR or move a verified site backwards.
+  if (site.gscVerificationStatus !== 'none') return
   if (!site.repoFullName || !site.githubInstallationId) {
     throw new Error('This site has no connected repository, so there is nowhere to open the PR.')
   }

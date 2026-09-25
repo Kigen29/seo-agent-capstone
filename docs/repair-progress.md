@@ -137,3 +137,11 @@ Fix submission now persists an outbox request and clears the previous error in o
 Recovery coverage terminates only the dedicated test publisher's Postgres connection after delivery and before acknowledgement. The event remains pending and a new publisher delivers it again, establishing at-least-once delivery, not exactly-once external side effects. A separate queue test covers replay after completion. Site verification requests, sustained process/load recovery, persisted fix attempts and provider-side reconciliation remain open. No schema migration is required for this change.
 
 Local validation for #182: 18 database tests, 7 queue tests and 169 API tests passed; queue build, affected package type checks and lint passed. CI and merge evidence are recorded on the issue.
+
+## Durable verification requests (#184)
+
+Fix requests #182 merged in PR #183; post-merge CI and migration passed. Site verification was the last on-demand producer that called the queue directly. It now locks the site, requires status `none`, and writes a `verify` outbox event in the same tenant transaction before trying immediate enqueue. A queue outage returns 202 with the request pending in the outbox. Immediate delivery and replay share a UUID request ID, and the per-site singleton key is kept. The worker returns before any Google or GitHub call when the site is already `pr_open`, `merged` or `verified`.
+
+Scheduled AI polls and pending confirmations are rebuilt from database state on every sweep, so they recover without an outbox. With this change every on-demand producer goes through the outbox. Sustained process/load recovery, persisted fix attempts and provider-side reconciliation remain open.
+
+Local validation for #184: 174 API tests and 7 queue tests passed against the local test Postgres; affected package type checks and lint passed. No schema migration.
