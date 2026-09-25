@@ -169,6 +169,13 @@
       "when": 1790200002000,
       "tag": "0023_spend_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790290000000,
+      "tag": "0024_outbox_retry_schedule",
+      "breakpoints": true
     }
   ]
 }
