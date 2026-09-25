@@ -46,7 +46,7 @@ describe.skipIf(!process.env.DATABASE_URL && !process.env.CI)('transactional out
       tx.execute<{
         attempt_count: number
         last_failure_code: string
-        published_at: Date | null
+        published_at: string | null
         delayed: boolean
       }>(sql`select attempt_count, last_failure_code, published_at, next_attempt_at > now() as delayed
       from job_outbox where tenant_id = ${tenantId}`),
@@ -98,13 +98,16 @@ describe.skipIf(!process.env.DATABASE_URL && !process.env.CI)('transactional out
     const rows = await withTenant(connection.db, tenantId, (tx) =>
       tx.execute<{
         kind: string
-        published_at: Date | null
+        published_at: string | null
         attempt_count: number
         last_failure_code: string | null
       }>(sql`
       select kind,published_at,attempt_count,last_failure_code from job_outbox where tenant_id=${tenantId}`),
     )
-    expect(rows.rows.find((r) => r.kind === 'healthy-fixture')?.published_at).toBeInstanceOf(Date)
+    const healthy = rows.rows.find((r) => r.kind === 'healthy-fixture')
+    expect(healthy).toBeDefined()
+    expect(healthy?.published_at).not.toBeNull()
+    expect(Number.isFinite(Date.parse(healthy!.published_at!))).toBe(true)
     expect(rows.rows.find((r) => r.kind === 'broken-fixture')).toMatchObject({
       published_at: null,
       attempt_count: 1,
