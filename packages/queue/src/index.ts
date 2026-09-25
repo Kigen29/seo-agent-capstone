@@ -35,6 +35,8 @@ export interface AuditJob {
 
 /** What a worker needs to open a Search Console auto-verification PR for a site. */
 export interface VerifyJob {
+  /** Stable delivery identity, retained across immediate enqueue and outbox replay. */
+  requestId?: string
   tenantId: string
   siteId: string
 }
@@ -150,6 +152,7 @@ export async function enqueueAudit(queue: Queue, job: AuditJob): Promise<string 
  */
 export async function enqueueVerify(queue: Queue, job: VerifyJob): Promise<string | null> {
   return queue.send(VERIFY_QUEUE, job, {
+    ...(job.requestId ? { id: job.requestId } : {}),
     singletonKey: job.siteId,
     retryLimit: 2,
     retryDelay: 30,

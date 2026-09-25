@@ -1,5 +1,6 @@
 import { listSites } from '@seo/audit'
-import { withTenant, oauthCredentials, sites } from '@seo/db'
+import { appendJob, withTenant, oauthCredentials, sites } from '@seo/db'
+import { randomUUID } from 'node:crypto'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
@@ -121,7 +122,28 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
           .send({ error: 'Conflict', message: 'Connect Google Search Console first.' })
       }
 
-      await options.enqueueVerify({ tenantId: request.tenantId, siteId: site.id })
+      const job = { requestId: randomUUID(), tenantId: request.tenantId, siteId: site.id }
+      const accepted = await withTenant(db, request.tenantId, async (tx) => {
+        // Lock the site so the status check and the durable request commit together.
+        const [locked] = await tx
+          .select({ id: sites.id })
+          .from(sites)
+          .where(and(eq(sites.id, site.id), eq(sites.gscVerificationStatus, 'none')))
+          .for('update')
+        if (!locked) return false
+        await appendJob(tx, request.tenantId, `verify:${job.requestId}`, 'verify', job)
+        return true
+      })
+      if (!accepted) {
+        return reply
+          .status(409)
+          .send({ error: 'Conflict', message: 'Verification for this site has already started.' })
+      }
+      try {
+        await options.enqueueVerify(job)
+      } catch {
+        request.log.warn('Verification queued in outbox; immediate queue publication unavailable.')
+      }
       return reply.status(202).send({ status: 'queued' })
     })
 

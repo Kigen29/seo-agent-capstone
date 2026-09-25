@@ -76,6 +76,7 @@ describe.skipIf(!shouldRun)('the API', () => {
   const confirmEnqueued: ConfirmVerifyJob[] = []
   const fixEnqueued: FixJob[] = []
   let failFixQueue = false
+  let failVerifyQueue = false
   const verifyFixEnqueued: VerifyFixJob[] = []
 
   /**
@@ -118,6 +119,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         enqueued.push(job)
       },
       enqueueVerify: async (job) => {
+        if (failVerifyQueue) throw new Error('simulated queue outage')
         verifyEnqueued.push(job)
       },
       enqueueConfirmVerify: async (job) => {
@@ -2074,8 +2076,92 @@ describe.skipIf(!shouldRun)('the API', () => {
       const res = await verify(readyId, token)
 
       expect(res.statusCode).toBe(202)
-      expect(verifyEnqueued.at(-1)).toMatchObject({ tenantId, siteId: readyId })
+      expect(verifyEnqueued.at(-1)).toMatchObject({
+        tenantId,
+        siteId: readyId,
+        requestId: expect.any(String),
+      })
     })
+
+    const readySite = async (host: string) => {
+      const id = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            tenantId,
+            url: `https://${host}`,
+            repoFullName: `octo/${host}`,
+            githubInstallationId: 77,
+          })
+          .returning()
+        return row!.id
+      })
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .insert(oauthCredentials)
+          .values({ tenantId, provider: 'google', refreshTokenEncrypted: 'ciphertext' })
+          .onConflictDoNothing(),
+      )
+      return id
+    }
+
+    it('keeps an accepted verification durable when immediate enqueue fails', async () => {
+      const siteRowId = await readySite('voutage.example.com')
+      const before = verifyEnqueued.length
+      failVerifyQueue = true
+      try {
+        expect((await verify(siteRowId, token)).statusCode).toBe(202)
+      } finally {
+        failVerifyQueue = false
+      }
+      expect(verifyEnqueued.length).toBe(before)
+      const result = await withTenant(db, tenantId, (tx) =>
+        tx.execute<{ event_key: string; payload: VerifyJob }>(sql`
+        select event_key, payload from job_outbox where kind='verify' and payload->>'siteId'=${siteRowId}`),
+      )
+      expect(result.rows).toHaveLength(1)
+      const payload = result.rows[0]!.payload
+      expect(payload).toMatchObject({ tenantId, siteId: siteRowId, requestId: expect.any(String) })
+      expect(result.rows[0]!.event_key).toBe(`verify:${payload.requestId}`)
+    })
+
+    it('returns 500 and enqueues nothing when the durable request cannot be written', async () => {
+      const siteRowId = await readySite('vwritefail.example.com')
+      const outbox = await import('@seo/db')
+      const append = vi
+        .spyOn(outbox, 'appendJob')
+        .mockRejectedValueOnce(new Error('simulated outbox write failure'))
+      const before = verifyEnqueued.length
+      try {
+        expect((await verify(siteRowId, token)).statusCode).toBe(500)
+      } finally {
+        append.mockRestore()
+      }
+      expect(verifyEnqueued.length).toBe(before)
+    })
+
+    it.each(['pr_open', 'merged', 'verified'] as const)(
+      'does not reopen verification for a site that is %s',
+      async (status) => {
+        const { runVerify } = await import('../../worker/src/verify.js')
+        const siteRowId = await readySite(`vskip-${status}.example.com`)
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .update(sites)
+            .set({ gscVerificationStatus: status, gscVerificationPrUrl: 'https://pr.example/1' })
+            .where(eq(sites.id, siteRowId)),
+        )
+        // Resolves without touching Google or GitHub: neither is configured in this test.
+        await runVerify(db, { tenantId, siteId: siteRowId })
+        const [row] = await withTenant(db, tenantId, (tx) =>
+          tx
+            .select({ status: sites.gscVerificationStatus, pr: sites.gscVerificationPrUrl })
+            .from(sites)
+            .where(eq(sites.id, siteRowId)),
+        )
+        expect(row).toEqual({ status, pr: 'https://pr.example/1' })
+      },
+    )
   })
 
   /**
