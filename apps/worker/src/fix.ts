@@ -55,13 +55,10 @@ async function recordFixFailure(db: Database, job: FixJob, error: unknown): Prom
 }
 
 async function attemptFix(db: Database, job: FixJob): Promise<void> {
-  // Built per job rather than once at module load, because the client now carries the budget
-  // guard and the guard needs the database handle the job was called with. It is a couple of
-  // closures over an existing pool; the cost is nothing next to the crawl this sits behind.
-  const llm = createWorkerLlm(db)
-
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
   if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
+  // A delayed delivery must not regenerate a PR or move a merged finding backwards.
+  if (finding.status !== 'open') return
   if (!finding.fixable) throw new Error('This finding is not fixable in code.')
 
   const site = await withTenant(db, job.tenantId, async (tx) => {
@@ -75,6 +72,11 @@ async function attemptFix(db: Database, job: FixJob): Promise<void> {
 
   const [owner, name] = site.repoFullName.split('/')
   if (!owner || !name) throw new Error(`Malformed connected repo name: ${site.repoFullName}`)
+
+  // Built per job rather than once at module load, because the client now carries the budget
+  // guard and the guard needs the database handle the job was called with. It is a couple of
+  // closures over an existing pool; the cost is nothing next to the crawl this sits behind.
+  const llm = createWorkerLlm(db)
 
   const provider = new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
   const repo = { repo: { owner, name }, installationId: site.githubInstallationId }

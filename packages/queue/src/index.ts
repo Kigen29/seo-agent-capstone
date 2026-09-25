@@ -57,6 +57,8 @@ export interface ConfirmVerifyJob {
  * of a finding the crawl has since replaced.
  */
 export interface FixJob {
+  /** Stable delivery identity, retained across immediate enqueue and outbox replay. */
+  requestId?: string
   tenantId: string
   siteId: string
   findingRowId: string
@@ -188,6 +190,7 @@ export async function enqueueConfirmVerify(
  */
 export async function enqueueFix(queue: Queue, job: FixJob): Promise<string | null> {
   return queue.send(FIX_QUEUE, job, {
+    ...(job.requestId ? { id: job.requestId } : {}),
     retryLimit: 2,
     retryDelay: 30,
     expireInSeconds: 10 * 60,
