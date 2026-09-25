@@ -1,5 +1,5 @@
 import { appendJob, asOwner, findings, sites, type Database } from '@seo/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 /**
  * What happened to a pull request we opened, and what that means for the record behind it.
@@ -23,7 +23,7 @@ export interface PullRequestOutcome {
 export type OutcomeEffect = 'merged' | 'reopened' | 'unchanged'
 
 /**
- * Apply a fix PR's outcome to the finding that owns it, matched by the URL we stored.
+ * Apply a fix PR's outcome only when its stored URL and site connection match the caller's binding.
  *
  * By URL rather than branch: a rule key is only unique within an audit, so two audits of the same
  * site produce two findings whose branches collide. The URL is exact.
@@ -38,10 +38,13 @@ export async function applyFixPrOutcome(
   db: Database,
   prUrl: string,
   outcome: PullRequestOutcome,
+  binding: { repoFullName: string; installationId: number },
   enqueueVerifyFix?: (job: { tenantId: string; siteId: string }) => Promise<unknown>,
 ): Promise<OutcomeEffect> {
-  const [finding] = await asOwner(db, (tx) =>
-    tx
+  // Lock the matching finding and site until the transition commits. A disconnect or another
+  // delivery cannot change the binding/state between validation and writing the outbox event.
+  const result = await asOwner(db, async (tx) => {
+    const [finding] = await tx
       .select({
         id: findings.id,
         tenantId: findings.tenantId,
@@ -49,40 +52,42 @@ export async function applyFixPrOutcome(
         status: findings.status,
       })
       .from(findings)
-      .where(eq(findings.prUrl, prUrl))
-      .limit(1),
-  )
+      .innerJoin(sites, and(eq(sites.id, findings.siteId), eq(sites.tenantId, findings.tenantId)))
+      .where(
+        and(
+          eq(findings.prUrl, prUrl),
+          eq(sites.repoFullName, binding.repoFullName),
+          eq(sites.githubInstallationId, binding.installationId),
+        ),
+      )
+      .limit(1)
+      .for('update')
 
-  if (!finding) return 'unchanged'
-
-  if (outcome.merged) {
-    // Guard against re-running: the webhook may have already moved this on, and re-enqueuing a
-    // verification on every sweep would re-crawl the site every fifteen minutes forever.
-    if (finding.status === 'merged' || finding.status === 'verified') return 'unchanged'
-
-    await asOwner(db, async (tx) => {
+    if (!finding) return { effect: 'unchanged' as const }
+    if (outcome.merged) {
+      if (finding.status === 'merged' || finding.status === 'verified') {
+        return { effect: 'unchanged' as const }
+      }
       await tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id))
       await appendJob(tx, finding.tenantId, `verify-fix:${finding.id}`, 'verify-fix', {
         tenantId: finding.tenantId,
         siteId: finding.siteId,
       })
-    })
-    if (enqueueVerifyFix) {
-      await enqueueVerifyFix({ tenantId: finding.tenantId, siteId: finding.siteId })
+      return { effect: 'merged' as const, tenantId: finding.tenantId, siteId: finding.siteId }
     }
-    return 'merged'
+    if (outcome.closed && finding.status === 'pr_open') {
+      await tx
+        .update(findings)
+        .set({ status: 'open', prUrl: null })
+        .where(eq(findings.id, finding.id))
+      return { effect: 'reopened' as const }
+    }
+    return { effect: 'unchanged' as const }
+  })
+  if (result.effect === 'merged' && enqueueVerifyFix) {
+    await enqueueVerifyFix({ tenantId: result.tenantId, siteId: result.siteId })
   }
-
-  if (outcome.closed && finding.status === 'pr_open') {
-    // Closed without merging: undo, so the finding can be fixed again cleanly. Only from
-    // `pr_open`, so a finding a human has since resolved is not dragged backwards.
-    await asOwner(db, (tx) =>
-      tx.update(findings).set({ status: 'open', prUrl: null }).where(eq(findings.id, finding.id)),
-    )
-    return 'reopened'
-  }
-
-  return 'unchanged'
+  return result.effect
 }
 
 /**

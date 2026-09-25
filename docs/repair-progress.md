@@ -1,6 +1,6 @@
 # Repair and roadmap implementation
 
-Status is evidence-based: checked items are implemented, not necessarily deployed. PR #177 was merged on 2026-09-25 after CI and migrations 0021-0023 passed; see the release record below.
+Status is evidence-based: checked items are implemented, not necessarily deployed. PRs #177 and #178 are merged; shared-project migrations through 0024 and post-merge CI passed. Last reconciled: 2026-09-26. Infrastructure deployment and external-provider acceptance remain separate release gates.
 
 ## Foundation and immediate repairs
 
@@ -14,12 +14,12 @@ Status is evidence-based: checked items are implemented, not necessarily deploye
 - [x] Keywords respect selected site and preserve it on form submission.
 - [x] Request-scoped site-list deduplication in layout and dashboard.
 - [x] Production dependency audit reports zero advisories after compatible package updates and the scoped SDK transport override; see validation below.
-- [ ] Full release validation: local database suite passes; browser and load-test gates tracked below.
+- [ ] Full release validation: workspace CI and all 14 browser tests pass; load, recovery, deployment and external-provider acceptance gates remain open.
 
 ## Security
 
 - [x] GitHub user OAuth confirms installation access before attachment; connector authorization and API callback tests.
-- [ ] Stored PR/repository/installation webhook binding.
+- [x] Stored PR/repository/installation binding for fix webhooks; verification webhooks also match these fields. Fix transitions lock the matching site/finding and reject mismatched or incomplete events. Tracked in GitHub issue #180.
 - [ ] Resolver-pinned HTTP transport and isolated browser egress.
 - [ ] Session management, explicit API-token expiration and revocation.
 - [ ] Atomic anonymous quotas and trusted proxy configuration.
@@ -64,7 +64,7 @@ The browser configuration does not load the root .env. Never point these command
 
 ## Implemented portions of unfinished gates
 
-- Audit submission and PR-merge transitions write transactional outbox records. Rollback, duplicate event, failed delivery/retry, and tenant isolation tests pass. Other job producers and poison-event recovery remain open.
+- Audit submission and PR-merge transitions write transactional outbox records. Rollback, duplicate event, failed delivery/retry, and tenant isolation tests pass. Failed deliveries now receive persisted exponential backoff and do not block later due events; concurrent publishers are covered by database tests. Other job producers, operator recovery tooling and sustained crash/reorder testing remain open.
 - Versioned queues use explicit exclusive policies; concurrent audit enqueue deduplication is tested. Persistent worker and container/Caddy definitions are drafts, not deployment-ready.
 - Public HTTP requests connect to validated DNS addresses; reserved-range and redirect tests pass. Crawler/browser egress isolation remains open.
 - Public-check attempts reserve quota atomically before fetching. Trusted reverse-proxy address handling remains open.
@@ -89,7 +89,7 @@ GitHub App user authorization requires GH_APP_CLIENT_ID and GH_APP_CLIENT_SECRET
 
 All integration-test configurations reject non-local or unmarked database URLs. Set both explicit test flags from the local database instructions; no test runner loads the repository's root .env.
 
-No infrastructure has been purchased, no deployment has occurred, and no production migrations have run. The deployment drafts must pass their security, recovery, cost, and image-build gates before use.
+No new infrastructure has been purchased or container deployment completed as part of these repairs. Shared-project migrations through 0024 have run successfully. The container deployment drafts must pass their security, recovery, cost, and image-build gates before use; successful CI does not establish live application deployment health.
 
 ## Spending reservation implementation
 
@@ -103,12 +103,28 @@ Model input reservations use a conservative UTF-8 size estimate including serial
 
 Ambiguous failures and failed ledger writes keep capacity reserved. Reservations never expire into free budget automatically: a vendor may already have charged for the call. An operator can settle a reservation through recordSpend only after reconciling the vendor charge, including an explicit zero for a confirmed unbilled request. Automated reconciliation, an operator UI, validated live tariffs/free-tier eligibility, and budget alerts remain release gates.
 
-Regression coverage includes simultaneous tenant/global exhaustion, duplicate and conflicting settlement, cross-tenant access rejection, abandoned holds across month boundaries, invalid amounts, and model fallback/refusal behavior. Only the disposable local test database has received migration 0023.
+Regression coverage includes simultaneous tenant/global exhaustion, duplicate and conflicting settlement, cross-tenant access rejection, abandoned holds across month boundaries, invalid amounts, and model fallback/refusal behavior. Migration 0023 was initially validated locally and subsequently applied to the shared project database before PR #177 merged.
 
-Reservation validation: the full workspace suite passed against local Postgres after migration 0023; final type checking passed all 31 tasks and lint passed. The account API exposes reservedMicros, and the account page deducts pending reservations from available budget. No production migration or deployment was performed.
+Reservation validation: the full workspace suite passed against local Postgres after migration 0023; final type checking passed all 31 tasks and lint passed. The account API exposes reservedMicros, and the account page deducts pending reservations from available budget. That initial validation was local; shared-project migration execution is recorded in the release entries below. Live application deployment acceptance remains unverified.
 
 ## Release and follow-up (2026-09-25)
 
 PR #177 merged as ecc99bb5a560b53cc6240c311870b30946a826b5. The user explicitly authorized changes to the school-project database, whose accounts are test accounts. The branch migration workflow succeeded before merge; the main-branch migration and CI workflows subsequently succeeded. The CI repair forwards explicit fixture flags through Turbo and disables database test caching.
 
-Follow-up branch repair/outbox-retry-isolation adds migration 0024 and persisted per-event retry scheduling. Failed delivery is retried after 5 seconds, doubling to a one-hour ceiling; the event remains pending. Failure codes omit exception text. Later due events can proceed while the failed event waits. Attempt counts survive worker restarts. This follow-up is not yet merged or applied to the shared project database.
+Follow-up branch repair/outbox-retry-isolation adds migration 0024 and persisted per-event retry scheduling. Failed delivery is retried after 5 seconds, doubling to a one-hour ceiling; the event remains pending. Failure codes omit exception text. Later due events can proceed while the failed event waits. Attempt counts survive worker restarts. PR #178 merged on 2026-09-26 as 7836a08c40238dff871b0632d7b7d709d7fb6884. Migration 0024 succeeded against the shared project database before merge and the post-merge migration workflow succeeded again. All 17 database tests passed locally. Post-merge CI passed formatting, lint, type checks, build, workspace tests and all 14 browser tests (run 36194661984).
+
+
+## Next priorities after PR #178
+
+1. Validate and merge fix-webhook binding repair (#180); matching and state/outbox updates now share a locked transaction, with regressions for mismatched metadata and concurrent duplicate deliveries.
+2. Complete job durability across remaining producers, persisted fix attempts and crawl checkpoints; exercise crash/reorder recovery.
+3. Finish browser egress isolation, token/session revocation and trusted-proxy handling.
+4. Validate worker/container deployment, readiness and heartbeat reporting, load behavior, and backup restoration.
+5. Resume product expansion after these release gates: outcome reporting, integration lifecycle, remaining framework support, analytics and provider adapters, billing, and evaluation/demo evidence.
+
+
+## GitHub tracking (2026-09-26)
+
+Repair epic #179 records merged PRs #177/#178, migrations, CI evidence and remaining release gates. Issue #180 tracks fix-webhook binding validation. Epic #173 now marks its already-closed public-check and contributor-opportunity stories complete; topic-map completion and competitor watch remain open. Implementation and merge evidence for the webhook follow-up belong on #180 before it is closed.
+
+Webhook binding validation: all 164 API tests passed against disposable local Postgres; audit build, API/worker type checks and lint passed. Full CI and merge evidence are tracked on #180.

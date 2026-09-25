@@ -86,7 +86,13 @@ export async function reconcilePullRequests(
       report.unchanged += 1
       continue
     }
-    const effect = await applyFixPrOutcome(db, row.prUrl!, outcome, enqueue.verifyFix)
+    const effect = await applyFixPrOutcome(
+      db,
+      row.prUrl!,
+      outcome,
+      { repoFullName: row.repo!, installationId: row.installation! },
+      enqueue.verifyFix,
+    )
     report[effect] += 1
   }
 
