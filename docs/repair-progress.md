@@ -1,6 +1,6 @@
 # Repair and roadmap implementation
 
-Status is evidence-based: checked items are implemented, not necessarily deployed. No production data or hosting has been changed.
+Status is evidence-based: checked items are implemented, not necessarily deployed. PR #177 was merged on 2026-09-25 after CI and migrations 0021-0023 passed; see the release record below.
 
 ## Foundation and immediate repairs
 
@@ -106,3 +106,9 @@ Ambiguous failures and failed ledger writes keep capacity reserved. Reservations
 Regression coverage includes simultaneous tenant/global exhaustion, duplicate and conflicting settlement, cross-tenant access rejection, abandoned holds across month boundaries, invalid amounts, and model fallback/refusal behavior. Only the disposable local test database has received migration 0023.
 
 Reservation validation: the full workspace suite passed against local Postgres after migration 0023; final type checking passed all 31 tasks and lint passed. The account API exposes reservedMicros, and the account page deducts pending reservations from available budget. No production migration or deployment was performed.
+
+## Release and follow-up (2026-09-25)
+
+PR #177 merged as ecc99bb5a560b53cc6240c311870b30946a826b5. The user explicitly authorized changes to the school-project database, whose accounts are test accounts. The branch migration workflow succeeded before merge; the main-branch migration and CI workflows subsequently succeeded. The CI repair forwards explicit fixture flags through Turbo and disables database test caching.
+
+Follow-up branch repair/outbox-retry-isolation adds migration 0024 and persisted per-event retry scheduling. Failed delivery is retried after 5 seconds, doubling to a one-hour ceiling; the event remains pending. Failure codes omit exception text. Later due events can proceed while the failed event waits. Attempt counts survive worker restarts. This follow-up is not yet merged or applied to the shared project database.
