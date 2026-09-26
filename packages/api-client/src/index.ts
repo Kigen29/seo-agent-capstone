@@ -362,6 +362,15 @@ export interface KeywordGapResult {
 }
 
 /** One question a site's customers actually ask, and where we learned it. */
+/** One attempt the agent made to fix a finding. */
+export interface FixAttempt {
+  startedAt: string
+  finishedAt: string
+  outcome: 'pr_opened' | 'pr_adopted' | 'failed'
+  prUrl: string | null
+  error: string | null
+}
+
 /** One recorded measurement: a named count or score at a moment. */
 export interface OutcomeMetric {
   metric: string
@@ -691,6 +700,10 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ siteId }),
         })
       ).auditId,
+
+    /** Every attempt the agent made to fix a finding, newest first. */
+    getFixAttempts: async (id: string) =>
+      (await request<{ attempts: FixAttempt[] }>(`/findings/${id}/attempts`)).attempts,
 
     getFinding: async (id: string) =>
       (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))

@@ -14,6 +14,7 @@ import {
   audits,
   createDb,
   findings,
+  fixAttempts,
   oauthCredentials,
   publicChecks,
   sites,
@@ -1636,6 +1637,13 @@ describe.skipIf(!shouldRun)('the API', () => {
             .from(findings)
             .where(eq(findings.id, retryFindingId)),
         )
+        const attemptsRes = await get(`/findings/${retryFindingId}/attempts`, token)
+        expect(attemptsRes.statusCode).toBe(200)
+        expect((attemptsRes.json() as { attempts: unknown[] }).attempts[0]).toMatchObject({
+          outcome: 'pr_adopted',
+          prUrl: adopted.url,
+          error: null,
+        })
         expect(withBaseline?.baseline?.metrics[0]).toMatchObject({
           metric: 'TECH-007 failing pages',
           value: withBaseline!.affectedUrls.length,
@@ -1648,6 +1656,44 @@ describe.skipIf(!shouldRun)('the API', () => {
             .set({ status: 'open', prUrl: null })
             .where(eq(findings.id, retryFindingId)),
         )
+      }
+    })
+
+    it('keeps a failed attempt in the history, with its reason', async () => {
+      const { runFix } = await import('../../worker/src/fix.js')
+      await expect(
+        runFix(db, { tenantId, siteId: repoSiteId, findingRowId: unfixableFindingId }),
+      ).rejects.toThrow('not fixable')
+      try {
+        const res = await get(`/findings/${unfixableFindingId}/attempts`, token)
+        expect(res.statusCode).toBe(200)
+        const { attempts } = res.json() as {
+          attempts: { outcome: string; error: string | null; prUrl: string | null }[]
+        }
+        expect(attempts[0]).toMatchObject({
+          outcome: 'failed',
+          prUrl: null,
+          error: 'This finding is not fixable in code.',
+        })
+        // The finding's latest error and the history agree, because they are written together.
+        const [row] = await withTenant(db, tenantId, (tx) =>
+          tx
+            .select({ fixError: findings.fixError })
+            .from(findings)
+            .where(eq(findings.id, unfixableFindingId)),
+        )
+        expect(row?.fixError).toBe(attempts[0]!.error)
+        expect((await get(`/findings/${unfixableFindingId}/attempts`, otherToken)).statusCode).toBe(
+          404,
+        )
+      } finally {
+        await withTenant(db, tenantId, async (tx) => {
+          await tx.delete(fixAttempts).where(eq(fixAttempts.findingId, unfixableFindingId))
+          await tx
+            .update(findings)
+            .set({ fixError: null })
+            .where(eq(findings.id, unfixableFindingId))
+        })
       }
     })
 

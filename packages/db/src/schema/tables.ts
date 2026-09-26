@@ -306,6 +306,30 @@ export const findings = pgTable(
 )
 
 /**
+ * One row per attempt to fix a finding (migration 0026). `findings.fixError` holds only the latest
+ * failure; this keeps every attempt, successful or not, so a finding can show its whole history.
+ */
+export const fixAttempts = pgTable(
+  'fix_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    findingId: uuid('finding_id')
+      .notNull()
+      .references(() => findings.id, { onDelete: 'cascade' }),
+    requestId: text('request_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull().defaultNow(),
+    outcome: text('outcome').$type<'pr_opened' | 'pr_adopted' | 'failed'>().notNull(),
+    prUrl: text('pr_url'),
+    error: text('error'),
+  },
+  (table) => [index('fix_attempts_finding_idx').on(table.findingId, table.finishedAt)],
+)
+
+/**
  * Crawl artefacts: the raw HTML, headers, and screenshots a finding's evidence points at.
  *
  * These live in Postgres, gzipped, rather than in an object store, because ADR-0007 buys a

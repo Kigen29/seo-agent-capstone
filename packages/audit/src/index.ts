@@ -71,3 +71,5 @@ export {
   trafficWindows,
 } from './traffic-outcome.js'
 export type { PageTraffic } from './traffic-outcome.js'
+export { listFixAttempts } from './fix-attempts.js'
+export type { FixAttempt } from './fix-attempts.js'
