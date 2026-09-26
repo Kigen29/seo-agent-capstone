@@ -37,6 +37,8 @@ export type { FrontierEntry, FrontierOptions, FrontierState } from './crawl/fron
 
 export { crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from './crawl/crawler.js'
 export type { CrawlHooks, CrawlOptions } from './crawl/crawler.js'
+export { createEgressGuard } from './crawl/egress.js'
+export type { BlockedRequest, EgressGuard, EgressPolicy } from './crawl/egress.js'
 export { Pacer } from './crawl/pacer.js'
 export type { CrawledPage, CrawlResult, SkippedUrl } from './crawl/types.js'
 

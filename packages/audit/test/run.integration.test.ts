@@ -30,6 +30,9 @@ const page = (body: string) => `<!doctype html>
 <html lang="en"><head><title>A page with a reasonable title</title></head>
 <body>${body}</body></html>`
 
+/** Fixture servers listen on 127.0.0.1, which production egress rightly refuses. */
+const LOCAL = { allowPrivateNetwork: true }
+
 function startSite(): Promise<{ origin: string; close: () => Promise<void> }> {
   const server: Server = createServer((req, res) => {
     if (req.url === '/robots.txt') {
@@ -90,7 +93,13 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
       return row!.id
     })
 
-    const result = await runAudit(db, { tenantId, siteId, seed: site.origin, maxPages: 5 })
+    const result = await runAudit(db, {
+      egress: LOCAL,
+      tenantId,
+      siteId,
+      seed: site.origin,
+      maxPages: 5,
+    })
     auditId = result.auditId
   }, 180_000)
 
@@ -238,7 +247,13 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
     })
 
     await expect(
-      runAudit(db, { tenantId, siteId: deadSiteId, seed: 'http://127.0.0.1:1/', maxPages: 1 }),
+      runAudit(db, {
+        egress: LOCAL,
+        tenantId,
+        siteId: deadSiteId,
+        seed: 'http://127.0.0.1:1/',
+        maxPages: 1,
+      }),
     ).rejects.toThrow(/could not reach/i)
 
     // And it must be recorded as failed, not left on 'crawling'. A progress bar that will
@@ -260,6 +275,33 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
     expect(leftovers).toEqual([])
   }, 120_000)
 
+  it('refuses a private seed under the default egress policy, and says why', async () => {
+    // Production passes no egress option. A site URL pointing at a private address must fail
+    // with the refusal as its reason, never be fetched, and never be scored.
+    const privateSiteId = await withTenant(db, tenantId, async (tx) => {
+      const [row] = await tx
+        .insert(sites)
+        .values({ tenantId, url: `${site.origin}/private` })
+        .returning()
+      return row!.id
+    })
+
+    await expect(
+      runAudit(db, {
+        tenantId,
+        siteId: privateSiteId,
+        seed: `${site.origin}/private`,
+        maxPages: 1,
+      }),
+    ).rejects.toThrow(/Refused by egress policy/)
+
+    const [row] = await withTenant(db, tenantId, (tx) =>
+      tx.select().from(audits).where(eq(audits.siteId, privateSiteId)),
+    )
+    expect(row?.status).toBe('failed')
+    expect(row?.scorecard).toBeNull()
+  })
+
   it('still audits a site whose homepage returns 404, because that is a finding not a failure', async () => {
     // The other side of the line above, and the reason the check tests `status > 0` rather
     // than `status < 400`. A server that answers 404 has responded: we have real evidence,
@@ -280,6 +322,7 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
       })
 
       const result = await runAudit(db, {
+        egress: LOCAL,
         tenantId,
         siteId: goneSiteId,
         seed: origin,

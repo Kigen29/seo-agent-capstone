@@ -2,6 +2,7 @@ import type { PageExtract } from '../page/types.js'
 import type { RenderComparison } from '../page/render.js'
 import type { RobotsTxt } from '../robots/parse.js'
 import type { AiCrawlerPosture } from '../robots/posture.js'
+import type { BlockedRequest } from './egress.js'
 import type { FrontierState } from './frontier.js'
 
 export interface CrawledPage {
@@ -70,6 +71,12 @@ export interface CrawlResult {
 
   /** Sitemap URLs discovered but never reached by following links: orphan candidates. */
   sitemapOnlyUrls: string[]
+
+  /**
+   * Requests the egress guard refused: a crawled page reaching for a private address, or a root
+   * file redirecting to one. Optional so results built elsewhere (the quick check) stay valid.
+   */
+  blocked?: BlockedRequest[]
 
   /** Resumable snapshot. Persist this after every page. */
   state: FrontierState

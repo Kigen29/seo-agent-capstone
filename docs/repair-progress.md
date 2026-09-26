@@ -66,7 +66,7 @@ The browser configuration does not load the root .env. Never point these command
 
 - Audit submission and PR-merge transitions write transactional outbox records. Rollback, duplicate event, failed delivery/retry, and tenant isolation tests pass. Failed deliveries now receive persisted exponential backoff and do not block later due events; concurrent publishers are covered by database tests. Other job producers, operator recovery tooling and sustained crash/reorder testing remain open.
 - Versioned queues use explicit exclusive policies; concurrent audit enqueue deduplication is tested. Persistent worker and container/Caddy definitions are drafts, not deployment-ready.
-- Public HTTP requests connect to validated DNS addresses; reserved-range and redirect tests pass. Crawler/browser egress isolation remains open.
+- Public HTTP requests connect to validated DNS addresses; reserved-range and redirect tests pass. The crawler's browser now refuses private destinations in code (#190); DNS-rebinding-proof, network-level egress filtering on the worker host remains open.
 - Public-check attempts reserve quota atomically before fetching. Trusted reverse-proxy address handling remains open.
 - Verification requires positive page/rule coverage and confirmed deployment. Only supported page-level rules currently qualify; full attempts/history persistence and the 24-hour retry schedule remain open.
 - In-flight frontier entries are recoverable from serialized state. Persisting checkpoints during production crawls remains open.
@@ -160,3 +160,14 @@ Corrected #185's rollback instructions: preserve `verify` publication support un
 A fix job that dies after GitHub opens the PR but before the finding is marked `pr_open` is redelivered by the outbox. The worker now looks up an open PR on the finding's `seo-agent/<rowId>-` branch before it reads the repo or calls a fixer or model, and adopts it if found. A crash in that window therefore costs neither a second model call nor a second PR. Recording a PR is guarded to move only `open` findings, so a merge a webhook has already recorded is not overwritten.
 
 Still open: a PR closed or merged before the retry is left to the webhook and polling sweep, and the head-prefix lookup reads only the first 100 open PRs. Local validation: 175 API tests passed; worker and API type checks and lint passed. No schema migration.
+
+
+## Crawler browser egress guard (#190)
+
+The crawler rendered customer pages in Chromium with no request interception, so a crawled page could make our worker request loopback, the cloud metadata service or private networks through images, iframes, scripted fetches, WebSockets or redirects, and the answer could land in stored rendered HTML. The range check now lives once in `@seo/core` (`isPrivateAddress`), shared with the SSRF-guarded HTTP client.
+
+The crawler routes every browser request and WebSocket through an egress guard that resolves each host (cached per crawl) and refuses any that resolves to a private address. Playwright does not route redirect hops, which the first test run exposed: a page redirecting to an internal host still reached it. The route handler therefore fetches each request without following redirects, vets the Location and fulfils the response, so every hop is routed. Service workers are blocked, WebRTC is restricted to proxied UDP, robots.txt, llms.txt and sitemap fetches follow redirects by hand with each hop checked, and a refused frontier URL becomes a skip with its reason. A private seed fails the audit with the egress reason and is never scored.
+
+Evidence: a hostile fixture reaches an internal host by image, iframe, fetch, redirect, sitemap redirect and llms.txt redirect when unguarded (the control), and with the guard none of those paths reach the server, which records every request as the witness; the WebSocket is refused by the guard's own route. Chromium's Local Network Access check also blocks that socket once pages are fulfilled, but the guard does not rely on it. Local: 181 crawler tests (three consecutive runs), 77 audit, 299 connectors and 55 core tests passed; workspace type checks and lint passed.
+
+Residual: Chromium and the route handler each resolve names independently of our check, so a hostile DNS server can still rebind between check and connect. The complete control is network-level egress filtering on the worker host, which remains open with the container deployment work.

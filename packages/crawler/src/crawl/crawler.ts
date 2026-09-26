@@ -5,6 +5,14 @@ import { crawlDelayFor, isAllowed } from '../robots/match.js'
 import { ALLOW_ALL, parseRobotsTxt, type RobotsTxt } from '../robots/parse.js'
 import { evaluateAiCrawlerPosture } from '../robots/posture.js'
 import { expandSitemaps } from '../sitemap/expand.js'
+import {
+  createEgressGuard,
+  guardedGet,
+  installEgressGuard,
+  type BlockedRequest,
+  type EgressGuard,
+  type EgressPolicy,
+} from './egress.js'
 import { Frontier, normaliseUrl, type FrontierState } from './frontier.js'
 import { Pacer } from './pacer.js'
 import type { CrawledPage, CrawlResult, SkippedUrl } from './types.js'
@@ -36,6 +44,11 @@ export interface CrawlOptions {
   useSitemap?: boolean
   /** Resume a crawl that was killed. Skips everything already completed. */
   resumeFrom?: FrontierState
+  /**
+   * Where the browser may connect. Private and loopback destinations are refused unless a test
+   * explicitly allows them; production audits leave this unset. See egress.ts.
+   */
+  egress?: EgressPolicy
 }
 
 /**
@@ -70,6 +83,8 @@ export interface CrawlHooks {
    */
   onPage?: (page: CrawledPage, state: FrontierState) => Promise<void> | void
   onSkip?: (skip: SkippedUrl) => void
+  /** Called for every request the egress guard refused, page-initiated or our own. */
+  onBlocked?: (blocked: BlockedRequest) => void
 }
 
 function headerRecord(headers: Record<string, string>): Record<string, string> {
@@ -78,11 +93,22 @@ function headerRecord(headers: Record<string, string>): Record<string, string> {
   return lowered
 }
 
-async function fetchRobots(context: BrowserContext, seed: string): Promise<RobotsTxt> {
+/** Our own root-file fetches: the request context and the guard that must vet every hop. */
+interface RootFetch {
+  context: BrowserContext
+  guard: EgressGuard
+  onBlocked: (blocked: BlockedRequest) => void
+}
+
+async function fetchRobots(
+  { context, guard, onBlocked }: RootFetch,
+  seed: string,
+): Promise<RobotsTxt> {
   const robotsUrl = new URL('/robots.txt', seed).toString()
 
   try {
-    const response = await context.request.get(robotsUrl, { timeout: 15_000 })
+    const response = await guardedGet(context, guard, robotsUrl, 15_000, onBlocked)
+    if (!response) return ALLOW_ALL
 
     // 4xx means no robots.txt, which means no restrictions. A 5xx arguably means we
     // should back off entirely, but treating a flaky origin as "block everything" would
@@ -101,12 +127,14 @@ async function fetchRobots(context: BrowserContext, seed: string): Promise<Robot
  * by crawling. A non-2xx or an error is a plain "not there", which is exactly what the
  * agent-readiness rule needs to know.
  */
-async function fetchLlmsTxt(context: BrowserContext, seed: string): Promise<string | null> {
+async function fetchLlmsTxt(
+  { context, guard, onBlocked }: RootFetch,
+  seed: string,
+): Promise<string | null> {
   try {
-    const response = await context.request.get(new URL('/llms.txt', seed).toString(), {
-      timeout: 15_000,
-    })
-    if (!response.ok()) return null
+    const url = new URL('/llms.txt', seed).toString()
+    const response = await guardedGet(context, guard, url, 15_000, onBlocked)
+    if (!response || !response.ok()) return null
     return await response.text()
   } catch {
     return null
@@ -205,15 +233,27 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
 
   const pages: CrawledPage[] = []
   const skipped: SkippedUrl[] = []
+  const blocked: BlockedRequest[] = []
+  const onBlocked = (entry: BlockedRequest) => {
+    blocked.push(entry)
+    hooks.onBlocked?.(entry)
+  }
+  const guard = createEgressGuard(options.egress)
 
   let browser: Browser | undefined
 
   try {
-    browser = await chromium.launch()
-    const context = await browser.newContext({ userAgent })
+    browser = await chromium.launch({
+      // WebRTC ICE candidates are UDP the route handler never sees; keep them off private networks.
+      args: ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],
+    })
+    // Service workers fetch outside context routing, so a crawled page must not install one.
+    const context = await browser.newContext({ userAgent, serviceWorkers: 'block' })
+    await installEgressGuard(context, guard, onBlocked)
+    const root: RootFetch = { context, guard, onBlocked }
 
-    const robots = respectRobots ? await fetchRobots(context, options.seed) : ALLOW_ALL
-    const llmsTxt = await fetchLlmsTxt(context, options.seed)
+    const robots = respectRobots ? await fetchRobots(root, options.seed) : ALLOW_ALL
+    const llmsTxt = await fetchLlmsTxt(root, options.seed)
 
     /**
      * Crawl-delay is the site telling us how fast it can stand to be crawled. Honour it
@@ -231,8 +271,8 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
 
     if (options.useSitemap !== false && robots.sitemaps.length > 0) {
       const expanded = await expandSitemaps(robots.sitemaps, async (url) => {
-        const response = await context.request.get(url, { timeout: 15_000 })
-        return response.ok() ? response.text() : undefined
+        const response = await guardedGet(context, guard, url, 15_000, onBlocked)
+        return response?.ok() ? response.text() : undefined
       })
 
       for (const entry of expanded.urls) {
@@ -253,6 +293,16 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
         for (;;) {
           const entry = frontier.next()
           if (!entry) break
+
+          // Refuse before navigating, so a private URL is a clear skip rather than a page error.
+          const refused = await guard(entry.url)
+          if (refused) {
+            const skip = { url: entry.url, reason: `Refused by egress policy: ${refused}` }
+            skipped.push(skip)
+            hooks.onSkip?.(skip)
+            frontier.complete(entry.url)
+            continue
+          }
 
           if (respectRobots && !isAllowed(robots, userAgent, entry.url)) {
             const skip = { url: entry.url, reason: 'Disallowed by robots.txt.' }
@@ -321,6 +371,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
       llmsTxt,
       sitemapUrls: [...fromSitemap],
       sitemapOnlyUrls: [...fromSitemap].filter((url) => !linkedTo.has(url) && url !== seedUrl),
+      blocked,
       state: frontier.toState(),
     }
   } finally {
