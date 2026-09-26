@@ -17,6 +17,7 @@ import { createWorkerLlm } from './llm.js'
 import { enqueueDuePolls, runPollAi } from './poll.js'
 import { runFix } from './fix.js'
 import { failAbandonedAudits } from './abandoned-audits.js'
+import { recordTrafficOutcomes } from './traffic-outcomes.js'
 import { reconcilePullRequests } from './reconcile.js'
 import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
@@ -90,6 +91,10 @@ try {
   // audit rather than leaving the dashboard on a progress bar that will never move.
   const abandoned = await failAbandonedAudits(db)
   console.log(`worker: marked ${abandoned} abandoned audit(s) as failed`)
+
+  // Search traffic before and after each checked fix, once its 28-day window has closed.
+  const measured = await recordTrafficOutcomes(db)
+  console.log(`worker: recorded search traffic for ${measured} fix outcome(s)`)
 
   console.log('worker: reconciling pull requests we are still waiting on')
   const reconciled = await reconcilePullRequests(db, {

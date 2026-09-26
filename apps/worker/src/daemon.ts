@@ -19,6 +19,7 @@ import { createWorkerLlm } from './llm.js'
 import { runFix } from './fix.js'
 import { enqueueDuePolls, runPollAi } from './poll.js'
 import { failAbandonedAudits } from './abandoned-audits.js'
+import { recordTrafficOutcomes } from './traffic-outcomes.js'
 import { reconcilePullRequests } from './reconcile.js'
 import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
@@ -105,6 +106,7 @@ try {
           )
           if (!lock.rows[0]?.acquired) return
           await failAbandonedAudits(db)
+          await recordTrafficOutcomes(db)
           await reconcilePullRequests(db, {
             verifyFix: (job) => enqueueVerifyFix(queue, job),
             confirmVerify: (job) => enqueueConfirmVerify(queue, job),

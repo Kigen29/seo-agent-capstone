@@ -53,6 +53,36 @@ function metricLine(outcome: FixOutcome): string | null {
   return `Before: ${pages(before.value)} failing. After: ${pages(after.value)} failing.`
 }
 
+/**
+ * The same names and timing the worker's traffic sweep uses (packages/audit/src/traffic-outcome.ts),
+ * restated because the web app may not import a package that reaches the database (ADR-0009).
+ */
+const CLICKS_METRIC = 'Search clicks, 28 days'
+const IMPRESSIONS_METRIC = 'Search impressions, 28 days'
+const TRAFFIC_READY_DAYS = 28 + 3
+
+function trafficLine(outcome: FixOutcome): string | null {
+  const verification = outcome.verification
+  if (!verification) return null
+  const value = (metrics: { metric: string; value: number }[], name: string) =>
+    metrics.find((metric) => metric.metric === name)?.value
+  const clicksAfter = value(verification.after.metrics, CLICKS_METRIC)
+  if (clicksAfter === undefined) {
+    const ready = new Date(
+      new Date(verification.verifiedAt).getTime() + TRAFFIC_READY_DAYS * 86_400_000,
+    )
+    return `Search traffic before and after: ready around ${day.format(ready)}, if Search Console is connected.`
+  }
+  const clicksBefore = value(verification.before.metrics, CLICKS_METRIC) ?? 0
+  const impressionsBefore = value(verification.before.metrics, IMPRESSIONS_METRIC) ?? 0
+  const impressionsAfter = value(verification.after.metrics, IMPRESSIONS_METRIC) ?? 0
+  const n = (count: number) => count.toLocaleString('en-US')
+  return (
+    `Search traffic to these pages, 28 days before and after: ${n(clicksBefore)} to ${n(clicksAfter)} ` +
+    `clicks, ${n(impressionsBefore)} to ${n(impressionsAfter)} impressions.`
+  )
+}
+
 export default async function OutcomesPage({
   searchParams,
 }: {
@@ -139,6 +169,19 @@ export default async function OutcomesPage({
                 </p>
                 {outcome.note && <p className="text-muted m-0 text-[13px]">{outcome.note}</p>}
                 {line && <p className="tnum m-0 text-sm">{line}</p>}
+                {trafficLine(outcome) && (
+                  <p className="tnum m-0 text-sm">
+                    {trafficLine(outcome)}
+                    {outcome.verification?.after.metrics.some(
+                      (metric) => metric.metric === CLICKS_METRIC,
+                    ) && (
+                      <span className="text-muted block text-[12px]">
+                        Traffic moves for many reasons, including seasons and Google updates. This
+                        is what changed, not proof of why.
+                      </span>
+                    )}
+                  </p>
+                )}
                 <details className="text-[13px]">
                   <summary className="cursor-pointer">How we check it worked</summary>
                   <p className="text-muted mt-2 mb-0">{outcome.falsification}</p>
