@@ -40,8 +40,12 @@ const namesSchema = z.object({
   clusters: z.array(
     z.object({
       id: z.number().int(),
-      /** Two or three words. A sentence is a summary, and the treemap has no room for one. */
-      name: z.string().min(1).max(40),
+      /**
+       * Two or three words. A sentence is a summary, and the treemap has no room for one. The
+       * 40-character cap is applied below, not here: strict structured outputs refuse string
+       * length limits, and one long name would otherwise lose every name in the response.
+       */
+      name: z.string(),
     }),
   ),
 })
@@ -53,6 +57,9 @@ export const TOPIC_NAMING_SYSTEM =
   'recognise, two or three words, in the language of the titles. No marketing adjectives, no ' +
   'invented categories, nothing that is not evidenced by the titles you were shown. Echo each ' +
   'group id back exactly as given.'
+
+/** Longest topic name the treemap can show; a longer one is dropped and falls back to keywords. */
+const MAX_NAME = 40
 
 /** How many titles per cluster the model sees. Enough to recognise a subject, cheaply. */
 const TITLE_SAMPLE = 8
@@ -98,8 +105,8 @@ export async function nameTopics(
       // An id we did not ask about is the model inventing a group. Dropped rather than trusted:
       // the clusters are the measurement and a name cannot create one.
       if (!known.has(entry.id)) continue
-      const name = entry.name.trim()
-      if (name) names.set(entry.id, name)
+      const name = entry.name.replace(/\s+/g, ' ').trim()
+      if (name && name.length <= MAX_NAME) names.set(entry.id, name)
     }
 
     return names
