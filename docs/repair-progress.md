@@ -67,7 +67,7 @@ The browser configuration does not load the root .env. Never point these command
 - Audit submission and PR-merge transitions write transactional outbox records. Rollback, duplicate event, failed delivery/retry, and tenant isolation tests pass. Failed deliveries now receive persisted exponential backoff and do not block later due events; concurrent publishers are covered by database tests. Other job producers, operator recovery tooling and sustained crash/reorder testing remain open.
 - Versioned queues use explicit exclusive policies; concurrent audit enqueue deduplication is tested. Persistent worker and container/Caddy definitions are drafts, not deployment-ready.
 - Public HTTP requests connect to validated DNS addresses; reserved-range and redirect tests pass. The crawler's browser now refuses private destinations in code (#190); DNS-rebinding-proof, network-level egress filtering on the worker host remains open.
-- Public-check attempts reserve quota atomically before fetching. Trusted reverse-proxy handling is implemented and tested (#196) but left at zero hops in production until Render's X-Forwarded-For chain is measured.
+- Public-check attempts reserve quota atomically before fetching. Trusted reverse-proxy handling is implemented (#196) and set to the measured three hops in production (#199).
 - Verification requires positive page/rule coverage and confirmed deployment. Only supported page-level rules currently qualify; full attempts/history persistence and the 24-hour retry schedule remain open.
 - In-flight frontier entries are recoverable from serialized state. Persisting checkpoints during production crawls remains open.
 - Embedding calls record usage, use fallback providers, and cap parallel SDK requests. Unknown model pricing is refused. SDK retries are disabled; a failed spend-ledger write cannot trigger another paid provider call. Atomic tenant/global reservations now cover model, embedding, SERP, keyword, and backlink calls. Provider price validation and abandoned-call reconciliation remain open.
@@ -196,3 +196,10 @@ The anonymous check keys its per-address quota on `request.ip`, and the API trus
 Evidence: API integration tests drive the real quota with a limit of one. A spoofed prefix does not buy a second check, two clients behind one private hop get separate quotas, a public peer's header is ignored, zero hops ignores the header, and out-of-range values refuse to start; unit tests cover the trust decision. Local: 203 API tests passed; workspace type checks, lint and format passed.
 
 Not yet enabled: Render's forum disagrees on whether it overwrites or appends to client-supplied X-Forwarded-For, and how many entries its edge adds. Production stays at zero, the previous behaviour, until the chain is measured on the live service. Setting the count one too high would let clients choose their own address, so it must not be guessed.
+
+
+## Measured proxy chain and TRUSTED_PROXY_HOPS=3 (#199)
+
+A temporary, env-gated route (#198) echoed the forwarding headers of our own requests to the live service. Every request reaches the process from a local proxy on `127.0.0.1`, so before this change every anonymous visitor was counted as the same address and shared a single five-per-day allowance worldwide. X-Forwarded-For arrived as `[client-written entries], real client, Cloudflare edge (172.x), Render load balancer (10.x)`: with a spoofed `1.2.3.4, 5.6.7.8` header, both values survived on the left, confirming Render appends rather than overwrites. The real client is exactly three hops back from our side, beyond the reach of anything a client writes, and matched the measuring machine's public address.
+
+`TRUSTED_PROXY_HOPS=3` is set in `render.yaml` and the diagnostic route is removed. A regression test replays the recorded production chain, spoofed prefix included, and resolves the real client. Local: 204 API tests passed; type checks and lint passed.

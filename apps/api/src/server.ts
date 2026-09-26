@@ -227,7 +227,6 @@ const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   trustProxyHops,
-  proxyDiagnostic: process.env.PROXY_DIAGNOSTIC === '1',
   google,
   github,
   identityProviders,

@@ -34,11 +34,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24
-      # Deliberately unset (zero). Render's proxy chain has not been measured, and its own forum
-      # disagrees about whether client-supplied X-Forwarded-For values survive. Until measured, the
-      # anonymous per-address quota keys on the proxy address. See AppOptions.trustProxyHops.
-      # - key: TRUSTED_PROXY_HOPS
-      #   value: '?'
+      # Measured on the live service on 2026-09-26 (#199). Every request reaches the process from a
+      # local proxy on 127.0.0.1, and X-Forwarded-For arrives as
+      #   [anything the client wrote], client, Cloudflare edge, Render load balancer (10.x)
+      # Render appends and keeps client-written entries, so the client is exactly three hops back
+      # from our side and the entries a client writes are never reached. See AppOptions.trustProxyHops.
+      - key: TRUSTED_PROXY_HOPS
+        value: '3'
       # Set in the Render dashboard, never here. This is the owner credential and it carries
       # BYPASSRLS (ADR-0008).
       - key: DATABASE_URL
