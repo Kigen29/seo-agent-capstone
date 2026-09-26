@@ -3226,6 +3226,25 @@ describe.skipIf(!shouldRun)('the API', () => {
         }
       })
 
+      it('exposes the forwarding diagnostic only when switched on', async () => {
+        const off = await app.inject({ method: 'GET', url: '/diagnostic/forwarding' })
+        expect(off.statusCode).toBe(404)
+
+        const instance = await buildApp({ db, proxyDiagnostic: true })
+        try {
+          const on = await instance.inject({
+            method: 'GET',
+            url: '/diagnostic/forwarding',
+            headers: { 'x-forwarded-for': '1.2.3.4' },
+          })
+          expect(on.statusCode).toBe(200)
+          expect(on.headers['cache-control']).toBe('no-store')
+          expect(on.json()).toMatchObject({ socketAddress: '127.0.0.1', xForwardedFor: '1.2.3.4' })
+        } finally {
+          await instance.close()
+        }
+      })
+
       it.each([-1, 1.5, 6])('refuses to start with %s trusted hops', async (hops) => {
         await expect(buildApp({ db, trustProxyHops: hops })).rejects.toThrow(/trustProxyHops/)
       })

@@ -19,6 +19,7 @@ import { keywordRoutes } from './routes/keywords.js'
 import { localRoutes } from './routes/local.js'
 import { questionRoutes } from './routes/questions.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
+import { proxyDiagnosticRoutes } from './routes/proxy-diagnostic.js'
 import { outreachRoutes } from './routes/outreach.js'
 import { identityRoutes, signinRoutes } from './routes/signin.js'
 import { siteRoutes } from './routes/sites.js'
@@ -122,6 +123,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   oauthCallbackRoutes(app, deps)
   // The one anonymous door (ADR-0025). It touches one table, which has no tenant_id.
   checkRoutes(app, deps)
+  // Temporary measurement for TRUSTED_PROXY_HOPS; absent unless explicitly switched on.
+  if (options.proxyDiagnostic) proxyDiagnosticRoutes(app)
   // Unauthenticated by necessity: somebody signing in has no session yet. See the file.
   signinRoutes(app, deps)
   await githubWebhookRoutes(app, deps)
