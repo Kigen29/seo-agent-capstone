@@ -8,6 +8,7 @@ import { MixedContentFixer } from './fixers/mixed-content.js'
 import { RemoveNoindexFixer } from './fixers/noindex.js'
 import { SitemapDeclarationFixer } from './fixers/sitemap-declaration.js'
 import { SitemapEntryFixer } from './fixers/sitemap-entry.js'
+import { SpaRewriteFixer } from './fixers/spa-rewrite.js'
 
 /**
  * The built-in fixers, assembled.
@@ -27,5 +28,6 @@ export function createFixerRegistry(): FixerRegistry {
     new SitemapDeclarationFixer(),
     new SitemapEntryFixer(),
     new MixedContentFixer(),
+    new SpaRewriteFixer(),
   )
 }
