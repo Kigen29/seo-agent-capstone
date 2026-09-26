@@ -84,8 +84,13 @@ services:
         sync: false
       # What a tenant created by a social sign-in may spend per month, in micro-dollars.
       # This deployment is open, so this is the bound on what a stranger can spend on our keys.
-      # 0 leaves everything free working and spends nothing. Unset means the $5 column default.
+      # 0 leaves everything free working and spends nothing. Unset means the column default, 0.
       - key: NEW_TENANT_BUDGET_MICROS
+        sync: false
+      # The deployment-wide monthly cap on paid work, in micro-dollars, shared by every tenant.
+      # Zero or unset refuses every model and SEO-data call. The worker needs the same value as a
+      # GitHub Actions variable.
+      - key: GLOBAL_MONTHLY_BUDGET_MICROS
         sync: false
       # DataForSEO, for keyword research on /keywords and the MCP keyword_ideas tool.
       #
