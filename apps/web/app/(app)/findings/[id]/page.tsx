@@ -1,3 +1,4 @@
+import type { FixAttempt } from '@seo/api-client'
 import { ApiAsleep } from '@/components/api-asleep'
 import Link from 'next/link'
 import { EvidenceBlock } from '@/components/evidence'
@@ -53,8 +54,14 @@ export default async function FindingPage({
 
   let finding
   let connections
+  let attempts: FixAttempt[] = []
   try {
-    ;[finding, connections] = await Promise.all([api.getFinding(id), api.getConnections()])
+    ;[finding, connections, attempts] = await Promise.all([
+      api.getFinding(id),
+      api.getConnections(),
+      // History is secondary: if it cannot load, the finding still renders without it.
+      api.getFixAttempts(id).catch(() => []),
+    ])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
@@ -165,6 +172,8 @@ export default async function FindingPage({
         </div>
       )}
 
+      {attempts.length > 0 && <FixAttempts attempts={attempts} />}
+
       <StatRow>
         <Stat
           label="Effort"
@@ -229,5 +238,59 @@ export default async function FindingPage({
         </div>
       </section>
     </main>
+  )
+}
+
+const ATTEMPT_LABEL: Record<FixAttempt['outcome'], { label: string; tag: string }> = {
+  pr_opened: { label: 'Opened a pull request', tag: 'tag tag-success' },
+  pr_adopted: {
+    label: 'Reused the pull request an earlier attempt opened',
+    tag: 'tag tag-success',
+  },
+  failed: { label: 'Failed', tag: 'tag tag-critical' },
+}
+
+const attemptTime = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+
+/**
+ * Every attempt to fix this finding, newest first.
+ *
+ * The note above shows only the latest failure. This keeps the rest, so a person can see how many
+ * times the agent tried, why each failed, and which attempt opened the pull request.
+ */
+function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
+  return (
+    <section className="mb-6" aria-labelledby="attempts-heading">
+      <h2 id="attempts-heading" className="h-section mb-2">
+        Fix attempts ({attempts.length})
+      </h2>
+      <ol className="card elev-sm m-0 list-none gap-0" style={{ padding: 0 }}>
+        {attempts.map((attempt, index) => {
+          const label = ATTEMPT_LABEL[attempt.outcome]
+          return (
+            <li
+              key={`${attempt.finishedAt}-${index}`}
+              className="flex flex-col gap-1 p-3"
+              style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={label.tag}>{label.label}</span>
+                <span className="text-muted text-[12px]">
+                  {attemptTime.format(new Date(attempt.finishedAt))}
+                </span>
+                {attempt.prUrl && (
+                  <a href={attempt.prUrl} target="_blank" rel="noreferrer" className="text-[13px]">
+                    View the pull request &rarr;
+                  </a>
+                )}
+              </div>
+              {attempt.error && (
+                <p className="text-muted m-0 text-[13px] break-words">{attempt.error}</p>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </section>
   )
 }

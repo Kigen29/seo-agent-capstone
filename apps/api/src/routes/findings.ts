@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { getFinding, getFixProgress, listFindings, MAX_PAGE_SIZE } from '@seo/audit'
+import {
+  getFinding,
+  getFixProgress,
+  listFindings,
+  MAX_PAGE_SIZE,
+  listFixAttempts,
+} from '@seo/audit'
 import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
 import { appendJob, findings, withTenant, sites } from '@seo/db'
 import { and, eq } from 'drizzle-orm'
@@ -59,6 +65,15 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
       if (!finding) return notFound(reply)
       return { finding }
+    })
+
+  /** Every attempt the agent made to fix this finding, newest first. 404 for another tenant's. */
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get('/findings/:id/attempts', { schema: { params: uuidParam } }, async (request, reply) => {
+      const attempts = await listFixAttempts(db, request.tenantId, request.params.id)
+      if (!attempts) return notFound(reply)
+      return { attempts }
     })
 
   /**

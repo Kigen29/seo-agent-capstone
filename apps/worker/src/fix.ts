@@ -1,6 +1,6 @@
 import { generateContentFix } from '@seo/agent'
 import { baselineFor, getFinding } from '@seo/audit'
-import { findings, sites, withTenant, type Database } from '@seo/db'
+import { findings, fixAttempts, sites, withTenant, type Database } from '@seo/db'
 import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
 import type { FixJob } from '@seo/queue'
 import {
@@ -33,9 +33,19 @@ export interface FixDeps {
   provider?: VersionControlProvider
 }
 
+/** What one attempt achieved, recorded in fix_attempts. Null when there was nothing to do. */
+type AttemptResult = { outcome: 'pr_opened' | 'pr_adopted'; prUrl: string } | null
+
 export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Promise<void> {
+  const startedAt = new Date()
   try {
-    await attemptFix(db, job, deps)
+    const result = await attemptFix(db, job, deps)
+    // A delivery for a finding that is no longer open did nothing, and is not an attempt.
+    if (result) {
+      await recordAttempt(db, job, startedAt, result).catch((writeError: unknown) => {
+        console.error('fix: could not record the attempt:', writeError)
+      })
+    }
   } catch (error) {
     /**
      * Write the reason onto the finding before rethrowing.
@@ -49,27 +59,62 @@ export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Pro
      * Best-effort, and it must not mask the original error: if we cannot even write the reason
      * down, the useful thing to surface is still what actually went wrong.
      */
-    await recordFixFailure(db, job, error).catch((writeError: unknown) => {
+    await recordFixFailure(db, job, error, startedAt).catch((writeError: unknown) => {
       console.error('fix: could not record why the fix failed:', writeError)
     })
     throw error
   }
 }
 
-/** Store the reason on the finding so the inbox and the finding page can show it. */
-async function recordFixFailure(db: Database, job: FixJob, error: unknown): Promise<void> {
+/**
+ * Store the reason on the finding so the inbox and the finding page can show it, and keep the
+ * failed attempt in the history. One transaction, so the latest error and the history never disagree.
+ */
+async function recordFixFailure(
+  db: Database,
+  job: FixJob,
+  error: unknown,
+  startedAt: Date,
+): Promise<void> {
   const message = error instanceof Error ? error.message : String(error)
 
+  await withTenant(db, job.tenantId, async (tx) => {
+    await tx.update(findings).set({ fixError: message }).where(eq(findings.id, job.findingRowId))
+    await tx.insert(fixAttempts).values({
+      tenantId: job.tenantId,
+      findingId: job.findingRowId,
+      requestId: job.requestId ?? null,
+      startedAt,
+      outcome: 'failed',
+      error: message.slice(0, 2000),
+    })
+  })
+}
+
+/** A successful attempt: a pull request opened, or one a crashed attempt had opened, reused. */
+async function recordAttempt(
+  db: Database,
+  job: FixJob,
+  startedAt: Date,
+  result: NonNullable<AttemptResult>,
+): Promise<void> {
   await withTenant(db, job.tenantId, (tx) =>
-    tx.update(findings).set({ fixError: message }).where(eq(findings.id, job.findingRowId)),
+    tx.insert(fixAttempts).values({
+      tenantId: job.tenantId,
+      findingId: job.findingRowId,
+      requestId: job.requestId ?? null,
+      startedAt,
+      outcome: result.outcome,
+      prUrl: result.prUrl,
+    }),
   )
 }
 
-async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<void> {
+async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<AttemptResult> {
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
   if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
   // A delayed delivery must not regenerate a PR or move a merged finding backwards.
-  if (finding.status !== 'open') return
+  if (finding.status !== 'open') return null
   if (!finding.fixable) throw new Error('This finding is not fixable in code.')
 
   const site = await withTenant(db, job.tenantId, async (tx) => {
@@ -94,7 +139,7 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<voi
   const existing = await provider.findOpenPullRequest(repo, branchId)
   if (existing) {
     await recordPullRequest(db, job.tenantId, finding, existing)
-    return
+    return { outcome: 'pr_adopted', prUrl: existing.url }
   }
 
   // Built per job rather than once at module load, because the client now carries the budget
@@ -131,6 +176,7 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<voi
   })
 
   await recordPullRequest(db, job.tenantId, finding, pr)
+  return { outcome: 'pr_opened', prUrl: pr.url }
 }
 
 async function recordPullRequest(

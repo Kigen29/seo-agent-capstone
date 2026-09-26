@@ -183,6 +183,13 @@
       "when": 1790380000000,
       "tag": "0025_api_token_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790470000000,
+      "tag": "0026_fix_attempts",
+      "breakpoints": true
     }
   ]
 }

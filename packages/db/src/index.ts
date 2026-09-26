@@ -14,6 +14,7 @@ export * as schema from './schema/index.js'
 export {
   apiTokens,
   artefacts,
+  fixAttempts,
   audits,
   authHandoffs,
   findings,
