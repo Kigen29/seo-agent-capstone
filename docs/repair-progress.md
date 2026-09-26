@@ -145,3 +145,12 @@ Fix requests #182 merged in PR #183; post-merge CI and migration passed. Site ve
 Scheduled AI polls and pending confirmations are rebuilt from database state on every sweep, so they recover without an outbox. With this change every on-demand producer goes through the outbox. Sustained process/load recovery, persisted fix attempts and provider-side reconciliation remain open.
 
 Local validation for #184: 174 API tests and 7 queue tests passed against the local test Postgres; affected package type checks and lint passed. No schema migration.
+
+
+## Independent handoff review (#186)
+
+Verified merged PRs #183 (48378ab) and #185 (3200ccd) against their code and successful post-merge workflows, not only the handoff transcript. #183's migration workflow also passed; #185 required no schema change. No blocking defect was found in #185's durable verification path during this review.
+
+Added direct verification-queue regressions for concurrent delivery of the same request ID, replay after completion, a new explicit request ID, and pending work surviving queue connection restart. All 9 queue tests passed against disposable local Postgres; queue build, type checks and lint passed. This does not establish recovery from a killed worker during remote side effects or sustained load. The retained-record limit on queue deduplication remains.
+
+Corrected #185's rollback instructions: preserve `verify` publication support until accepted events drain; do not delete pending requests. Full CI and merge evidence for this follow-up are tracked on #186, under #179.

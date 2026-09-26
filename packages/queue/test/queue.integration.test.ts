@@ -5,6 +5,8 @@ import {
   enqueueAudit,
   drainFix,
   enqueueFix,
+  enqueueVerify,
+  drainVerify,
   type AuditJob,
   type Queue,
 } from '../src/index.js'
@@ -60,6 +62,49 @@ describe.skipIf(!shouldRun)('the audit queue', () => {
     const retry = { ...request, requestId: crypto.randomUUID() }
     expect(await enqueueFix(queue, retry)).toBe(retry.requestId)
     await drainFix(queue, async () => undefined)
+  })
+
+  it('does not redeliver a completed verification request on replay', async () => {
+    const request = {
+      requestId: crypto.randomUUID(),
+      tenantId: crypto.randomUUID(),
+      siteId: crypto.randomUUID(),
+    }
+    const ids = await Promise.all(Array.from({ length: 3 }, () => enqueueVerify(queue, request)))
+    expect(ids.filter(Boolean)).toEqual([request.requestId])
+    let deliveries = 0
+    await drainVerify(queue, async (entry) => {
+      if (entry.requestId === request.requestId) deliveries++
+    })
+    expect(await enqueueVerify(queue, request)).toBeNull()
+    await drainVerify(queue, async (entry) => {
+      if (entry.requestId === request.requestId) deliveries++
+    })
+    expect(deliveries).toBe(1)
+    const retry = { ...request, requestId: crypto.randomUUID() }
+    expect(await enqueueVerify(queue, retry)).toBe(retry.requestId)
+    const seen: string[] = []
+    await drainVerify(queue, async (entry) => {
+      if (entry.requestId) seen.push(entry.requestId)
+    })
+    expect(seen).toContain(retry.requestId)
+  })
+
+  it('recovers a pending verification after the queue connection restarts', async () => {
+    const request = {
+      requestId: crypto.randomUUID(),
+      tenantId: crypto.randomUUID(),
+      siteId: crypto.randomUUID(),
+    }
+    expect(await enqueueVerify(queue, request)).toBe(request.requestId)
+    await queue.stop({ graceful: false })
+    queue = await createQueue(url)
+    expect(await enqueueVerify(queue, request)).toBeNull()
+    const seen: unknown[] = []
+    await drainVerify(queue, async (entry) => {
+      if (entry.requestId === request.requestId) seen.push(entry)
+    })
+    expect(seen).toEqual([request])
   })
 
   it('deduplicates concurrent submissions for the same audit', async () => {
