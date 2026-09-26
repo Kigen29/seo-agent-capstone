@@ -53,7 +53,7 @@ export function ContributorSearchPanel({ siteId }: { siteId: string }) {
               className="input"
               value={niche}
               onChange={(event) => setNiche(event.target.value)}
-              placeholder="floor tiles"
+              placeholder="for example, running shoes"
               spellCheck={false}
             />
           </label>

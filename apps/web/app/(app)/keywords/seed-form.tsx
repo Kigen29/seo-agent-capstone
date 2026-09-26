@@ -49,7 +49,7 @@ export function SeedForm({ seed, country }: { seed: string; country: string }) {
               setValue(event.target.value)
               setPending(false)
             }}
-            placeholder="kenya safari…"
+            placeholder="for example, running shoes"
             autoComplete="off"
             spellCheck={false}
             className="input"
