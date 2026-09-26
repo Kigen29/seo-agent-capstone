@@ -8,7 +8,7 @@ import {
   type Severity,
   type VerificationStatus,
 } from '@seo/core'
-import { audits, findings, sites, withTenant, type Database } from '@seo/db'
+import { audits, findings, sites, visibilityPrompts, withTenant, type Database } from '@seo/db'
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 
 /**
@@ -27,6 +27,10 @@ export interface SiteSummary {
   gscVerificationStatus: VerificationStatus
   /** The open or merged verification PR, if one has been opened. */
   gscVerificationPrUrl: string | null
+  /** A Google Business Profile link is attached (it carried a CID or a Place ID). */
+  businessProfileConnected: boolean
+  /** How many AI-visibility questions are tracked for this site. */
+  trackedPrompts: number
   latestAudit?: {
     id: string
     status: string
@@ -57,6 +61,8 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         repoFullName: sites.repoFullName,
         gscVerificationStatus: sites.gscVerificationStatus,
         gscVerificationPrUrl: sites.gscVerificationPrUrl,
+        gbpCid: sites.gbpCid,
+        gbpPlaceId: sites.gbpPlaceId,
       })
       .from(sites)
       .orderBy(desc(sites.createdAt))
@@ -77,6 +83,14 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
 
     const bySite = new Map(latest.map((audit) => [audit.siteId, audit]))
 
+    // One grouped count rather than a query per site, so the dashboard's setup checklist can say
+    // how many questions are tracked without loading them.
+    const promptCounts = await tx
+      .select({ siteId: visibilityPrompts.siteId, count: sql<number>`count(*)::int` })
+      .from(visibilityPrompts)
+      .groupBy(visibilityPrompts.siteId)
+    const promptsBySite = new Map(promptCounts.map((row) => [row.siteId, Number(row.count)]))
+
     return rows.map((site) => {
       const audit = bySite.get(site.id)
       return {
@@ -85,6 +99,8 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         repoFullName: site.repoFullName ?? null,
         gscVerificationStatus: site.gscVerificationStatus,
         gscVerificationPrUrl: site.gscVerificationPrUrl ?? null,
+        businessProfileConnected: Boolean(site.gbpCid || site.gbpPlaceId),
+        trackedPrompts: promptsBySite.get(site.id) ?? 0,
         latestAudit: audit
           ? {
               id: audit.id,

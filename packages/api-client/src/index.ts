@@ -41,6 +41,10 @@ export interface Site {
   gscVerificationStatus?: 'none' | 'pr_open' | 'merged' | 'verified'
   /** The open (or merged) pull request that adds the verification meta tag, if any. */
   gscVerificationPrUrl?: string | null
+  /** A Google Business Profile link is attached to this site. */
+  businessProfileConnected?: boolean
+  /** How many AI-visibility questions are tracked for this site. */
+  trackedPrompts?: number
   latestAudit?: AuditSummary
 }
 

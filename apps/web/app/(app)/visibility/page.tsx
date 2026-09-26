@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { QuestionMiner } from './question-miner'
+import { VisibilityPrompts } from './tracked-questions'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
@@ -258,6 +259,17 @@ export default async function VisibilityPage({
         button that asks them to invent questions from memory.
       */}
       {site && <QuestionMiner siteId={site.id} />}
+
+      {/* Edit or remove tracked questions, and set competitors and the brand name. */}
+      {site && (
+        <section className="mt-8">
+          <h2 className="h-section mb-1">Tracked questions, competitors and brand</h2>
+          <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
+            Remove a question, add your own, or list the competitors to compare against.
+          </p>
+          <VisibilityPrompts siteId={site.id} siteUrl={site.url} />
+        </section>
+      )}
     </main>
   )
 }

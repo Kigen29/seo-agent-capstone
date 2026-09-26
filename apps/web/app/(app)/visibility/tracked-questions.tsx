@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { loadVisibility, saveVisibility } from './actions'
+import { loadVisibility, saveVisibility } from '../dashboard/actions'
 
 /**
  * The questions we ask the answer engines on this site's behalf.
@@ -102,7 +102,7 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
     return (
       <div className="flex flex-col items-start gap-1">
         <button type="button" className="btn btn-ghost" onClick={toggle} disabled={pending}>
-          {pending ? 'Loading...' : 'AI visibility prompts'}
+          {pending ? 'Loading...' : 'Edit questions and competitors'}
         </button>
         {error && (
           <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">

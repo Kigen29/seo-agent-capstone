@@ -16,7 +16,16 @@ import { loadBusinessProfile, saveBusinessProfile } from './actions'
  * two derived links rather than the raw identifiers, because the links are the part a person can
  * click to check we read their profile and not the shop next door.
  */
-export function BusinessProfile({ siteId, siteUrl }: { siteId: string; siteUrl: string }) {
+export function BusinessProfile({
+  siteId,
+  siteUrl,
+  label = 'Google Business Profile',
+}: {
+  siteId: string
+  siteUrl: string
+  /** What the closed button says: "Add profile" or "Change", depending on the current state. */
+  label?: string
+}) {
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
   const [link, setLink] = useState('')
@@ -75,8 +84,8 @@ export function BusinessProfile({ siteId, siteUrl }: { siteId: string; siteUrl: 
   if (!open) {
     return (
       <div className="flex flex-col items-start gap-1">
-        <button type="button" className="btn btn-ghost" onClick={toggle} disabled={pending}>
-          {pending ? 'Loading...' : 'Google Business Profile'}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={toggle} disabled={pending}>
+          {pending ? 'Loading...' : label}
         </button>
         {error && (
           <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
@@ -91,6 +100,8 @@ export function BusinessProfile({ siteId, siteUrl }: { siteId: string; siteUrl: 
     <div
       className="card"
       style={{
+        // Opens inside a narrow action slot on the setup checklist; keep the form usable.
+        width: 'min(32rem, 100%)',
         padding: 'var(--space-4)',
         marginTop: 'var(--space-3)',
         display: 'flex',
