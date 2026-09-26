@@ -61,3 +61,13 @@ export type { OutcomeEffect, PullRequestOutcome } from './pr-outcome.js'
 
 export { listOutcomes, OUTCOME_STATUSES } from './outcomes.js'
 export type { FixOutcome, OutcomeStatus, SiteOutcomes } from './outcomes.js'
+export {
+  addTraffic,
+  CLICKS_METRIC,
+  hasTraffic,
+  IMPRESSIONS_METRIC,
+  measurePageTraffic,
+  trafficReadyAt,
+  trafficWindows,
+} from './traffic-outcome.js'
+export type { PageTraffic } from './traffic-outcome.js'

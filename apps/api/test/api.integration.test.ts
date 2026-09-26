@@ -3176,6 +3176,139 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('search traffic for fix outcomes', () => {
+    it('records both windows once the after-window has closed, and only once', async () => {
+      const { recordTrafficOutcomes } = await import('../../worker/src/traffic-outcomes.js')
+      const { baselineFor, verificationFor, CLICKS_METRIC } = await import('@seo/audit')
+      const { encryptToken } = await import('@seo/connectors')
+      const DAY = 86_400_000
+      const now = new Date('2026-09-26T12:00:00.000Z')
+      const pages = ['https://traffic.example.com/a']
+
+      const { trafficTenant, readyId, earlyId } = await asOwner(db, async (tx) => {
+        const [tenant] = await tx
+          .insert(tenants)
+          .values({ name: `traffic-${Date.now()}` })
+          .returning()
+        const [site] = await tx
+          .insert(sites)
+          .values({
+            tenantId: tenant!.id,
+            url: 'https://traffic.example.com',
+            gscProperty: 'sc-domain:traffic.example.com',
+          })
+          .returning()
+        await tx.insert(oauthCredentials).values({
+          tenantId: tenant!.id,
+          provider: 'google',
+          refreshTokenEncrypted: encryptToken('refresh-token'),
+        })
+        const [audit] = await tx
+          .insert(audits)
+          .values({ tenantId: tenant!.id, siteId: site!.id, status: 'complete' })
+          .returning()
+        const merged = { id: 'x', ruleId: 'TECH-022', affectedUrls: pages }
+        const insertVerified = async (key: string, verifiedAt: Date) => {
+          const [row] = await tx
+            .insert(findings)
+            .values({
+              tenantId: tenant!.id,
+              siteId: site!.id,
+              auditId: audit!.id,
+              ruleId: 'TECH-022',
+              key,
+              axis: 'crawl_health',
+              severity: 'critical',
+              confidence: 1,
+              title: `fixed ${key}`,
+              evidence: {
+                kind: 'markup',
+                url: pages[0]!,
+                locator: 'a',
+                snippet: '{}',
+                observedAt: now.toISOString(),
+                source: 'crawler',
+              },
+              affectedUrls: pages,
+              estimatedEffort: 'trivial',
+              estimatedImpact: 90,
+              falsification: 'still 404',
+              fixable: true,
+              status: 'verified',
+              baseline: baselineFor(merged, new Date(verifiedAt.getTime() - 4 * DAY)),
+              verification: verificationFor(merged, 'verified', [], verifiedAt),
+            })
+            .returning({ id: findings.id })
+          return row!.id
+        }
+        return {
+          trafficTenant: tenant!.id,
+          readyId: await insertVerified('ready', new Date(now.getTime() - 40 * DAY)),
+          earlyId: await insertVerified('early', new Date(now.getTime() - 5 * DAY)),
+        }
+      })
+
+      // Fake Google: the token refresh, then page rows that differ by window.
+      const fetch = vi.fn(
+        async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+          const u = String(input)
+          const json = (data: unknown) =>
+            ({
+              ok: true,
+              status: 200,
+              json: async () => data,
+              text: async () => JSON.stringify(data),
+            }) as Response
+          if (u.includes('oauth2.googleapis.com/token'))
+            return json({ access_token: 'a', expires_in: 3600 })
+          if (u.includes('/searchAnalytics/query')) {
+            const body = JSON.parse(String(init?.body)) as { startDate: string }
+            const afterFix = body.startDate >= '2026-08-17'
+            return json({
+              rows: [
+                {
+                  keys: ['https://traffic.example.com/a'],
+                  clicks: afterFix ? 9 : 1,
+                  impressions: afterFix ? 300 : 20,
+                },
+                { keys: ['https://traffic.example.com/elsewhere'], clicks: 500, impressions: 9000 },
+              ],
+            })
+          }
+          throw new Error(`unexpected fetch to ${u}`)
+        },
+      )
+      const config = { clientId: 'c', clientSecret: 's', redirectUri: 'http://localhost/cb' }
+
+      try {
+        expect(await recordTrafficOutcomes(db, { now, config, fetch: fetch as never })).toBe(1)
+        const read = async (id: string) => {
+          const [row] = await withTenant(db, trafficTenant, (tx) =>
+            tx
+              .select({ verification: findings.verification })
+              .from(findings)
+              .where(eq(findings.id, id)),
+          )
+          return row!.verification!
+        }
+        const ready = await read(readyId)
+        const clicks = (snapshot: typeof ready.after) =>
+          snapshot.metrics.find((m) => m.metric === CLICKS_METRIC)?.value
+        expect(clicks(ready.before)).toBe(1)
+        expect(clicks(ready.after)).toBe(9)
+        // Verified five days ago: its after-window has not closed, so it is left alone.
+        expect(clicks((await read(earlyId)).after)).toBeUndefined()
+
+        // Already measured: a second run asks Google nothing more and changes nothing.
+        const calls = fetch.mock.calls.length
+        expect(await recordTrafficOutcomes(db, { now, config, fetch: fetch as never })).toBe(0)
+        expect(fetch.mock.calls.length).toBe(calls)
+      } finally {
+        await asOwner(db, (tx) => tx.delete(tenants).where(eq(tenants.id, trafficTenant)))
+      }
+    })
+  })
+
   describe('suggesting AI-visibility questions', () => {
     const homepage = `<html><head><title>Solian Girls Senior School</title>
       <meta name="description" content="A girls' boarding school in Nakuru"></head>
