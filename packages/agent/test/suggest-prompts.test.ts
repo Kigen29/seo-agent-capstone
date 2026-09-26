@@ -6,7 +6,7 @@ import {
 } from '../src/suggest-prompts.js'
 
 const fake = (prompts: { prompt: string; reason: string }[]) => {
-  const object = vi.fn(async () => ({ output: { prompts } }))
+  const object = vi.fn(async (_opts: unknown) => ({ output: { prompts } }))
   return { llm: { object } as unknown as PromptSuggestionLlm, object }
 }
 
@@ -23,7 +23,11 @@ describe('suggestVisibilityPrompts', () => {
       existing: ['best girls boarding schools in kenya'],
     })
     expect(object).toHaveBeenCalledTimes(1)
-    const call = object.mock.calls[0]![0] as { role: string; tenantId: string; prompt: string }
+    const call = object.mock.calls[0]![0] as unknown as {
+      role: string
+      tenantId: string
+      prompt: string
+    }
     expect(call.role).toBe('smart')
     expect(call.tenantId).toBe('tenant-1')
     expect(call.prompt).toContain('Market: Kenya')
