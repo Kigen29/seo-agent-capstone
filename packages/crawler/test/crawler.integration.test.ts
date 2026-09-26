@@ -3,6 +3,9 @@ import { crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from '../src/crawl/crawl
 import type { CrawlResult } from '../src/crawl/types.js'
 import { startTestSite, type TestSite } from './server.js'
 
+/** The fixture server listens on 127.0.0.1, which production egress rightly refuses. */
+const LOCAL = { allowPrivateNetwork: true }
+
 /**
  * A real browser against a real HTTP server. Slower than the unit tests and worth every
  * second: the story's falsification condition is "the crawler hammers a site, gets
@@ -15,7 +18,7 @@ describe('crawl: against a live server', () => {
 
   beforeAll(async () => {
     site = await startTestSite()
-    result = await crawl({ seed: site.origin, delayMs: 0, concurrency: 2 })
+    result = await crawl({ seed: site.origin, egress: LOCAL, delayMs: 0, concurrency: 2 })
   }, 120_000)
 
   afterAll(async () => {
@@ -162,7 +165,7 @@ describe('crawl: politeness', () => {
 
     try {
       const started = Date.now()
-      await crawl({ seed: site.origin, delayMs: 150, concurrency: 3, maxPages: 4 })
+      await crawl({ seed: site.origin, egress: LOCAL, delayMs: 150, concurrency: 3, maxPages: 4 })
       const elapsed = Date.now() - started
 
       // Four pages at 150ms apart is at least 450ms of enforced waiting. If the gate were
@@ -191,7 +194,7 @@ describe('crawl: a failing persistence hook', () => {
       let seen = 0
 
       const failing = crawl(
-        { seed: site.origin, delayMs: 0, concurrency: 1, maxPages: 6 },
+        { seed: site.origin, egress: LOCAL, delayMs: 0, concurrency: 1, maxPages: 6 },
         {
           onPage: () => {
             seen += 1
@@ -214,6 +217,7 @@ describe('crawl: a failing persistence hook', () => {
 
       const resumed = await crawl({
         seed: site.origin,
+        egress: LOCAL,
         delayMs: 0,
         concurrency: 1,
         maxPages: 6,
@@ -234,13 +238,20 @@ describe('crawl: resumability', () => {
     const site = await startTestSite()
 
     try {
-      const first = await crawl({ seed: site.origin, delayMs: 0, maxPages: 2, concurrency: 1 })
+      const first = await crawl({
+        seed: site.origin,
+        egress: LOCAL,
+        delayMs: 0,
+        maxPages: 2,
+        concurrency: 1,
+      })
       expect(first.pages).toHaveLength(2)
 
       const before = site.requests.filter((r) => r.url === '/').length
 
       const second = await crawl({
         seed: site.origin,
+        egress: LOCAL,
         delayMs: 0,
         maxPages: 6,
         concurrency: 1,

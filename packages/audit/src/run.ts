@@ -6,7 +6,14 @@ import {
   type Scorecard,
 } from '@seo/core'
 import { canFixFinding } from '@seo/fixers'
-import { buildLinkGraph, crawl, toGraphPages, type CrawledPage } from '@seo/crawler'
+import {
+  buildLinkGraph,
+  crawl,
+  toGraphPages,
+  type CrawledPage,
+  type CrawlResult,
+  type EgressPolicy,
+} from '@seo/crawler'
 import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
 import {
   budgeted,
@@ -120,6 +127,8 @@ export interface RunAuditOptions {
   seed: string
   maxPages?: number
   concurrency?: number
+  /** Where the crawler may connect. Only tests set this, to reach fixtures on 127.0.0.1. */
+  egress?: EgressPolicy
   /** Called on every page, for a caller that wants to print progress to a terminal. */
   onProgress?: (crawled: number) => void
   /** CrUX API key for the performance axis. Falls back to GOOGLE_CRUX_API_KEY. */
@@ -188,11 +197,15 @@ const PROGRESS_INTERVAL_MS = 1_000
  * returning 404 is a real, catastrophic finding about a site that genuinely responded, and
  * the rules should absolutely report it.
  */
-function assertSiteWasReachable(pages: CrawledPage[], seed: string): void {
+function assertSiteWasReachable(
+  { pages, skipped }: Pick<CrawlResult, 'pages' | 'skipped'>,
+  seed: string,
+): void {
   const reachedSomething = pages.some((page) => page.status > 0)
   if (reachedSomething) return
 
-  const why = pages[0]?.error ?? 'no pages were fetched'
+  // A seed the egress policy refused is never fetched, so its reason is on the skip, not a page.
+  const why = pages[0]?.error ?? skipped[0]?.reason ?? 'no pages were fetched'
 
   throw new Error(
     `Could not reach ${seed}: ${why}. No page responded, so there is nothing to audit. ` +
@@ -276,11 +289,16 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     }
 
     const result = await crawl(
-      { seed, maxPages: options.maxPages ?? 50, concurrency: options.concurrency ?? 2 },
+      {
+        seed,
+        maxPages: options.maxPages ?? 50,
+        concurrency: options.concurrency ?? 2,
+        egress: options.egress,
+      },
       { onPage },
     )
 
-    assertSiteWasReachable(result.pages, seed)
+    assertSiteWasReachable(result, seed)
 
     await withTenant(db, tenantId, (tx) =>
       tx

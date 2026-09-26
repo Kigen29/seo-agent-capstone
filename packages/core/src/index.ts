@@ -71,3 +71,5 @@ export {
 export type { AxisCoverage, AxisScore, AxisStatus, Scorecard, ScorecardInput } from './scorecard.js'
 
 export { assertTestDatabase } from './test-database.js'
+
+export { isPrivateAddress } from './network.js'
