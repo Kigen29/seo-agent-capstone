@@ -52,16 +52,19 @@ export interface SuggestedPrompt {
 
 export const MAX_SUGGESTIONS = 8
 
+/**
+ * What the model is asked to return. Deliberately unbounded: length and count limits in the schema
+ * either get the whole request rejected by a provider's strict structured-output mode, or turn one
+ * over-long reason into a failed call and a charge for nothing. The limits are enforced below, in
+ * code, where one bad entry is dropped instead of sinking the rest.
+ */
 const suggestionSchema = z.object({
-  prompts: z
-    .array(
-      z.object({
-        prompt: z.string().min(10).max(200),
-        reason: z.string().min(3).max(200),
-      }),
-    )
-    .max(12),
+  prompts: z.array(z.object({ prompt: z.string(), reason: z.string() })),
 })
+
+const MIN_PROMPT = 10
+const MAX_PROMPT = 200
+const MAX_REASON = 200
 
 const SYSTEM = [
   'You draft the questions a real potential customer would type into an AI assistant',
@@ -113,10 +116,12 @@ export async function suggestVisibilityPrompts(
   for (const entry of output.prompts) {
     const prompt = normalise(entry.prompt)
     const key = prompt.toLowerCase()
+    if (prompt.length < MIN_PROMPT || prompt.length > MAX_PROMPT) continue
     if (seen.has(key)) continue
     if (brand && brand.length > 2 && key.includes(brand)) continue
     seen.add(key)
-    kept.push({ prompt, reason: normalise(entry.reason.replace(/\s*—\s*/g, ', ')) })
+    const reason = normalise(entry.reason.replace(/\s*\u2014\s*/g, ', ')).slice(0, MAX_REASON)
+    kept.push({ prompt, reason })
     if (kept.length === MAX_SUGGESTIONS) break
   }
   return kept

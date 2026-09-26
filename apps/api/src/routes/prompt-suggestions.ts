@@ -104,10 +104,12 @@ export function promptSuggestionRoutes(app: FastifyInstance, deps: RouteDeps): v
             })
           }
           request.log.warn({ err: message }, 'prompt suggestions failed')
+          // Name the cause, briefly. A bare "did not answer" gave nobody anything to act on when a
+          // real key first met a real provider; the provider's own sentence usually does.
+          const reason = message.replace(/\s+/g, ' ').slice(0, 180)
           return reply.status(502).send({
             error: 'Bad Gateway',
-            message:
-              'The model did not answer. Nothing was charged beyond what it used; try again.',
+            message: `The model call failed: ${reason}`,
           })
         }
       },

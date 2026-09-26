@@ -66,4 +66,18 @@ describe('suggestVisibilityPrompts', () => {
     const out = await suggestVisibilityPrompts(fake(many).llm, 't', { url: 'https://x.test' })
     expect(out).toHaveLength(MAX_SUGGESTIONS)
   })
+
+  it('drops entries outside the length limits instead of failing the whole call', async () => {
+    const out = await suggestVisibilityPrompts(
+      fake([
+        { prompt: 'Too short', reason: 'Nine characters' },
+        { prompt: 'x'.repeat(201), reason: 'Too long' },
+        { prompt: 'Which schools in Nakuru offer boarding?', reason: 'r'.repeat(250) },
+      ]).llm,
+      't',
+      { url: 'https://x.test' },
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0]!.reason).toHaveLength(200)
+  })
 })
