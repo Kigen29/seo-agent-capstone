@@ -1,0 +1,51 @@
+# Weekly backup restore drill against production.
+#
+# Dumps the production database inside one read-only snapshot, restores it into an empty
+# Postgres that exists only for this job, and fails unless the copy matches the snapshot
+# exactly: row counts, columns, RLS, policies and grants. See scripts/restore-drill.sh.
+#
+# The repository is public. The dump is written to the runner's temporary disk and deleted with
+# it; it is never uploaded as an artifact, and the log prints names and verdicts, never data or
+# counts. The only credential is the DATABASE_URL secret the migrate workflow already uses.
+name: restore-drill
+
+on:
+  schedule:
+    # Mondays 04:17 UTC: off the hour, when GitHub's scheduler is least congested.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      target:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Dump production, restore it, and compare
+        env:
+          SOURCE_URL: ${{ secrets.DATABASE_URL }}
+          TARGET_URL: postgresql://postgres@localhost:5432/drill
+        run: bash scripts/restore-drill.sh

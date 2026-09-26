@@ -97,3 +97,12 @@ jobs:
       # precisely the ones a mock would cheerfully lie about.
       - name: End-to-end
         run: pnpm --filter @seo/web e2e
+
+      # The restore drill (scripts/restore-drill.sh) runs weekly against production. Running it
+      # here too, on the database the suites above just populated, keeps the script honest on every
+      # change: a schema feature pg_dump or the fingerprint cannot round-trip fails the PR that
+      # introduced it rather than a Monday morning weeks later.
+      - name: Restore drill against the test database
+        run: |
+          docker run --rm --network host postgres:18             psql postgresql://postgres@localhost:5432/seo_test -c 'create database drill_target'
+          SOURCE_URL=postgresql://postgres@localhost:5432/seo_test           TARGET_URL=postgresql://postgres@localhost:5432/drill_target             bash scripts/restore-drill.sh

@@ -40,7 +40,8 @@ Status is evidence-based: checked items are implemented, not necessarily deploye
 - [ ] Bounded parallel audit stages and independent dashboard rendering.
 - [ ] Correlated timing, readiness, worker heartbeat and alerts.
 - [ ] Database query profiles and performance targets under load.
-- [ ] Encrypted backups, restore drill, retention and capacity limits.
+- [x] Restore drill: weekly against production and on every CI run (#201).
+- [ ] Retained, encrypted off-vendor backups and capacity limits (Neon Free keeps only 6 hours of history).
 - [ ] Expand/contract migration release workflow and snapshot repair.
 
 ## Current product and full roadmap
@@ -203,3 +204,16 @@ Not yet enabled: Render's forum disagrees on whether it overwrites or appends to
 A temporary, env-gated route (#198) echoed the forwarding headers of our own requests to the live service. Every request reaches the process from a local proxy on `127.0.0.1`, so before this change every anonymous visitor was counted as the same address and shared a single five-per-day allowance worldwide. X-Forwarded-For arrived as `[client-written entries], real client, Cloudflare edge (172.x), Render load balancer (10.x)`: with a spoofed `1.2.3.4, 5.6.7.8` header, both values survived on the left, confirming Render appends rather than overwrites. The real client is exactly three hops back from our side, beyond the reach of anything a client writes, and matched the measuring machine's public address.
 
 `TRUSTED_PROXY_HOPS=3` is set in `render.yaml` and the diagnostic route is removed. A regression test replays the recorded production chain, spoofed prefix included, and resolves the real client. Local: 204 API tests passed; type checks and lint passed.
+
+
+## Backup restore drill (#201)
+
+`scripts/restore-drill.sh` dumps a database inside one read-only, repeatable-read snapshot (through Neon's direct endpoint, because the pooler cannot hold an exported snapshot), restores it into an empty Postgres with `pg_restore --exit-on-error`, and compares a fingerprint taken from the source inside that same snapshot against the restored copy: every table's row count, every column's type, nullability and default, row-level security flags, every policy (roles and a hash of its expressions) and every grant to `seo_app`. Roles are cluster objects, so the target gets login-less shells for them first. The log prints names and verdicts only; the dump never leaves the runner.
+
+It runs weekly against production (`.github/workflows/restore-drill.yml`, Mondays 04:17 UTC, also on demand) and on every CI run against the freshly populated test database, so a schema change that cannot round-trip fails its own PR.
+
+Local evidence: against the local test database the drill passed (17 tables, 145 columns, 14 policies, 16 RLS flags, 56 grants; dump and restore about 3 seconds each). Deleting one tenant row and dropping one policy in the restored copy made it fail with exit 1, naming the dropped policy and the three tables whose counts changed (the tenant delete cascades), without printing any values.
+
+What this does not provide: retention. Neon's Free plan keeps a 6-hour history window, so data damage noticed later than that cannot be undone from Neon, and the drill deliberately discards its dump. Retained, encrypted, off-vendor backups remain open.
+
+Emergency restore from a dump: create an empty Postgres, create the `seo_app` role (`create role seo_app nologin`), then `pg_restore --no-owner --exit-on-error --dbname <new-url> <dump>`, and point `DATABASE_URL` at it (ADR-0007: nothing else names the host).
