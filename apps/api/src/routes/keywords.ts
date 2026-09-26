@@ -1,5 +1,6 @@
 import { siteQueries } from '@seo/audit'
 import {
+  DataForSeoError,
   DEFAULT_GAP_LIMIT,
   DEFAULT_KEYWORD_LIMIT,
   KeywordBudgetError,
@@ -13,6 +14,22 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
+
+/**
+ * The vendor said no: bad credentials, an empty balance, a market it does not cover.
+ *
+ * Answered as a note, not a 500. The web page renders a 500 as "Something broke", which tells the
+ * person nothing; the vendor's own message says what to fix. It never contains the credentials,
+ * because postTask builds the auth header and never puts it in an error.
+ */
+function vendorRefusal(error: DataForSeoError): string {
+  return (
+    `The keyword data source refused this search (${error.message}). ` +
+    'Nothing was measured, so this is empty rather than zero. If it says the balance is too low ' +
+    'or the login failed, fix that in the DataForSEO account; if it names the location, try ' +
+    'another country.'
+  )
+}
 
 /** Keyword research. The one route in the API that can spend money, so it is the one with a budget. */
 export function keywordRoutes(app: FastifyInstance, deps: RouteDeps): void {
@@ -81,6 +98,13 @@ export function keywordRoutes(app: FastifyInstance, deps: RouteDeps): void {
             error: 'Too Many Requests',
             message: `${error.message}. The cap resets at the start of next calendar month.`,
           })
+        }
+        if (error instanceof DataForSeoError) {
+          request.log.warn(
+            { vendorStatus: error.status, reason: error.message },
+            'keyword ideas refused',
+          )
+          return { seed: request.query.seed, ideas: [], note: vendorRefusal(error) }
         }
         throw error
       }
@@ -175,6 +199,18 @@ export function keywordRoutes(app: FastifyInstance, deps: RouteDeps): void {
             error: 'Too Many Requests',
             message: `${error.message}. The cap resets at the start of next calendar month.`,
           })
+        }
+        if (error instanceof DataForSeoError) {
+          request.log.warn(
+            { vendorStatus: error.status, reason: error.message },
+            'keyword gap refused',
+          )
+          return {
+            competitor: request.query.competitor,
+            keywords: [],
+            subtracted: null,
+            note: vendorRefusal(error),
+          }
         }
         throw error
       }
