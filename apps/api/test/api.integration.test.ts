@@ -31,7 +31,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import { bearerToken, generateToken, hashToken } from '../src/auth.js'
-import { signInstallState } from '../src/github-state.js'
+import { signInstallState, verifyInstallState } from '../src/github-state.js'
 
 /** The fake GitHub App injected into the API: it lists one repo and signs webhooks with a
  * known secret, so the connect, callback, and webhook routes can be exercised without GitHub. */
@@ -76,6 +76,8 @@ describe.skipIf(!shouldRun)('the API', () => {
   const confirmEnqueued: ConfirmVerifyJob[] = []
   const fixEnqueued: FixJob[] = []
   let failFixQueue = false
+  /** What GitHub reports the signed-in user can reach, for the installation-discovery leg. */
+  let userInstallations: number[] = []
   let failVerifyQueue = false
   const verifyFixEnqueued: VerifyFixJob[] = []
 
@@ -142,7 +144,9 @@ describe.skipIf(!shouldRun)('the API', () => {
           fetch: async (url) =>
             String(url).includes('access_token')
               ? Response.json({ access_token: 'user-test-token' })
-              : Response.json({ repositories: [] }),
+              : String(url).includes('/user/installations?')
+                ? Response.json({ installations: userInstallations.map((id) => ({ id })) })
+                : Response.json({ repositories: [] }),
         },
         app: {
           // apiFor is exercised by the fixer stories, not here; listing is what the callback uses.
@@ -683,13 +687,66 @@ describe.skipIf(!shouldRun)('the API', () => {
         payload: body,
       })
 
-    it('hands back a signed install URL for a site the caller owns', async () => {
+    it('starts with GitHub sign-in, to find an existing installation before installing', async () => {
       const res = await postJson('/connections/github', { siteId }, token)
 
       expect(res.statusCode).toBe(200)
-      const url = res.json().url as string
-      expect(url).toContain('github.com/apps/rankwright-seo-agent/installations/select_target')
-      expect(url).toContain('state=')
+      const url = new URL(res.json().url as string)
+      expect(url.origin + url.pathname).toBe('https://github.com/login/oauth/authorize')
+      expect(url.searchParams.get('client_id')).toBe('test-id')
+      const state = verifyInstallState(url.searchParams.get('state')!)
+      expect(state).toMatchObject({ tenantId, siteId, discover: true })
+    })
+
+    it('binds an installation the user can already reach, instead of reinstalling', async () => {
+      // The App installed from elsewhere: this tenant has no installation on record, but GitHub
+      // says the signed-in user can reach one. Before, this path showed "installation cancelled".
+      const otherSite = await withTenant(db, otherTenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId: otherTenantId, url: 'https://owned.example.com/discovery' })
+          .returning()
+        return row!.id
+      })
+      userInstallations = [INSTALLATION_ID]
+      try {
+        const state = signInstallState({
+          tenantId: otherTenantId,
+          siteId: otherSite,
+          discover: true,
+        })
+        const res = await app.inject({
+          method: 'GET',
+          url: `/connections/github/callback?code=user-code&state=${encodeURIComponent(state)}`,
+        })
+        expect(res.headers.location).toContain('github=connected')
+        const [site] = await withTenant(db, otherTenantId, (tx) =>
+          tx.select().from(sites).where(eq(sites.id, otherSite)),
+        )
+        expect(site).toMatchObject({
+          githubInstallationId: INSTALLATION_ID,
+          repoFullName: 'octo/owned',
+        })
+      } finally {
+        userInstallations = []
+        await withTenant(db, otherTenantId, (tx) => tx.delete(sites).where(eq(sites.id, otherSite)))
+      }
+    })
+
+    it('sends the user to install only when they can reach no installation', async () => {
+      userInstallations = []
+      const state = signInstallState({ tenantId, siteId, discover: true })
+      const res = await app.inject({
+        method: 'GET',
+        url: `/connections/github/callback?code=user-code&state=${encodeURIComponent(state)}`,
+      })
+      const location = new URL(res.headers.location as string)
+      expect(location.origin + location.pathname).toBe(
+        'https://github.com/apps/rankwright-seo-agent/installations/select_target',
+      )
+      // The install leg carries a fresh state without the discovery flag.
+      const next = verifyInstallState(location.searchParams.get('state')!)
+      expect(next).toEqual({ tenantId, siteId })
     })
 
     it('returns 404, not 403, for another tenant’s site', async () => {

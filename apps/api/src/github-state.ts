@@ -24,6 +24,8 @@ export interface GithubInstallState {
   tenantId: string
   siteId: string
   installationId?: number
+  /** Ask GitHub which existing installations the user can reach before offering an install. */
+  discover?: boolean
 }
 
 function stateSecret(): Buffer {
@@ -43,6 +45,7 @@ export function signInstallState(state: GithubInstallState, now = Date.now()): s
       tenantId: state.tenantId,
       siteId: state.siteId,
       installationId: state.installationId,
+      ...(state.discover ? { discover: true } : {}),
       iat: now,
     }),
   )
@@ -67,7 +70,7 @@ export function verifyInstallState(
   if (a.length !== b.length || !timingSafeEqual(a, b)) return undefined
 
   try {
-    const { tenantId, siteId, installationId, iat } = JSON.parse(
+    const { tenantId, siteId, installationId, discover, iat } = JSON.parse(
       Buffer.from(payload, 'base64url').toString('utf8'),
     )
     if (typeof tenantId !== 'string' || typeof siteId !== 'string' || typeof iat !== 'number') {
@@ -79,7 +82,12 @@ export function verifyInstallState(
       (!Number.isSafeInteger(installationId) || installationId <= 0)
     )
       return undefined
-    return { tenantId, siteId, ...(installationId === undefined ? {} : { installationId }) }
+    return {
+      tenantId,
+      siteId,
+      ...(installationId === undefined ? {} : { installationId }),
+      ...(discover === true ? { discover: true } : {}),
+    }
   } catch {
     return undefined
   }

@@ -2,12 +2,14 @@ import {
   encryptToken,
   exchangeCode,
   verifyState,
+  listGitHubUserInstallations,
   verifyGitHubInstallationAccess,
 } from '@seo/connectors'
 import { withTenant, oauthCredentials, sites } from '@seo/db'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import type { InstalledRepo } from '@seo/vcs'
 import { z } from 'zod'
 import { signInstallState, verifyInstallState } from '../github-state.js'
 import type { RouteDeps } from '../options.js'
@@ -130,6 +132,56 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
       const verified = verifyInstallState(state)
       if (!verified) return reply.redirect(backToDashboardGithub('invalid'))
       const { tenantId, siteId } = verified
+
+      /**
+       * The discovery leg: the user has signed in with GitHub, before any install. Bind an
+       * installation they can already reach, or, only if there is none, send them to install.
+       */
+      if (verified.discover) {
+        const authorization = options.github.userAuthorization
+        if (!authorization) return reply.redirect(backToDashboardGithub('unavailable'))
+        if (!code) return reply.redirect(backToDashboardGithub('declined'))
+        try {
+          const reachable = await listGitHubUserInstallations(code, authorization)
+          if (!reachable) return reply.redirect(backToDashboardGithub('invalid'))
+          if (reachable.length === 0) {
+            const installState = signInstallState({ tenantId, siteId })
+            return reply.redirect(
+              `https://github.com/apps/${options.github.slug}/installations/select_target` +
+                `?state=${encodeURIComponent(installState)}`,
+            )
+          }
+
+          const site = await withTenant(db, tenantId, async (tx) => {
+            const [row] = await tx.select().from(sites).where(eq(sites.id, siteId)).limit(1)
+            return row
+          })
+          if (!site) return reply.redirect(backToDashboardGithub('invalid'))
+
+          const candidates: (InstalledRepo & { installationId: number })[] = []
+          for (const installationId of reachable) {
+            for (const repo of await options.github.app.listInstallationRepositories(
+              installationId,
+            )) {
+              candidates.push({ ...repo, installationId })
+            }
+          }
+          if (candidates.length === 0) return reply.redirect(backToDashboardGithub('norepo'))
+
+          // chooseRepoForSite returns one of the objects it was given, installation id included.
+          const chosen = chooseRepoForSite(candidates, site.url) as (typeof candidates)[number]
+          await withTenant(db, tenantId, (tx) =>
+            tx
+              .update(sites)
+              .set({ repoFullName: chosen.fullName, githubInstallationId: chosen.installationId })
+              .where(eq(sites.id, siteId)),
+          )
+          return reply.redirect(backToDashboardGithub('connected'))
+        } catch (err) {
+          console.error('github installation discovery failed', err)
+          return reply.redirect(backToDashboardGithub('failed'))
+        }
+      }
       const installationId = verified.installationId ?? suppliedInstallationId
       if (!installationId) return reply.redirect(backToDashboardGithub('invalid'))
       const authorization = options.github.userAuthorization

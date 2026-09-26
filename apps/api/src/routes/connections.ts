@@ -131,6 +131,30 @@ export function connectionRoutes(app: FastifyInstance, deps: RouteDeps): void {
           }
         }
 
+        /**
+         * No installation recorded for this tenant does not mean the App is not installed: it may
+         * have been installed from another tenant, or before this one existed. Sending that user to
+         * the install page lands on GitHub's "configure" page, which drops our state, and the
+         * callback reports a cancelled install. So sign the user in with GitHub first and ask which
+         * installations they can already reach; the callback installs only when there are none.
+         */
+        const authorization = options.github.userAuthorization
+        if (authorization) {
+          const params = new URLSearchParams({
+            client_id: authorization.clientId,
+            redirect_uri: authorization.redirectUri,
+            state: signInstallState({
+              tenantId: request.tenantId,
+              siteId: request.body.siteId,
+              discover: true,
+            }),
+          })
+          return {
+            mode: 'install' as const,
+            url: `https://github.com/login/oauth/authorize?${params}`,
+          }
+        }
+
         const state = signInstallState({
           tenantId: request.tenantId,
           siteId: request.body.siteId,
