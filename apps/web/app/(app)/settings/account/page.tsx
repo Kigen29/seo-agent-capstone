@@ -109,10 +109,10 @@ export default async function AccountSettingsPage({
         */}
         {budget.capMicros === 0 ? (
           <Note tone="info" className="mt-3">
-            This account has no paid budget. Everything free still works: crawling, all 31 rules,
-            the eight-axis scorecard, fix pull requests and Search Console verification. AI
-            visibility polling, keyword research and drafted outreach need a budget, and will say so
-            rather than failing quietly.
+            This account has no paid budget. Everything free still works: crawling, every rule, the
+            eight-axis scorecard, fix pull requests and Search Console verification. AI visibility
+            polling, keyword research and drafted outreach need a budget, and will say so rather
+            than failing quietly.
           </Note>
         ) : budget.allowed ? null : (
           <Note tone="warn" className="mt-3">

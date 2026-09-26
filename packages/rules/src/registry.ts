@@ -16,6 +16,7 @@ import { TECH_005, TECH_006, TECH_007 } from './rules/indexation.js'
 import { TECH_008, TECH_009, TECH_010 } from './rules/redirects.js'
 import { TECH_001, TECH_002 } from './rules/robots.js'
 import { TECH_003, TECH_004 } from './rules/sitemap.js'
+import { TECH_022 } from './rules/spa.js'
 import { TECH_013, TECH_014 } from './rules/structure.js'
 import type { Rule } from './types.js'
 
@@ -49,6 +50,7 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_019,
   TECH_020,
   TECH_021,
+  TECH_022,
   AGENT_001,
   AGENT_002,
   AGENT_003,
