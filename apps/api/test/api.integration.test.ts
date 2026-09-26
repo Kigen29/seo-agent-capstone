@@ -3085,6 +3085,97 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('fix outcomes', () => {
+    it('lists every proposed fix with its status, counts and recorded evidence', async () => {
+      const { baselineFor, verificationFor } = await import('@seo/audit')
+      const outcomeSite = await withTenant(db, tenantId, async (tx) => {
+        const [site] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://outcomes.example.com' })
+          .returning()
+        const [audit] = await tx
+          .insert(audits)
+          .values({ tenantId, siteId: site!.id, status: 'complete' })
+          .returning()
+        const pages = ['https://outcomes.example.com/a', 'https://outcomes.example.com/b']
+        const merged = { id: 'x', ruleId: 'TECH-022', affectedUrls: pages }
+        const row = (key: string, status: 'open' | 'pr_open' | 'verified' | 'rejected') => ({
+          tenantId,
+          siteId: site!.id,
+          auditId: audit!.id,
+          ruleId: 'TECH-022',
+          key,
+          axis: 'crawl_health' as const,
+          severity: 'critical' as const,
+          confidence: 1,
+          title: `SPA routes 404 (${key})`,
+          evidence: {
+            kind: 'markup' as const,
+            url: pages[0]!,
+            locator: 'a[href]',
+            snippet: '{}',
+            observedAt: '2026-09-26T00:00:00.000Z',
+            source: 'crawler' as const,
+          },
+          affectedUrls: pages,
+          estimatedEffort: 'trivial' as const,
+          estimatedImpact: 95,
+          falsification: 'A direct request to each affected URL still returns 404.',
+          fixable: true,
+          status,
+          prUrl: status === 'open' ? null : `https://github.com/o/r/pull/${key}`,
+          baseline: status === 'open' ? null : baselineFor(merged),
+          verification:
+            status === 'verified' || status === 'rejected'
+              ? verificationFor(
+                  merged,
+                  status,
+                  status === 'rejected'
+                    ? ([{ ruleId: 'TECH-022', affectedUrls: [pages[0]!] }] as never)
+                    : [],
+                )
+              : null,
+        })
+        await tx
+          .insert(findings)
+          .values([
+            row('1', 'open'),
+            row('2', 'pr_open'),
+            row('3', 'verified'),
+            row('4', 'rejected'),
+          ])
+        return site!.id
+      })
+
+      try {
+        const res = await get(`/sites/${outcomeSite}/outcomes`, token)
+        expect(res.statusCode).toBe(200)
+        const body = res.json() as {
+          counts: Record<string, number>
+          outcomes: {
+            status: string
+            falsification: string
+            baseline: { metrics: { value: number }[] } | null
+            verification: { summary: string; after: { metrics: { value: number }[] } } | null
+          }[]
+        }
+        // An open finding with no pull request is not an outcome yet.
+        expect(body.counts).toEqual({ pr_open: 1, merged: 0, verified: 1, rejected: 1 })
+        expect(body.outcomes).toHaveLength(3)
+        const byStatus = Object.fromEntries(body.outcomes.map((o) => [o.status, o]))
+        expect(byStatus.pr_open!.baseline!.metrics[0]!.value).toBe(2)
+        expect(byStatus.verified!.verification!.after.metrics[0]!.value).toBe(0)
+        expect(byStatus.rejected!.verification!.after.metrics[0]!.value).toBe(1)
+        expect(byStatus.rejected!.verification!.summary).toContain('did not work')
+        expect(byStatus.pr_open!.falsification).toContain('still returns 404')
+
+        expect((await get(`/sites/${outcomeSite}/outcomes`, otherToken)).statusCode).toBe(404)
+      } finally {
+        await withTenant(db, tenantId, (tx) => tx.delete(sites).where(eq(sites.id, outcomeSite)))
+      }
+    })
+  })
+
   describe('suggesting AI-visibility questions', () => {
     const homepage = `<html><head><title>Solian Girls Senior School</title>
       <meta name="description" content="A girls' boarding school in Nakuru"></head>
