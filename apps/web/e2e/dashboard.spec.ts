@@ -359,3 +359,22 @@ test('the dashboard says what is connected for the site, in words', async ({ pag
   await expect(setup.getByText(/of 5 done/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Reconnect' })).toHaveCount(0)
 })
+
+test('headings and text render in the self-hosted serif faces, not a fallback', async ({
+  page,
+}) => {
+  // The font variables once sat on <body> while :root read them, so every heading fell back to
+  // Georgia without anyone noticing. Assert the faces actually load and are the ones applied.
+  await signIn(page)
+  await page.goto('/dashboard')
+  await page.evaluate(() => document.fonts.ready)
+  const loaded = await page.evaluate(() =>
+    [...document.fonts].filter((face) => face.status === 'loaded').map((face) => face.family),
+  )
+  expect(loaded).toEqual(expect.arrayContaining(['cormorant', 'lora']))
+  const heading = await page
+    .locator('h1')
+    .first()
+    .evaluate((el) => getComputedStyle(el).fontFamily)
+  expect(heading.startsWith('cormorant')).toBe(true)
+})
