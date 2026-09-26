@@ -13,6 +13,15 @@ export function makeDispatcher(): () => Promise<void> {
   const repo = process.env.GITHUB_WORKER_REPO
   const token = process.env.GITHUB_WORKER_TOKEN
 
+  // Said once at startup, because the absent case is otherwise silent: a misspelled variable
+  // looked exactly like a working setup, with every audit quietly waiting for the schedule.
+  console.log(
+    repo && token
+      ? `dispatch: worker wake-up enabled for ${repo}`
+      : `dispatch: worker wake-up disabled (${!repo ? 'GITHUB_WORKER_REPO' : 'GITHUB_WORKER_TOKEN'} ` +
+          'is not set); queued jobs wait for the scheduled worker run.',
+  )
+
   if (!repo || !token) {
     return async () => {
       // No worker repo configured. The schedule in worker.yml will drain the queue.
