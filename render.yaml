@@ -13,7 +13,10 @@ services:
 
     # Build from the monorepo root: the API depends on five workspace packages, and pnpm
     # needs the lockfile and the workspace manifest to resolve them.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    # Only the API and the packages it depends on. A full `pnpm build` also built the Next.js web
+    # app (deployed separately, on Vercel), the MCP server and the eval harness, none of which this
+    # service runs, and the Next build is the memory- and time-hungriest step on a small builder.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@seo/api...
     startCommand: node apps/api/dist/server.js
 
     # Migrations are NOT run here, and that is deliberate rather than an omission.
