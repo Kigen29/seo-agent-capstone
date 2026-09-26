@@ -1,6 +1,6 @@
 import Link from 'next/link'
+import { connectGoogle } from '@/app/(app)/dashboard/actions'
 import { ApiAsleep } from '@/components/api-asleep'
-import { Note } from '@/components/ui/note'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -51,9 +51,13 @@ export default async function ConnectionsSettingsPage() {
             <>
               <span className="tag tag-neutral self-start">Not connected</span>
               <p className="text-muted m-0 text-sm">
-                Search and performance data will report themselves unmeasured until this is
-                connected. Connect it from the <Link href="/dashboard">dashboard</Link>.
+                Search data stays unmeasured until this is connected.
               </p>
+              <form action={connectGoogle}>
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Connect Search Console
+                </button>
+              </form>
             </>
           )}
         </div>
@@ -93,19 +97,16 @@ export default async function ConnectionsSettingsPage() {
             <>
               <span className="tag tag-neutral self-start">Not connected</span>
               <p className="text-muted m-0 text-sm">
-                Findings will still be raised, but none of them can become a pull request. Connect a
-                repository from the <Link href="/dashboard">dashboard</Link>.
+                Findings are still raised, but none can become a pull request until a site&apos;s
+                repository is connected. Repositories are connected per site.
               </p>
+              <Link href="/dashboard" className="btn btn-primary btn-sm self-start">
+                Connect a repository
+              </Link>
             </>
           )}
         </div>
       </section>
-
-      <Note tone="info">
-        Signing in and connecting are separate on purpose. Signing in proves who you are; connecting
-        grants the agent access to something. Bundling the two would be asking for a capability
-        under cover of a login button.
-      </Note>
     </div>
   )
 }

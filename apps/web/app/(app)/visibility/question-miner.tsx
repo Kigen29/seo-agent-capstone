@@ -102,7 +102,7 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
   }
 
   return (
-    <section className="mt-8">
+    <section id="questions" className="mt-8 scroll-mt-6">
       <h2 className="h-section mb-1">Which questions should we track?</h2>
       <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
         AI visibility checks whether assistants like ChatGPT and Google&apos;s AI answers mention
@@ -128,7 +128,7 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
               className="input"
               value={seed}
               onChange={(event) => setSeed(event.target.value)}
-              placeholder="floor tiles nairobi"
+              placeholder="for example, running shoes"
               autoComplete="off"
               spellCheck={false}
             />

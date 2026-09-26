@@ -245,7 +245,7 @@ test('the research pages render, and say unmeasured rather than zero', async ({ 
   await signIn(page)
 
   await page.goto('/visibility')
-  await expect(page.getByRole('heading', { name: /answer engines cite you/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /AI assistants mention you/i })).toBeVisible()
   // No prompts are seeded, so the axis must explain itself rather than report 0% share of voice.
   await expect(page.locator('main')).not.toContainText('0%')
 

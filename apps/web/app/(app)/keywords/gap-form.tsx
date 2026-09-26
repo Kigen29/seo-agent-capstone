@@ -17,12 +17,10 @@ import { useState } from 'react'
 export function GapForm({
   competitor,
   country,
-  siteUrl,
   seed,
 }: {
   competitor: string
   country: string
-  siteUrl: string
   /** Carried through so running a gap does not silently discard a keyword search above it. */
   seed: string
 }) {
@@ -59,7 +57,7 @@ export function GapForm({
               setValue(event.target.value)
               setPending(false)
             }}
-            placeholder="tileandcarpet.co.ke"
+            placeholder="competitor.com"
             autoComplete="off"
             spellCheck={false}
             className="input"
@@ -73,9 +71,7 @@ export function GapForm({
       </div>
 
       <p id="gap-help" className="text-muted m-0 text-[13px]">
-        What they rank for and {siteUrl} does not. Keywords your own Search Console says you already
-        appear for are removed first, because a third-party index sees a small site badly and would
-        otherwise sell you terms you already have. One billed query per comparison.
+        One small billed query per comparison.
       </p>
     </form>
   )

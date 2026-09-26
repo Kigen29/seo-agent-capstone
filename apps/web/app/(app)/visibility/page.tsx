@@ -99,8 +99,8 @@ export default async function VisibilityPage({
     <main id="main" className="wrap">
       <PageHeader
         kicker="Research"
-        title="Do the answer engines cite you?"
-        description="Every prompt is polled repeatedly across several days. A citation is only reported when it holds up across the window, because about 45% of citations appear in only one of three checks."
+        title="Do AI assistants mention you?"
+        description="Whether ChatGPT, Google's AI answers and similar assistants mention your site when customers ask about what you offer. Each question is checked several times over a few days before a mention counts, because their answers change from day to day."
       />
 
       {/*
@@ -115,14 +115,16 @@ export default async function VisibilityPage({
       {report && report.promptsConfigured === 0 && (
         <EmptyState
           figure="?"
-          title="Nobody has said what your customers ask"
+          title="No questions tracked yet"
           action={
-            <Link href="/dashboard" className="btn btn-primary">
-              Add prompts
-            </Link>
+            // The editor lives on this page now; the old link went to the dashboard, which no longer
+            // has it.
+            <a href="#questions" className="btn btn-primary">
+              Choose questions
+            </a>
           }
         >
-          {report.note}
+          Pick the questions your customers ask, and daily checks start. The agent can suggest them.
         </EmptyState>
       )}
 

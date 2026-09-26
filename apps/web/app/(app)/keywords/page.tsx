@@ -200,18 +200,12 @@ export default async function KeywordsPage({
         <section className="mt-10">
           <h2 className="h-section mb-1">What a competitor ranks for and you do not</h2>
           <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-            Measured against {site.url}. Every other tool in this category reads a third-party index
-            and stops there, which for a small site in a small market lists terms you already rank
-            for as opportunities. Your own Search Console data is the correction, and it runs before
-            you see the list.
+            Enter a competitor&apos;s site to see searches they appear for and {site.url} does not.
+            Searches you already appear for in your own Search Console are left out, so the list is
+            only real opportunities.
           </p>
 
-          <GapForm
-            competitor={competitor ?? ''}
-            country={market}
-            siteUrl={site.url}
-            seed={seed ?? ''}
-          />
+          <GapForm competitor={competitor ?? ''} country={market} seed={seed ?? ''} />
 
           {gap?.note && (
             <Note tone="warn" className="mt-4">
