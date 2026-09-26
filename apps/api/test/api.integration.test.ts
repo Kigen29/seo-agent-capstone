@@ -1629,6 +1629,18 @@ describe.skipIf(!shouldRun)('the API', () => {
             .where(eq(findings.id, retryFindingId)),
         )
         expect(row).toEqual({ status: 'pr_open', prUrl: adopted.url, fixError: null })
+        // The baseline "did it work?" is measured against, captured as the PR is recorded.
+        const [withBaseline] = await withTenant(db, tenantId, (tx) =>
+          tx
+            .select({ baseline: findings.baseline, affectedUrls: findings.affectedUrls })
+            .from(findings)
+            .where(eq(findings.id, retryFindingId)),
+        )
+        expect(withBaseline?.baseline?.metrics[0]).toMatchObject({
+          metric: 'TECH-007 failing pages',
+          value: withBaseline!.affectedUrls.length,
+          unit: 'count',
+        })
       } finally {
         await withTenant(db, tenantId, (tx) =>
           tx

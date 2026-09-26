@@ -47,6 +47,12 @@ export { clusterByCosine, cosine, SIMILARITY_THRESHOLD } from './cluster.js'
 export type { AuthorityResult } from './authority.js'
 
 export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'
+export {
+  baselineFor,
+  failingPagesMetric,
+  stillFailingCount,
+  verificationFor,
+} from './outcome-evidence.js'
 export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
 
 export { E2E, seedE2E } from './seed.js'
