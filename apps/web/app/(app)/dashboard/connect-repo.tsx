@@ -107,8 +107,13 @@ export function ConnectRepo({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-      <button type="button" className="btn btn-secondary" onClick={begin} disabled={pending}>
-        {pending ? 'Loading...' : repoFullName ? 'Reconnect repo' : 'Connect repo'}
+      <button
+        type="button"
+        className={repoFullName ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
+        onClick={begin}
+        disabled={pending}
+      >
+        {pending ? 'Loading...' : repoFullName ? 'Change repo' : 'Connect repo'}
       </button>
       {error && (
         <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">

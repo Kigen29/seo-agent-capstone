@@ -1,7 +1,5 @@
-import { connectGoogle } from '@/app/(app)/dashboard/actions'
-
 /**
- * The Search Console connection panel.
+ * Feedback after the Google OAuth round trip.
  *
  * States that must read differently, because "not connected" and "just failed" and "you
  * declined" are three different things and lumping them under one grey message is the kind
@@ -33,50 +31,17 @@ const TONE: Record<'ok' | 'warn' | 'error', string> = {
   error: 'note note-error',
 }
 
-export function GoogleConnection({
-  connection,
-  callback,
-}: {
-  connection: { connected: boolean; email?: string | null }
-  callback?: string
-}) {
+/**
+ * Only the outcome message after the Google OAuth round trip. The connection's state and its
+ * button now live on the dashboard's setup checklist; this keeps the "connected", "declined" and
+ * "failed" feedback where the redirect lands.
+ */
+export function GoogleCallbackNote({ callback }: { callback?: string }) {
   const message = callback && isCallbackStatus(callback) ? CALLBACK_MESSAGE[callback] : undefined
-
+  if (!message) return null
   return (
-    <section
-      className="card elev-sm"
-      style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)' }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--space-3)',
-        }}
-      >
-        <div>
-          <p style={{ margin: 0, fontWeight: 600 }}>Google Search Console</p>
-          <p style={{ margin: '5px 0 0', fontSize: 14, opacity: 0.75, maxWidth: '60ch' }}>
-            {connection.connected
-              ? `Connected as ${connection.email ?? 'your Google account'}. Real query and click data can now feed your audits.`
-              : 'Connect to pull real search queries, clicks, and impressions. We use OAuth and never see your password.'}
-          </p>
-        </div>
-
-        <form action={connectGoogle}>
-          <button type="submit" className="btn btn-secondary">
-            {connection.connected ? 'Reconnect' : 'Connect Search Console'}
-          </button>
-        </form>
-      </div>
-
-      {message && (
-        <p role="status" className={TONE[message.tone]} style={{ marginTop: 'var(--space-3)' }}>
-          {message.text}
-        </p>
-      )}
-    </section>
+    <p role="status" className={TONE[message.tone]} style={{ marginTop: 'var(--space-4)' }}>
+      {message.text}
+    </p>
   )
 }

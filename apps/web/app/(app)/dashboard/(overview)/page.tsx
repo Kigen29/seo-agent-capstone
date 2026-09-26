@@ -1,7 +1,7 @@
 import type { Audit, VisibilityReport } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
-import { GoogleConnection } from '@/components/google-connection'
+import { GoogleCallbackNote } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Note, type NoteTone } from '@/components/ui/note'
@@ -9,11 +9,9 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
 import { getClient, getSites } from '@/lib/session'
-import { startAudit, verifySite } from '../actions'
+import { startAudit } from '../actions'
 import { AddSite } from '../add-site'
-import { ConnectRepo } from '../connect-repo'
-import { BusinessProfile } from '../business-profile'
-import { VisibilityPrompts } from '../visibility-prompts'
+import { SetupChecklist } from '../setup-checklist'
 import { Overview } from './overview'
 
 export const dynamic = 'force-dynamic'
@@ -110,7 +108,7 @@ export default async function Dashboard({
         actions={<Link href="/findings">All findings &rarr;</Link>}
       />
 
-      <GoogleConnection connection={connections.google} callback={googleCallback} />
+      <GoogleCallbackNote callback={googleCallback} />
 
       <RepoCallback callback={githubCallback} />
 
@@ -133,6 +131,8 @@ export default async function Dashboard({
         </Note>
       )}
 
+      {activeSite && <SetupChecklist site={activeSite} google={connections.google} />}
+
       {activeSite && (
         <Overview
           site={activeSite}
@@ -150,113 +150,63 @@ export default async function Dashboard({
           Add one above to run your first audit. Everything else in RankWright hangs off a site.
         </EmptyState>
       ) : (
-        <div style={{ marginTop: 'var(--space-8)', display: 'grid', gap: 'var(--space-3)' }}>
-          {sites.map((site) => {
-            const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
-
-            return (
-              <div key={site.id} className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    justifyContent: 'space-between',
-                    gap: 'var(--space-4)',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <p className="card-title" style={{ margin: 0 }}>
-                    {site.url}
-                  </p>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-3)',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {site.latestAudit && (
-                      <Link href={`/audits/${site.latestAudit.id}`}>
-                        {running ? 'View progress' : 'View audit'}
-                      </Link>
-                    )}
-
-                    <ConnectRepo siteId={site.id} repoFullName={site.repoFullName ?? null} />
-
-                    {site.repoFullName &&
-                      connections.google.connected &&
-                      (site.gscVerificationStatus ?? 'none') === 'none' && (
-                        <form action={verifySite}>
-                          <input type="hidden" name="siteId" value={site.id} />
-                          <SubmitButton pendingLabel="Queueing...">Verify with a PR</SubmitButton>
-                        </form>
+        <div className="table-scroll mt-6">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Site</th>
+                <th>Last audit</th>
+                <th>Pages</th>
+                <th>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sites.map((site) => {
+                const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
+                const isActive = site.id === activeSite?.id
+                return (
+                  <tr key={site.id}>
+                    <td className="break-all">
+                      {hostOf(site.url)}
+                      {isActive && (
+                        <span className="text-muted ml-2 text-[12px]">(shown above)</span>
                       )}
-
-                    <form action={startAudit}>
-                      <input type="hidden" name="siteId" value={site.id} />
-                      <SubmitButton
-                        className="btn btn-secondary"
-                        pendingLabel="Queueing..."
-                        disabled={Boolean(running)}
-                      >
-                        {running ? 'Running...' : 'Run audit'}
-                      </SubmitButton>
-                    </form>
-                  </div>
-                </div>
-
-                {/* Status tags, so the connection and verification state is visible at a glance. */}
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    gap: 'var(--space-2)',
-                  }}
-                >
-                  {site.repoFullName ? (
-                    <span className="tag tag-outline">repo: {site.repoFullName}</span>
-                  ) : (
-                    <span className="tag tag-neutral">no repo connected</span>
-                  )}
-
-                  {site.gscVerificationStatus === 'verified' ? (
-                    <span
-                      className="tag"
-                      style={{
-                        background: 'var(--color-accent-100)',
-                        color: 'var(--color-accent-800)',
-                      }}
-                    >
-                      &#10003; Search Console verified
-                    </span>
-                  ) : site.gscVerificationStatus === 'merged' ? (
-                    <span className="tag tag-neutral">verifying with Google&hellip;</span>
-                  ) : site.gscVerificationStatus === 'pr_open' && site.gscVerificationPrUrl ? (
-                    <a
-                      href={site.gscVerificationPrUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="tag tag-outline"
-                    >
-                      verification PR open: review &amp; merge &rarr;
-                    </a>
-                  ) : null}
-                </div>
-
-                <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>
-                  {site.latestAudit
-                    ? `${site.latestAudit.status} · ${site.latestAudit.pagesCrawled} pages · ${new Date(site.latestAudit.startedAt).toLocaleString()}`
-                    : 'Never audited'}
-                </p>
-
-                <VisibilityPrompts siteId={site.id} siteUrl={site.url} />
-                <BusinessProfile siteId={site.id} siteUrl={site.url} />
-              </div>
-            )
-          })}
+                    </td>
+                    <td className="text-muted">
+                      {site.latestAudit
+                        ? `${site.latestAudit.status}, ${new Date(site.latestAudit.startedAt).toLocaleDateString()}`
+                        : 'Never audited'}
+                    </td>
+                    <td className="tnum text-muted">
+                      {site.latestAudit?.pagesCrawled ?? '\u2013'}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        {!isActive && <Link href={`/dashboard?siteId=${site.id}`}>Set up</Link>}
+                        {site.latestAudit && (
+                          <Link href={`/audits/${site.latestAudit.id}`}>
+                            {running ? 'View progress' : 'View audit'}
+                          </Link>
+                        )}
+                        <form action={startAudit}>
+                          <input type="hidden" name="siteId" value={site.id} />
+                          <SubmitButton
+                            className="btn btn-secondary btn-sm"
+                            pendingLabel="Queueing..."
+                            disabled={Boolean(running)}
+                          >
+                            {running ? 'Running...' : 'Run audit'}
+                          </SubmitButton>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </main>

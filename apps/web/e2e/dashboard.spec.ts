@@ -321,6 +321,8 @@ test('keyword research offers every country by name', async ({ page }) => {
   const country = page.getByLabel('Country')
   await expect(country).toBeVisible()
   expect(await country.locator('option').count()).toBeGreaterThan(240)
+  // Wait for the client form to hydrate, or React resets the choice to its initial state.
+  await page.waitForLoadState('networkidle')
   await country.selectOption({ label: 'Japan' })
   await expect(country).toHaveValue('jp')
 })
@@ -336,4 +338,24 @@ test('AI visibility offers to draft the questions, and says why when it cannot',
   await suggest.click()
   // The e2e API has no model configured, so the honest answer is to say what is missing.
   await expect(page.getByText(/need a model/)).toBeVisible()
+})
+
+test('the dashboard says what is connected for the site, in words', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/dashboard')
+
+  const setup = page.getByRole('region', { name: 'Setup' })
+  await expect(setup).toBeVisible()
+  for (const name of [
+    'Google Search Console',
+    'Code repository',
+    'Search Console ownership',
+    'Google Business Profile',
+    'AI visibility questions',
+  ]) {
+    await expect(setup.getByText(name, { exact: true })).toBeVisible()
+  }
+  // A state for each row, never a bare "Reconnect" standing in for one.
+  await expect(setup.getByText(/of 5 done/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reconnect' })).toHaveCount(0)
 })
