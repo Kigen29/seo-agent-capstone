@@ -15,8 +15,17 @@ const hostile: EgressPolicy = {
   isBlocked: (address) => address !== '127.0.0.1',
 }
 
+// Screenshots on, so images load and every asset path goes through the guard. A normal audit
+// skips images entirely, which the last test covers.
 const run = (site: HostileSite, egress: EgressPolicy) =>
-  crawl({ seed: `${site.origin}/`, egress, delayMs: 0, concurrency: 1, maxPages: 5 })
+  crawl({
+    seed: `${site.origin}/`,
+    egress,
+    delayMs: 0,
+    concurrency: 1,
+    maxPages: 5,
+    captureScreenshots: true,
+  })
 
 describe('crawl: browser egress', () => {
   let site: HostileSite
@@ -72,6 +81,19 @@ describe('crawl: browser egress', () => {
       ]),
     )
     expect(result.llmsTxt).toBeNull()
+  }, 60_000)
+
+  it('never requests an image at all when no screenshot needs one', async () => {
+    site.requests.length = 0
+    const result = await crawl({
+      seed: `${site.origin}/`,
+      egress: { allowPrivateNetwork: true },
+      delayMs: 0,
+      concurrency: 1,
+      maxPages: 5,
+    })
+    expect(result.pages.length).toBeGreaterThan(0)
+    expect(site.requests).not.toContain('/leak/img')
   }, 60_000)
 
   it('does not fetch anything from a seed on a private address', async () => {

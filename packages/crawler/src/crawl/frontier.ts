@@ -62,6 +62,18 @@ export interface FrontierOptions {
   sameHostOnly?: boolean
 }
 
+/**
+ * The part of a host that decides "same site": lowercased, with one leading `www.` removed.
+ *
+ * `example.com` and `www.example.com` are one site to every person and every search engine, and
+ * sites routinely redirect one to the other. Treating them as different hosts meant a seed typed
+ * without `www.` redirected to it, every link on the page resolved to `www.`, and the crawl threw
+ * them all away and stopped after one page. Other subdomains stay separate sites.
+ */
+export function siteKey(host: string): string {
+  return host.toLowerCase().replace(/^www\./, '')
+}
+
 export class Frontier {
   private readonly queue: FrontierEntry[] = []
   private readonly inFlight = new Map<string, FrontierEntry>()
@@ -71,7 +83,8 @@ export class Frontier {
 
   private readonly maxPages: number
   private readonly sameHostOnly: boolean
-  private readonly host: string | undefined
+  /** Site keys (see siteKey) the crawl may enter: the seed's, plus any host the seed redirected to. */
+  private readonly sites = new Set<string>()
 
   constructor(seed: string, options: FrontierOptions = {}) {
     this.maxPages = options.maxPages ?? 500
@@ -80,8 +93,17 @@ export class Frontier {
     const normalised = normaliseUrl(seed)
     if (!normalised) throw new Error(`The seed URL is not a valid http(s) URL: ${seed}`)
 
-    this.host = new URL(normalised).host
+    this.sites.add(siteKey(new URL(normalised).host))
     this.add([normalised], 0)
+  }
+
+  /**
+   * Also accept a host the seed redirected to, so `example.com` redirecting to `example.co.uk`
+   * crawls the site the owner actually serves. Only the crawler calls this, and only with the
+   * seed's own final URL; links on pages never widen the crawl.
+   */
+  allowHost(host: string): void {
+    this.sites.add(siteKey(host))
   }
 
   /** Enqueue URLs discovered on a page. Returns how many were actually new. */
@@ -92,7 +114,7 @@ export class Frontier {
       const url = normaliseUrl(raw)
       if (!url) continue
       if (this.seen.has(url)) continue
-      if (this.sameHostOnly && this.host && new URL(url).host !== this.host) continue
+      if (this.sameHostOnly && !this.sites.has(siteKey(new URL(url).host))) continue
 
       this.seen.add(url)
       this.queue.push({ url, depth })
