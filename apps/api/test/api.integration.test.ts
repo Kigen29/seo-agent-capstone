@@ -4,6 +4,7 @@ import {
   decryptToken,
   DEFAULT_GAP_LIMIT,
   DEFAULT_KEYWORD_LIMIT,
+  DataForSeoError,
   KeywordBudgetError,
   signState,
 } from '@seo/connectors'
@@ -2791,12 +2792,14 @@ describe.skipIf(!shouldRun)('the API', () => {
       }[]
       let askedFor: string[]
       let refuse: boolean
+      let vendorRefuses: boolean
 
       beforeAll(async () => {
         seen = []
         gapCalls = []
         askedFor = []
         refuse = false
+        vendorRefuses = false
 
         configured = await buildApp({
           db,
@@ -2808,11 +2811,13 @@ describe.skipIf(!shouldRun)('the API', () => {
               name: 'fake',
               ideas: async (seed, options) => {
                 if (refuse) throw new KeywordBudgetError('the tenant is over its monthly budget')
+                if (vendorRefuses) throw new DataForSeoError(200, 'DataForSEO task: Invalid Field')
                 seen.push({ seed, ...(options ? { options } : {}) })
                 return [{ keyword: `${seed} cost`, searchVolume: 2400, competition: 0.4, cpc: 1.2 }]
               },
               gap: async (client, competitor, options) => {
                 if (refuse) throw new KeywordBudgetError('the tenant is over its monthly budget')
+                if (vendorRefuses) throw new DataForSeoError(402, 'DataForSEO returned 402.')
                 gapCalls.push({ client, competitor, ...(options ? { options } : {}) })
                 return {
                   client,
@@ -2881,6 +2886,18 @@ describe.skipIf(!shouldRun)('the API', () => {
         expect((response.json() as { message: string }).message).toMatch(/next calendar month/)
       })
 
+      it('says why the vendor refused, rather than crashing the page with a 500', async () => {
+        vendorRefuses = true
+        const response = await ask('seed=tiles&country=ke')
+        vendorRefuses = false
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toMatchObject({ seed: 'tiles', ideas: [] })
+        expect((response.json() as { note: string }).note).toMatch(
+          /refused this search.*Invalid Field/,
+        )
+      })
+
       describe('the keyword gap', () => {
         const compare = (query: string, bearer = token) =>
           configured.inject({
@@ -2919,6 +2936,16 @@ describe.skipIf(!shouldRun)('the API', () => {
 
         it('is a 404 for another tenant, never a 403', async () => {
           expect((await compare('competitor=rival.example', otherToken)).statusCode).toBe(404)
+        })
+
+        it('says why the vendor refused the gap, rather than a 500', async () => {
+          vendorRefuses = true
+          const response = await compare('competitor=rival.example')
+          vendorRefuses = false
+
+          expect(response.statusCode).toBe(200)
+          expect(response.json()).toMatchObject({ keywords: [], subtracted: null })
+          expect((response.json() as { note: string }).note).toMatch(/402/)
         })
 
         it('answers a tenant over budget with 429, not 500', async () => {
