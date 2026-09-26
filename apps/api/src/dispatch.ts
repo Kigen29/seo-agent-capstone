@@ -21,7 +21,7 @@ export function makeDispatcher(): () => Promise<void> {
 
   return async () => {
     try {
-      await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+      const response = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
@@ -31,6 +31,14 @@ export function makeDispatcher(): () => Promise<void> {
         body: JSON.stringify({ event_type: 'run-jobs' }),
         signal: AbortSignal.timeout(10_000),
       })
+      // Still never thrown: the job is queued either way. But a rejected token must be visible,
+      // or every audit silently waits for GitHub's throttled schedule and nobody learns why.
+      if (!response.ok) {
+        console.warn(
+          `dispatch: GitHub refused the worker wake-up (${response.status}); audits will wait ` +
+            'for the scheduled run. Check GITHUB_WORKER_TOKEN has Contents: write on the repo.',
+        )
+      }
     } catch {
       // Swallowed on purpose: the job is queued, the schedule will get it.
     }
