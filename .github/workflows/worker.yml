@@ -60,6 +60,13 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @seo/crawler exec playwright install --with-deps chromium
 
+      # Prove the (possibly cached) browser actually starts before any audit depends on it. If a
+      # runner image ever lacks a system library, install them rather than failing every crawl.
+      - name: Check Chromium launches
+        working-directory: packages/crawler
+        run: |
+          node -e "require('playwright').chromium.launch().then((b) => b.close())"             || (pnpm exec playwright install-deps chromium               && node -e "require('playwright').chromium.launch().then((b) => b.close())")
+
       - name: Drain the queue
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
