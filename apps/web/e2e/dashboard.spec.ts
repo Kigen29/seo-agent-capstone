@@ -133,7 +133,7 @@ test('never shows a single overall score', async ({ page }) => {
 
   await expect(page.getByText(/overall score/i)).toHaveCount(0)
   await expect(page.getByText(/total score/i)).toHaveCount(0)
-  await expect(page.getByText('Eight scores, never one.')).toBeVisible()
+  await expect(page.getByText(/Eight areas, each scored on its own/)).toBeVisible()
 })
 
 test('leads the backlog with the critical finding, not the cheap one', async ({ page }) => {
@@ -250,7 +250,7 @@ test('the research pages render, and say unmeasured rather than zero', async ({ 
   await expect(page.locator('main')).not.toContainText('0%')
 
   await page.goto('/authority')
-  await expect(page.getByRole('heading', { name: /who talks about you/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /who mentions you/i })).toBeVisible()
 
   await page.goto('/keywords')
   await expect(

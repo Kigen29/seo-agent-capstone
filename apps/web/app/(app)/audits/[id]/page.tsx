@@ -72,7 +72,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
         <>
           <section style={{ marginTop: 'var(--space-8)' }}>
             <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
-              Eight-axis scorecard
+              Scorecard
             </h2>
             <p
               style={{
@@ -82,8 +82,8 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                 maxWidth: '64ch',
               }}
             >
-              Eight scores, never one. They move independently, and a single number would hide
-              everything. A dash means we have not measured it, which is not the same as a pass.
+              Eight areas, each scored on its own. A dash means not measured yet, which is not the
+              same as a pass.
             </p>
 
             <ScorecardGrid scorecard={audit.scorecard} />
@@ -123,8 +123,8 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                 maxWidth: '64ch',
               }}
             >
-              Ordered by severity multiplied by confidence and impact, divided by effort. The useful
-              question is not what is wrong, it is which three things to do on Monday.
+              Most important first: the problems that matter most and cost least to fix are at the
+              top.
             </p>
 
             {findings.length === 0 ? (

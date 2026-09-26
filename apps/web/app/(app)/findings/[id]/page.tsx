@@ -1,4 +1,5 @@
 import { ApiAsleep } from '@/components/api-asleep'
+import Link from 'next/link'
 import { EvidenceBlock } from '@/components/evidence'
 import { SeverityBadge } from '@/components/severity'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
@@ -74,7 +75,7 @@ export default async function FindingPage({
       <div className="mt-4 mb-3 flex flex-wrap gap-2">
         <SeverityBadge severity={finding.severity} />
         <span className="tag tag-neutral">{finding.ruleId}</span>
-        {finding.fixable && <span className="tag tag-outline">Fixable in code</span>}
+        {finding.fixable && <span className="tag tag-success">Agent can fix</span>}
       </div>
 
       <h1 className="mb-4">{finding.title}</h1>
@@ -138,9 +139,17 @@ export default async function FindingPage({
             connections.github.connected ? (
               <FixButton findingId={finding.rowId} />
             ) : (
-              <p className="text-muted m-0 text-[13px]">
-                Connect a repository to this site to open a fix pull request.
-              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/dashboard?siteId=${finding.siteId}`}
+                  className="btn btn-primary btn-sm"
+                >
+                  Connect a repository
+                </Link>
+                <span className="text-muted text-[13px]">
+                  The agent can fix this with a pull request once the site&apos;s code is connected.
+                </span>
+              </div>
             )
           ) : (
             /*

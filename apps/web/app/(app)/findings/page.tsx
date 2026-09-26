@@ -91,8 +91,8 @@ export default async function FindingsPage({
     <main id="main" className="wrap">
       <PageHeader
         kicker="Findings"
-        title="Everything out of true, in one list."
-        description="Sorted by impact over effort, so the top of the list is what to do on Monday."
+        title="What needs fixing"
+        description="Problems found on your sites, most important first. Open one to see the evidence, or to have the agent fix it with a pull request."
       />
 
       <FilterBar siteOptions={sites.map((site) => ({ id: site.id, url: site.url }))} />
@@ -156,14 +156,17 @@ export default async function FindingsPage({
                   return (
                     <tr key={finding.rowId}>
                       <td>
-                        <span className={finding.fixable ? 'tag tag-outline' : 'tag tag-neutral'}>
-                          {finding.fixable ? 'Fixable' : 'Needs input'}
+                        {/* Plain status chips: the outline style read as a button nobody could press. */}
+                        <span className={finding.fixable ? 'tag tag-success' : 'tag tag-neutral'}>
+                          {finding.fixable ? 'Agent can fix' : 'Needs you'}
                         </span>
                       </td>
                       <td>
                         <SeverityBadge severity={finding.severity} />
                       </td>
-                      <td>{finding.title}</td>
+                      <td>
+                        <Link href={`/findings/${finding.rowId}`}>{finding.title}</Link>
+                      </td>
                       <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
                       <td className="text-muted">{hostOf(finding.siteUrl)}</td>
                       <td className="whitespace-nowrap">
