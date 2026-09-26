@@ -41,7 +41,7 @@ Status is evidence-based: checked items are implemented, not necessarily deploye
 - [ ] Correlated timing, readiness, worker heartbeat and alerts.
 - [ ] Database query profiles and performance targets under load.
 - [x] Restore drill: weekly against production and on every CI run (#201).
-- [ ] Retained, encrypted off-vendor backups and capacity limits (Neon Free keeps only 6 hours of history).
+- [x] Retention decided in ADR-0026: Neon's 6-hour restore window plus manual `pre-<change>` branches before destructive changes; off-vendor encrypted backups deferred to a stated migration trigger.
 - [ ] Expand/contract migration release workflow and snapshot repair.
 
 ## Current product and full roadmap
@@ -217,3 +217,8 @@ Local evidence: against the local test database the drill passed (17 tables, 145
 What this does not provide: retention. Neon's Free plan keeps a 6-hour history window, so data damage noticed later than that cannot be undone from Neon, and the drill deliberately discards its dump. Retained, encrypted, off-vendor backups remain open.
 
 Emergency restore from a dump: create an empty Postgres, create the `seo_app` role (`create role seo_app nologin`), then `pg_restore --no-owner --exit-on-error --dbname <new-url> <dump>`, and point `DATABASE_URL` at it (ADR-0007: nothing else names the host).
+
+
+## Retention policy (ADR-0026)
+
+Decided to accept Neon Free's six-hour restore window as the only retained recovery point, with no off-vendor copies, rather than keeping encrypted dumps as public-repository artifacts. Damage noticed within six hours is restored with Neon instant restore; later damage to re-derivable data is rebuilt by re-running audits, and lost poll history or ledger rows are recorded as loss. Every destructive migration or bulk data fix first creates a Neon branch named `pre-<change>` (branches outlive the history window, are free within the Free plan's ten, and are deleted once verified). The weekly restore drill stays as proof that the data can be restored on any Postgres. Retained encrypted backups in R2 become required at the first non-demo tenant, the first paying tenant, or when customers rely on visibility history.
