@@ -1,5 +1,5 @@
 import { generateContentFix } from '@seo/agent'
-import { getFinding } from '@seo/audit'
+import { baselineFor, getFinding } from '@seo/audit'
 import { findings, sites, withTenant, type Database } from '@seo/db'
 import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
 import type { FixJob } from '@seo/queue'
@@ -93,7 +93,7 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<voi
   // instead of regenerating the fix, so a crash costs neither a second model call nor a second PR.
   const existing = await provider.findOpenPullRequest(repo, branchId)
   if (existing) {
-    await recordPullRequest(db, job.tenantId, finding.rowId, existing)
+    await recordPullRequest(db, job.tenantId, finding, existing)
     return
   }
 
@@ -130,13 +130,13 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<voi
     rollback: fix.rollback,
   })
 
-  await recordPullRequest(db, job.tenantId, finding.rowId, pr)
+  await recordPullRequest(db, job.tenantId, finding, pr)
 }
 
 async function recordPullRequest(
   db: Database,
   tenantId: string,
-  findingRowId: string,
+  finding: { rowId: string; ruleId: string; affectedUrls: string[] },
   pr: PullRequest,
 ): Promise<void> {
   await withTenant(db, tenantId, (tx) =>
@@ -144,9 +144,11 @@ async function recordPullRequest(
       .update(findings)
       // `fixError` is cleared, not left behind: it describes the most recent attempt, and a stale
       // failure sitting next to an open pull request would read as though the PR had failed.
-      .set({ status: 'pr_open', prUrl: pr.url, fixError: null })
+      // The baseline is what "did it work?" is later measured against: every page the rule
+      // flagged, failing, at the moment the fix was proposed.
+      .set({ status: 'pr_open', prUrl: pr.url, fixError: null, baseline: baselineFor(finding) })
       // Only an open finding moves to pr_open; a webhook may already have recorded a merge.
-      .where(and(eq(findings.id, findingRowId), eq(findings.status, 'open'))),
+      .where(and(eq(findings.id, finding.rowId), eq(findings.status, 'open'))),
   )
 }
 
