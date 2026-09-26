@@ -3,6 +3,7 @@ import { Note } from '@/components/ui/note'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { Credentials } from './credentials'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,13 +36,22 @@ const money = (micros: number): string =>
     micros / MICROS_PER_USD,
   )
 
-export default async function AccountSettingsPage() {
+export default async function AccountSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ revoked?: string }>
+}) {
   const api = await getClient()
   if (!api) return null
 
+  const { revoked: revokedParam } = await searchParams
+  const revokedCount = Number(revokedParam)
+  const revoked = Number.isInteger(revokedCount) && revokedCount >= 0 ? revokedCount : null
+
   let account
+  let credentials
   try {
-    account = await api.getAccount()
+    ;[account, credentials] = await Promise.all([api.getAccount(), api.listCredentials()])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
@@ -112,6 +122,8 @@ export default async function AccountSettingsPage() {
           </Note>
         )}
       </section>
+
+      <Credentials credentials={credentials} revoked={revoked} />
     </div>
   )
 }

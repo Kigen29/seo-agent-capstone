@@ -137,6 +137,22 @@ export interface Account {
   budget: { capMicros: number; spentMicros: number; reservedMicros?: number; allowed: boolean }
 }
 
+/**
+ * A session or token that can act as this account. Never carries the token or its hash: the id
+ * names the row, and the rest is what a person needs to recognise it before revoking it.
+ */
+export interface ApiCredential {
+  id: string
+  name: string
+  kind: 'session' | 'token'
+  createdAt: string
+  lastUsedAt: string | null
+  /** Null for a hand-minted token that lives until revoked. */
+  expiresAt: string | null
+  /** The credential making this request. */
+  current: boolean
+}
+
 /** The three scalars the finding page polls while a fix job is in flight. */
 export interface FixProgress {
   id: string
@@ -520,6 +536,10 @@ export function createApiClient(options: ApiClientOptions) {
       throw new ApiRequestError(response.status, body.message ?? response.statusText)
     }
 
+    // 204 has no body by definition, and parsing one throws. Sign-out hit this on every call and
+    // hid it, because its caller deliberately swallows errors.
+    if (response.status === 204) return undefined as T
+
     return response.json() as Promise<T>
   }
 
@@ -574,6 +594,20 @@ export function createApiClient(options: ApiClientOptions) {
     signOut: async () => {
       await request<void>('/auth/signout', { method: 'POST' })
     },
+
+    /** Every live session and token for this account, oldest first. */
+    listCredentials: async () =>
+      (await request<{ tokens: ApiCredential[] }>('/auth/tokens')).tokens,
+
+    /** Revoke one session or token by id. Revoking the current one signs this caller out. */
+    revokeCredential: async (id: string) => {
+      await request<void>(`/auth/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+
+    /** Sign out everywhere except this credential. Returns how many were revoked. */
+    revokeOtherCredentials: async () =>
+      (await request<{ revoked: number }>('/auth/tokens/revoke-others', { method: 'POST' }))
+        .revoked,
 
     /** The fix-flow sibling of `getAuditProgress`: has the pull request landed, or failed? */
     getFixProgress: async (id: string) => request<FixProgress>(`/findings/${id}/fix-progress`),

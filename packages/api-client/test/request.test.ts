@@ -50,4 +50,25 @@ describe('the API client request', () => {
 
     expect(headersOf(fetch).authorization).toBe('Bearer secret')
   })
+
+  it('resolves a 204 without trying to parse a body', async () => {
+    // Revoking a credential and signing out both answer 204 with nothing in it. Parsing that
+    // throws, and sign-out swallowed the throw for as long as it existed.
+    const json = vi.fn(async () => {
+      throw new SyntaxError('Unexpected end of JSON input')
+    })
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+      json,
+    })) as unknown as typeof globalThis.fetch
+    const client = createApiClient({ baseUrl: 'https://api.test', token: 't', fetch })
+
+    await expect(client.revokeCredential('abc')).resolves.toBeUndefined()
+    await expect(client.signOut()).resolves.toBeUndefined()
+    expect(json).not.toHaveBeenCalled()
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!
+    expect(url).toBe('https://api.test/auth/tokens/abc')
+    expect((init as RequestInit).method).toBe('DELETE')
+  })
 })

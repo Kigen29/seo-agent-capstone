@@ -273,3 +273,23 @@ test('the nav reaches every section, and keeps the site you picked', async ({ pa
   await nav.getByRole('link', { name: 'Authority', exact: true }).click()
   await expect(page).toHaveURL(/\/authority\?siteId=/)
 })
+
+test('lists the sessions and tokens that can act as the account, never their values', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/settings/account')
+
+  const section = page.getByRole('region', { name: 'Sessions and tokens' })
+  await expect(section).toBeVisible()
+  // The seeded tenant has exactly one credential: the token this browser is using.
+  const rows = section.locator('tbody tr')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('e2e')
+  await expect(rows.first()).toContainText('This browser')
+  await expect(rows.first().getByRole('button', { name: /Sign out/ })).toBeVisible()
+  // Nothing else to sign out, so the bulk action is offered but inert.
+  await expect(section.getByRole('button', { name: 'Sign out everywhere else' })).toBeDisabled()
+  // The credential itself is never rendered.
+  expect(await page.content()).not.toContain(TOKEN)
+})
