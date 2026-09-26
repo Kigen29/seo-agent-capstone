@@ -132,13 +132,16 @@ $PG_RUN pg_dump "$direct_url" --snapshot="$snapshot" --format=custom --no-owner 
 dumped=$(date +%s)
 
 ask "$FINGERPRINT_SQL" >"$work/source.txt"
-roles=$(ask "select rolname from pg_roles where rolname !~ '^pg_' and not rolsuper and rolname <> current_user order by 1;")
+# Every non-system role, superusers included: Neon's own default privileges name its platform
+# superuser (cloud_admin), and a restore that cannot name it stops at the first such statement.
+roles=$(ask "select rolname from pg_roles where rolname !~ '^pg_' and rolname <> current_user order by 1;")
 ask "commit;"
 exec {SOURCE[1]}>&-
 wait "$SOURCE_PID" || true
 
 # Roles live in the cluster, not the database, so the empty target has none of them. Create each
-# as a login-less shell so the dump's grants and policies can name it.
+# as a login-less, non-superuser shell so the dump's grants, policies and default privileges can
+# name it. The shells can do nothing; they exist in a database that is thrown away with the job.
 for role in $roles; do
   $PG_RUN psql "$TARGET_URL" -XAtq -v ON_ERROR_STOP=1 -c \
     "do \$\$ begin if not exists (select 1 from pg_roles where rolname = '$role') then create role \"$role\" nologin; end if; end \$\$;"
