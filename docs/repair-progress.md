@@ -180,3 +180,10 @@ Migration 0025 adds `kind` (`session` or `token`) and `expires_at` to `api_token
 New protected routes: `GET /auth/tokens` lists live credentials (name, kind, dates, which one is current; never a hash), `DELETE /auth/tokens/:id` revokes one, and `POST /auth/tokens/revoke-others` signs out everywhere except the caller. All run under tenant row-level security; another tenant's id is a 404.
 
 Local validation: the backfill was checked against pre-migration rows in the local test database (a 10-day-old session gained a 30-day expiry; a 400-day-old CLI token stayed unexpiring). 183 API and 18 database tests passed; workspace type checks and lint passed. The settings page for these routes is a follow-up.
+
+
+## Sessions and tokens settings page (#194)
+
+Settings > Account now lists every live session and token (name, kind, created, last used, expiry, and which one this browser is using) with a revoke button on each and a "sign out everywhere else" action. Revoking the current credential clears the cookie and returns to login. The API client gained `listCredentials`, `revokeCredential` and `revokeOtherCredentials`, and now resolves a 204 without parsing a body; before this, every sign-out threw inside the client and the caller's deliberate catch hid it.
+
+Local validation: 5 API-client tests (one new, for the 204 path) and all 15 browser tests (one new, for the credentials section against the seeded tenant) passed against the real API and a production web build; type checks and lint passed. The browser test does not click revoke, because the seeded token is shared by parallel specs; the routes behind the buttons are covered by the API integration tests from #192.
