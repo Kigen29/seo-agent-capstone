@@ -68,13 +68,12 @@ export function Credentials({
                 <td className="text-muted">
                   {credential.kind === 'session' ? 'Browser session' : 'Token'}
                 </td>
-                <td className="text-muted">{when(credential.createdAt, '—')}</td>
+                <td className="text-muted">{day.format(new Date(credential.createdAt))}</td>
                 <td className="text-muted">{when(credential.lastUsedAt, 'Never')}</td>
                 <td className="text-muted">{when(credential.expiresAt, 'Never')}</td>
                 <td className="whitespace-nowrap">
                   <form action={revokeCredential}>
                     <input type="hidden" name="id" value={credential.id} />
-                    <input type="hidden" name="current" value={String(credential.current)} />
                     <SubmitButton
                       className="btn btn-ghost btn-sm"
                       pendingLabel={credential.current ? 'Signing out...' : 'Revoking...'}
