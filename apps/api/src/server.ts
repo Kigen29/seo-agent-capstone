@@ -9,6 +9,7 @@ import {
   dataForSeoFromEnv,
   googleOAuthConfigFromEnv,
   type IdentityProvider,
+  DEFAULT_SERP_COST_PER_QUERY_USD,
 } from '@seo/connectors'
 import {
   createQueue,
@@ -211,7 +212,9 @@ const newTenantBudgetMicros = (() => {
  */
 const serpCostMicros = (() => {
   const usd = Number(process.env.SERP_COST_PER_QUERY_USD)
-  return Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.015) * 1_000_000)
+  return Math.round(
+    (Number.isFinite(usd) && usd > 0 ? usd : DEFAULT_SERP_COST_PER_QUERY_USD) * 1_000_000,
+  )
 })()
 
 const serpApiKey = process.env.SERPAPI_API_KEY

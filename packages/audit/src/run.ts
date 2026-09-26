@@ -28,6 +28,7 @@ import {
   type BacklinkProvider,
   type OAuthConfig,
   type SerpProvider,
+  DEFAULT_SERP_COST_PER_QUERY_USD,
 } from '@seo/connectors'
 import { createBudgetGuard, recordSpend } from '@seo/budget'
 import { ruleCoverage, runRules } from '@seo/rules'
@@ -79,7 +80,9 @@ function serpFromEnv(db: Database, tenantId: string): SerpProvider | undefined {
           reservationId: entry.reservationId,
         }),
       // Errs high when unset, which is the safe direction for a cost guard.
-      costPerQueryMicros: Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.015) * 1_000_000),
+      costPerQueryMicros: Math.round(
+        (Number.isFinite(usd) && usd > 0 ? usd : DEFAULT_SERP_COST_PER_QUERY_USD) * 1_000_000,
+      ),
     },
   )
 }
