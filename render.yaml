@@ -92,6 +92,14 @@ services:
       # GitHub Actions variable.
       - key: GLOBAL_MONTHLY_BUDGET_MICROS
         sync: false
+      # Wake the GitHub Actions worker the moment a job is queued. Without these the worker runs
+      # only on its cron, which GitHub throttles to hours apart on a quiet repo, so an audit can
+      # sit queued for hours. The token is a fine-grained PAT scoped to this repo with
+      # Contents: Read and write, which is what repository_dispatch requires.
+      - key: GITHUB_WORKER_REPO
+        value: Kigen29/seo-agent-capstone
+      - key: GITHUB_WORKER_TOKEN
+        sync: false
       # DataForSEO, for keyword research on /keywords and the MCP keyword_ideas tool.
       #
       # The API needs these as well as the worker: the worker uses the same vendor for backlinks
