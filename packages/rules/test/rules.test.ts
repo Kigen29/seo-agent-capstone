@@ -730,6 +730,109 @@ describe('TECH-021: the homepage has no meta description', () => {
   })
 })
 
+describe('TECH-022: client-side routes 404 at the host', () => {
+  // Enough rendered text to clear compareRenders' MIN_WORDS_TO_JUDGE floor, so the shell reads
+  // as CSR-only rather than as a deliberately sparse page such as a login screen.
+  const shellOf = (...links: string[]) =>
+    html.doc(
+      `<h1>Home</h1><p>${'word '.repeat(60)}</p>` +
+        links.map((path) => `<a href="${path}">link</a>`).join(''),
+    )
+  const emptyShell = html.doc('<div id="root"></div>')
+
+  const vercel404 = (path: string) =>
+    page({
+      path,
+      status: 404,
+      headers: { 'x-vercel-error': 'NOT_FOUND', server: 'Vercel' },
+      html: '<!doctype html><html><body>The page could not be found NOT_FOUND</body></html>',
+    })
+
+  it('fires when a CSR-only shell links to two routes that 404 at Vercel', () => {
+    const findings = fire(
+      'TECH-022',
+      context({
+        pages: [
+          page({
+            path: '/',
+            preJsHtml: emptyShell,
+            html: shellOf('/about/profile', '/admissions/apply'),
+          }),
+          vercel404('/about/profile'),
+          vercel404('/admissions/apply'),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.severity).toBe('critical')
+    expect(findings[0]?.affectedUrls).toEqual(
+      expect.arrayContaining([u('/'), u('/about/profile'), u('/admissions/apply')]),
+    )
+    expect(findings[0]?.falsification).toBeTruthy()
+    expect(findings[0]?.falsification).toContain('200')
+
+    const carried = JSON.parse((findings[0]!.evidence as { snippet: string }).snippet)
+    expect(carried.host).toBe('vercel')
+    expect(carried.affectedCount).toBe(2)
+  })
+
+  it('stays silent when the same links resolve to real pages', () => {
+    expect(
+      fire(
+        'TECH-022',
+        context({
+          pages: [
+            page({
+              path: '/',
+              preJsHtml: emptyShell,
+              html: shellOf('/about/profile', '/admissions/apply'),
+            }),
+            page({ path: '/about/profile' }),
+            page({ path: '/admissions/apply' }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent on a server-rendered site whose 404s are the app, not the host', () => {
+    // Two genuinely broken links on a server-rendered site is TECH-010's territory: no CSR
+    // shell, and no host header on the 404, so this rule has nothing to say about it.
+    expect(
+      fire(
+        'TECH-022',
+        context({
+          pages: [
+            page({ path: '/', html: html.linkingTo('/a', '/b') }),
+            page({ path: '/a', status: 404, html: html.doc('<h1>Not found</h1>') }),
+            page({ path: '/b', status: 404, html: html.doc('<h1>Not found</h1>') }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent with only one affected route', () => {
+    expect(
+      fire(
+        'TECH-022',
+        context({
+          pages: [
+            page({
+              path: '/',
+              preJsHtml: emptyShell,
+              html: shellOf('/about/profile', '/admissions/apply'),
+            }),
+            vercel404('/about/profile'),
+            page({ path: '/admissions/apply' }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
 describe('AGENT-001: the site has no llms.txt', () => {
   it('fires when there is no llms.txt', () => {
     const findings = fire('AGENT-001', context({ pages: [page({ path: '/' })], llmsTxt: null }))
