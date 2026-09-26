@@ -113,10 +113,38 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
               the grid in CSS misaligned the note in TSX with nothing to catch it, and it could
               not collapse on a phone.
             */}
-            {axis.coverage.note && <p className="score-note">{axis.coverage.note}</p>}
+            {axis.coverage.note && <CoverageNote note={axis.coverage.note} />}
           </div>
         )
       })}
     </div>
+  )
+}
+
+/**
+ * The coverage note, first sentence visible and the rest one click away.
+ *
+ * The note still ships in full on every axis: it is what stops "100" meaning more than was
+ * measured. But eight paragraphs at once buried the scores they explain, so the first sentence
+ * (which says whether and how the axis was measured) stays in view and the reasoning folds.
+ */
+function CoverageNote({ note }: { note: string }) {
+  // The visible part must carry the reason, not just the verdict: an unmeasured axis opens with
+  // "Not measured." and the why is the next sentence, so a short first sentence takes the second.
+  // Split only where a period is followed by whitespace, so 'llms.txt' stays one word.
+  const sentences = note.split(/(?<=\.)\s+/).filter(Boolean)
+  let shown = sentences[0] ?? note
+  let used = 1
+  if (shown.length < 40 && sentences.length > 1) {
+    shown = `${shown} ${sentences[1]}`
+    used = 2
+  }
+  const rest = sentences.slice(used).join(' ').trim()
+  if (!rest || shown.length > 220) return <p className="score-note">{note}</p>
+  return (
+    <details className="score-note">
+      <summary className="cursor-pointer">{shown}</summary>
+      <p className="mt-1 mb-0">{rest}</p>
+    </details>
   )
 }

@@ -74,8 +74,8 @@ export default async function AuthorityPage({
     <main id="main" className="wrap">
       <PageHeader
         kicker="Research"
-        title="Who talks about you, and who links to you"
-        description="Mentions lead this axis on purpose. Branded web mentions correlate 0.664 with AI Overview visibility; backlinks correlate 0.218. Mention-building and link-building are two different jobs."
+        title="Who mentions you, and who links to you"
+        description="Other sites writing about your business, and linking to it. For showing up in AI answers, being mentioned matters more than being linked, so both are measured."
       />
 
       {!audit && (
@@ -96,6 +96,10 @@ export default async function AuthorityPage({
         <Note tone="warn">
           {coverage?.coverage.note ??
             'This axis was not measured on the last audit. It needs a SERP data source, which is a paid dependency and off by default.'}
+          <span className="mt-2 block">
+            To turn it on: add DataForSEO credentials for links and a SerpApi key for mentions to
+            the deployment&apos;s settings, then run an audit.
+          </span>
         </Note>
       )}
 
