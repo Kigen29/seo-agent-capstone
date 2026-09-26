@@ -362,6 +362,39 @@ export interface KeywordGapResult {
 }
 
 /** One question a site's customers actually ask, and where we learned it. */
+/** One recorded measurement: a named count or score at a moment. */
+export interface OutcomeMetric {
+  metric: string
+  value: number
+  unit: string
+}
+
+/** A proposed fix and what became of it. Matches the API's outcomes shape. */
+export interface FixOutcome {
+  rowId: string
+  ruleId: string
+  title: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  status: 'pr_open' | 'merged' | 'verified' | 'rejected'
+  prUrl: string | null
+  falsification: string
+  baseline: { capturedAt: string; metrics: OutcomeMetric[] } | null
+  verification: {
+    outcome: 'verified' | 'rejected' | 'inconclusive'
+    verifiedAt: string
+    before: { capturedAt: string; metrics: OutcomeMetric[] }
+    after: { capturedAt: string; metrics: OutcomeMetric[] }
+    summary: string
+  } | null
+  note: string | null
+  affectedPages: number
+}
+
+export interface SiteOutcomes {
+  outcomes: FixOutcome[]
+  counts: Record<FixOutcome['status'], number>
+}
+
 /** A question the agent drafted for AI-visibility tracking, with why it fits the business. */
 export interface SuggestedPrompt {
   prompt: string
@@ -754,6 +787,9 @@ export function createApiClient(options: ApiClientOptions) {
      * The questions this site's customers actually ask: Search Console's question queries, plus
      * People Also Ask when a seed is given (one billed query) and a SERP vendor is configured.
      */
+    /** Every fix proposed for a site and whether it worked. */
+    getOutcomes: async (siteId: string) => request<SiteOutcomes>(`/sites/${siteId}/outcomes`),
+
     /** Draft AI-visibility questions for a site from what it says about itself. One model call. */
     suggestPrompts: async (siteId: string) =>
       request<PromptSuggestions>(`/sites/${siteId}/visibility/suggestions`, { method: 'POST' }),

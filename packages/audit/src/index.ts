@@ -58,3 +58,6 @@ export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
 export { E2E, seedE2E } from './seed.js'
 export { applyFixPrOutcome, applyVerifyPrOutcome, pullRequestNumberFrom } from './pr-outcome.js'
 export type { OutcomeEffect, PullRequestOutcome } from './pr-outcome.js'
+
+export { listOutcomes, OUTCOME_STATUSES } from './outcomes.js'
+export type { FixOutcome, OutcomeStatus, SiteOutcomes } from './outcomes.js'

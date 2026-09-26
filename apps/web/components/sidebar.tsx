@@ -59,6 +59,7 @@ const GROUPS: {
     links: [
       { href: '/findings', label: 'Findings', match: (p) => p.startsWith('/findings') },
       { href: '/audits', label: 'Audits', match: (p) => p.startsWith('/audits') },
+      { href: '/outcomes', label: 'Outcomes', match: (p) => p.startsWith('/outcomes') },
     ],
   },
 ]

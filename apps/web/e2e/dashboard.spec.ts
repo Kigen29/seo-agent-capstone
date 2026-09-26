@@ -378,3 +378,16 @@ test('headings and text render in the self-hosted serif faces, not a fallback', 
     .evaluate((el) => getComputedStyle(el).fontFamily)
   expect(heading.startsWith('cormorant')).toBe(true)
 })
+
+test('outcomes says, in words, what became of each proposed fix', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/outcomes')
+
+  await expect(page.getByRole('heading', { name: 'Did the fixes work?' })).toBeVisible()
+  // The seed has proposed no fixes, so the four counts read zero and the empty state says how to
+  // start one. The populated shape (statuses, before and after) is covered by the API test.
+  await expect(page.getByText('Waiting for review', { exact: true })).toBeVisible()
+  await expect(page.getByText('Did not work', { exact: true })).toBeVisible()
+  await expect(page.getByText('No fixes proposed yet')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Outcomes' })).toBeVisible()
+})
