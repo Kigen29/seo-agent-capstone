@@ -21,8 +21,12 @@ export const FIX_QUEUE = 'fix-v2'
 export const VERIFY_FIX_QUEUE = 'verify-fix-v2'
 export const POLL_AI_QUEUE = 'poll-ai-v2'
 
-/** Kept out of the `public` schema so it never collides with our tables or their RLS. */
-const SCHEMA = 'pgboss'
+/**
+ * Kept out of the `public` schema so it never collides with our tables or their RLS. Exported so a
+ * sweep can ask whether a job is still in flight without opening a queue connection.
+ */
+export const QUEUE_SCHEMA = 'pgboss'
+const SCHEMA = QUEUE_SCHEMA
 
 /** What a worker needs to run one audit. Small on purpose: the row already holds the rest. */
 export interface AuditJob {
