@@ -393,6 +393,14 @@ export const apiTokens = pgTable(
     /** Shown in the UI so a human can tell two tokens apart before revoking one. */
     name: text('name').notNull(),
     tokenHash: text('token_hash').notNull(),
+    /**
+     * `session` for a browser sign-in, `token` for one minted by hand for the CLI or MCP server.
+     * A column rather than a naming convention, so a hand-minted token that happens to be called
+     * "Browser session" is never swept as one, and a renamed session never escapes its expiry.
+     */
+    kind: text('kind').$type<'session' | 'token'>().notNull().default('token'),
+    /** Past this the token is refused. Null means it lives until revoked. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),

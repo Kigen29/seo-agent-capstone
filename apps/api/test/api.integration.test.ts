@@ -219,10 +219,13 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
 
     it.each([
-      ['Browser session', 31, 401],
-      ['Browser session', 29, 200],
-      ['automation token', 31, 200],
-    ])('enforces the session lifetime for %s aged %i days', async (name, days, status) => {
+      ['an expired session', 'Browser session', 'session', -1, 401],
+      ['a session inside its lifetime', 'Browser session', 'session', 1, 200],
+      ['a token past an explicit expiry', 'automation token', 'token', -1, 401],
+      ['a token with no expiry', 'automation token', 'token', null, 200],
+      // The name is a label, not a rule: a hand-minted token called this is not a session.
+      ['an unexpiring token named like a session', 'Browser session', 'token', null, 200],
+    ] as const)('decides %s from its stored expiry', async (_label, name, kind, days, status) => {
       const plain = generateToken()
       const [row] = await asOwner(db, (tx) =>
         tx
@@ -230,8 +233,10 @@ describe.skipIf(!shouldRun)('the API', () => {
           .values({
             tenantId,
             name,
+            kind,
             tokenHash: hashToken(plain),
-            createdAt: new Date(Date.now() - days * 86_400_000),
+            createdAt: new Date(Date.now() - 400 * 86_400_000),
+            expiresAt: days === null ? null : new Date(Date.now() + days * 86_400_000),
           })
           .returning(),
       )
@@ -2052,6 +2057,93 @@ describe.skipIf(!shouldRun)('the API', () => {
       })
 
       expect((await me(second)).statusCode).toBe(200)
+    })
+
+    describe('managing sessions and tokens', () => {
+      const call = (method: 'GET' | 'POST' | 'DELETE', url: string, bearer: string) =>
+        app.inject({ method, url, headers: { authorization: `Bearer ${bearer}` } })
+
+      const sessionFor = async (accountId: string) =>
+        redeem(await signIn({ provider: 'fake', accountId, name: 'T' }))
+
+      it('mints a browser session with its kind and a thirty-day expiry', async () => {
+        const session = await sessionFor('acct-session-kind')
+        const [row] = await asOwner(db, (tx) =>
+          tx
+            .select()
+            .from(apiTokens)
+            .where(eq(apiTokens.tokenHash, hashToken(session))),
+        )
+        expect(row?.kind).toBe('session')
+        const days = (row!.expiresAt!.getTime() - Date.now()) / 86_400_000
+        expect(days).toBeGreaterThan(29.9)
+        expect(days).toBeLessThanOrEqual(30)
+      })
+
+      it('lists live credentials, marks the current one, and never returns a hash', async () => {
+        const first = await sessionFor('acct-list')
+        const second = await sessionFor('acct-list')
+        const res = await call('GET', '/auth/tokens', second)
+        expect(res.statusCode).toBe(200)
+        expect(res.body).not.toContain(hashToken(first))
+        expect(res.body).not.toContain(hashToken(second))
+        const { tokens } = res.json() as {
+          tokens: { id: string; kind: string; current: boolean; expiresAt: string | null }[]
+        }
+        expect(tokens.filter((entry) => entry.current)).toHaveLength(1)
+        expect(tokens.every((entry) => entry.kind === 'session' && entry.expiresAt)).toBe(true)
+        expect(tokens.length).toBeGreaterThanOrEqual(2)
+      })
+
+      it('revokes one credential by id, and it stops working at once', async () => {
+        const keeper = await sessionFor('acct-revoke-one')
+        const doomed = await sessionFor('acct-revoke-one')
+        const [row] = await asOwner(db, (tx) =>
+          tx
+            .select()
+            .from(apiTokens)
+            .where(eq(apiTokens.tokenHash, hashToken(doomed))),
+        )
+        const res = await call('DELETE', `/auth/tokens/${row!.id}`, keeper)
+        expect(res.statusCode).toBe(204)
+        expect((await me(doomed)).statusCode).toBe(401)
+        expect((await me(keeper)).statusCode).toBe(200)
+      })
+
+      it('returns 404 for another tenant’s token and leaves it working', async () => {
+        const mine = await sessionFor('acct-revoke-mine')
+        const theirs = await sessionFor('acct-revoke-theirs')
+        const [row] = await asOwner(db, (tx) =>
+          tx
+            .select()
+            .from(apiTokens)
+            .where(eq(apiTokens.tokenHash, hashToken(theirs))),
+        )
+        expect((await call('DELETE', `/auth/tokens/${row!.id}`, mine)).statusCode).toBe(404)
+        expect((await me(theirs)).statusCode).toBe(200)
+      })
+
+      it('signs out everywhere else, sparing the caller and other tenants', async () => {
+        const caller = await sessionFor('acct-everywhere')
+        const laptop = await sessionFor('acct-everywhere')
+        const bystander = await sessionFor('acct-everywhere-bystander')
+        const res = await call('POST', '/auth/tokens/revoke-others', caller)
+        expect(res.statusCode).toBe(200)
+        expect((res.json() as { revoked: number }).revoked).toBeGreaterThanOrEqual(1)
+        expect((await me(laptop)).statusCode).toBe(401)
+        expect((await me(caller)).statusCode).toBe(200)
+        expect((await me(bystander)).statusCode).toBe(200)
+      })
+
+      it('requires a credential for every token route', async () => {
+        for (const [method, url] of [
+          ['GET', '/auth/tokens'],
+          ['POST', '/auth/tokens/revoke-others'],
+          ['DELETE', '/auth/tokens/00000000-0000-0000-0000-000000000000'],
+        ] as const) {
+          expect((await app.inject({ method, url })).statusCode).toBe(401)
+        }
+      })
     })
   })
 

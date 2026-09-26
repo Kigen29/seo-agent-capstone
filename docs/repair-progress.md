@@ -171,3 +171,12 @@ The crawler routes every browser request and WebSocket through an egress guard t
 Evidence: a hostile fixture reaches an internal host by image, iframe, fetch, redirect, sitemap redirect and llms.txt redirect when unguarded (the control), and with the guard none of those paths reach the server, which records every request as the witness; the WebSocket is refused by the guard's own route. Chromium's Local Network Access check also blocks that socket once pages are fulfilled, but the guard does not rely on it. Local: 181 crawler tests (three consecutive runs), 77 audit, 299 connectors and 55 core tests passed; workspace type checks and lint passed.
 
 Residual: Chromium and the route handler each resolve names independently of our check, so a hostile DNS server can still rebind between check and connect. The complete control is network-level egress filtering on the worker host, which remains open with the container deployment work.
+
+
+## Token expiry and revocation (#192)
+
+Migration 0025 adds `kind` (`session` or `token`) and `expires_at` to `api_tokens`, and backfills existing browser sessions to `session` with an expiry thirty days after issue. The auth check refuses any row past `expires_at` instead of recognising sessions by display name, so a hand-minted token that happens to be called "Browser session" is no longer treated as one. New sessions are minted with their kind and expiry, and the session prune keys on `kind`. `mint-token` accepts an optional expiry in days; the default stays unexpiring so existing automation is unaffected.
+
+New protected routes: `GET /auth/tokens` lists live credentials (name, kind, dates, which one is current; never a hash), `DELETE /auth/tokens/:id` revokes one, and `POST /auth/tokens/revoke-others` signs out everywhere except the caller. All run under tenant row-level security; another tenant's id is a 404.
+
+Local validation: the backfill was checked against pre-migration rows in the local test database (a 10-day-old session gained a 30-day expiry; a 400-day-old CLI token stayed unexpiring). 183 API and 18 database tests passed; workspace type checks and lint passed. The settings page for these routes is a follow-up.
