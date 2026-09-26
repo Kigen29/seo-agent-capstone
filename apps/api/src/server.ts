@@ -178,6 +178,20 @@ const identityProviders = (() => {
   return providers
 })()
 
+/**
+ * See AppOptions.trustProxyHops. Unset means zero. Anything else that is not a small whole number
+ * stops the process: a typo here silently decides whose address the anonymous quota counts, and
+ * a service that refuses to start is a far louder way to learn that than a quota that misbehaves.
+ */
+const trustProxyHops = (() => {
+  const raw = process.env.TRUSTED_PROXY_HOPS
+  if (raw === undefined || raw.trim() === '') return 0
+  if (!/^[0-5]$/.test(raw.trim())) {
+    throw new Error(`TRUSTED_PROXY_HOPS must be a whole number from 0 to 5, got "${raw}".`)
+  }
+  return Number(raw.trim())
+})()
+
 /** See AppOptions.newTenantBudgetMicros. Undefined leaves the column default alone. */
 const newTenantBudgetMicros = (() => {
   const raw = process.env.NEW_TENANT_BUDGET_MICROS
@@ -212,6 +226,7 @@ const keywordCostMicros = (() => {
 const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
+  trustProxyHops,
   google,
   github,
   identityProviders,
