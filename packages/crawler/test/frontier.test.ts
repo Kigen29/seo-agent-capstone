@@ -76,6 +76,23 @@ describe('Frontier', () => {
     expect(frontier.add(['https://competitor.example/a'], 1)).toBe(0)
   })
 
+  it('treats www and the bare domain as one site, in both directions', () => {
+    // A seed typed without www that redirects to www: every link on the page points at www.
+    expect(new Frontier('https://example.com/').add(['https://www.example.com/a'], 1)).toBe(1)
+    expect(new Frontier('https://www.example.com/').add(['https://example.com/b'], 1)).toBe(1)
+  })
+
+  it('keeps other subdomains out, because blog.example.com is a different site', () => {
+    expect(new Frontier('https://example.com/').add(['https://blog.example.com/a'], 1)).toBe(0)
+  })
+
+  it('accepts the host the seed redirected to, once the crawler allows it', () => {
+    const frontier = new Frontier('https://example.com/')
+    expect(frontier.add(['https://example.co.uk/a'], 1)).toBe(0)
+    frontier.allowHost('example.co.uk')
+    expect(frontier.add(['https://example.co.uk/a'], 1)).toBe(1)
+  })
+
   it('follows off-host links when told to', () => {
     const frontier = new Frontier('https://example.com/', { sameHostOnly: false })
 

@@ -249,7 +249,8 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
     })
     // Service workers fetch outside context routing, so a crawled page must not install one.
     const context = await browser.newContext({ userAgent, serviceWorkers: 'block' })
-    await installEgressGuard(context, guard, onBlocked)
+    // Images, fonts and media are skipped unless a screenshot needs the pixels.
+    await installEgressGuard(context, guard, onBlocked, { skipAssets: !captureScreenshots })
     const root: RootFetch = { context, guard, onBlocked }
 
     const robots = respectRobots ? await fetchRobots(root, options.seed) : ALLOW_ALL
@@ -320,6 +321,12 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
           })
 
           pages.push(crawled)
+
+          // The seed redirected to another host (apex to www, or a new domain). Its links point
+          // there, so the crawl has to be allowed there, or it ends after this one page.
+          if (entry.depth === 0 && crawled.status > 0) {
+            frontier.allowHost(new URL(crawled.finalUrl).host)
+          }
 
           for (const link of crawled.extract.links) {
             if (!link.internal || !link.resolved) continue

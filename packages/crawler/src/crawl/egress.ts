@@ -103,13 +103,26 @@ export interface BlockedRequest {
   reason: string
 }
 
+/**
+ * Resource types an SEO crawl never reads. Alt text, titles, links, structured data and rendered
+ * text all live in the DOM; the bytes of an image, a font or a video do not change any of it.
+ * Skipping them is most of the time a page takes to reach `load`, and it also keeps the route
+ * handler below from pulling every asset through Node. Screenshots, the one consumer of pixels,
+ * are off in audits.
+ */
+const SKIPPED_RESOURCE_TYPES = new Set(['image', 'media', 'font'])
+
 /** Route every browser request and WebSocket in the context through the guard. */
 export async function installEgressGuard(
   context: BrowserContext,
   guard: EgressGuard,
   onBlocked?: (blocked: BlockedRequest) => void,
+  options: { skipAssets?: boolean } = {},
 ): Promise<void> {
   await context.route('**/*', async (route) => {
+    if (options.skipAssets && SKIPPED_RESOURCE_TYPES.has(route.request().resourceType())) {
+      return route.abort('blockedbyclient').catch(() => undefined)
+    }
     const url = route.request().url()
     const reason = await guard(url)
     if (reason) {
