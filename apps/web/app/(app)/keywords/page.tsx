@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
+import { countryFromUrl, isCountryCode } from '@/lib/countries'
 import { getClient } from '@/lib/session'
 import { GapForm } from './gap-form'
 import { SeedForm } from './seed-form'
@@ -49,9 +50,19 @@ export default async function KeywordsPage({
     return <ApiAsleep />
   }
 
+  /**
+   * The market every query uses: the one in the URL when it is a real country, else the one the
+   * site's own domain points at (soliangirls.sc.ke is Kenya), else the United States, the data
+   * vendor's own default. Always sent, so the page never measures a market the person did not see
+   * selected in the form.
+   */
+  const market = isCountryCode(country)
+    ? country.toLowerCase()
+    : (countryFromUrl(site?.url) ?? 'us')
+
   if (seed?.trim()) {
     try {
-      result = await api.keywordIdeas({ seed: seed.trim(), ...(country ? { country } : {}) })
+      result = await api.keywordIdeas({ seed: seed.trim(), country: market })
     } catch (error) {
       // A 429 here is the budget guard doing its job, not a broken page: the tenant is at its cap
       // and the honest answer is to say so and leave the form usable.
@@ -70,7 +81,7 @@ export default async function KeywordsPage({
       gap = await api.keywordGap({
         siteId: site.id,
         competitor: competitor.trim(),
-        ...(country ? { country } : {}),
+        country: market,
       })
     } catch (error) {
       const status = (error as { status?: number }).status
@@ -88,10 +99,10 @@ export default async function KeywordsPage({
       <PageHeader
         kicker="Research"
         title="What are people actually searching for?"
-        description="Ideas around a seed term, with real monthly search volume. Every search is a billed query against a paid data source, so it runs when you ask and not before."
+        description="Type a word your customers might search for, choose their country, and see related searches with how many people make them each month. Use it to decide which pages to write and what to call them. Each search is a small billed query, so it runs only when you press Search."
       />
 
-      <SeedForm seed={seed ?? ''} country={country ?? ''} />
+      <SeedForm seed={seed ?? ''} country={market} />
 
       {failed && (
         <Note tone="error" role="alert" className="mt-6">
@@ -197,7 +208,7 @@ export default async function KeywordsPage({
 
           <GapForm
             competitor={competitor ?? ''}
-            country={country ?? ''}
+            country={market}
             siteUrl={site.url}
             seed={seed ?? ''}
           />

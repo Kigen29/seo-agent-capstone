@@ -313,3 +313,14 @@ test('dropdowns and their options follow the dark theme', async ({ page }) => {
   // --color-surface in the dark palette: #232120.
   expect(colours).toEqual({ select: 'rgb(35, 33, 32)', option: 'rgb(35, 33, 32)', scheme: 'dark' })
 })
+
+test('keyword research offers every country by name', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/keywords')
+
+  const country = page.getByLabel('Country')
+  await expect(country).toBeVisible()
+  expect(await country.locator('option').count()).toBeGreaterThan(240)
+  await country.selectOption({ label: 'Japan' })
+  await expect(country).toHaveValue('jp')
+})

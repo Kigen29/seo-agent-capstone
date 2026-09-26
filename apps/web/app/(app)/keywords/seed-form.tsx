@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { CountrySelect } from '@/components/country-select'
 
 /**
  * The seed and the market, submitted into the URL.
@@ -12,9 +13,8 @@ import { useState } from 'react'
  * charged per request and per row returned, so it happens when a human presses a button and at no
  * other time.
  *
- * The market matters as much as the term. Search volume is per-country, so leaving it blank does
- * not mean "everywhere", it means the United States, and a Kenyan business planning around US
- * demand is planning around somebody else's market.
+ * The market matters as much as the term. Search volume is per-country, so the page always sends
+ * one: the one chosen here, which starts on the market the site's own domain points at.
  */
 export function SeedForm({ seed, country }: { seed: string; country: string }) {
   const router = useRouter()
@@ -33,7 +33,7 @@ export function SeedForm({ seed, country }: { seed: string; country: string }) {
     setPending(true)
     const search = new URLSearchParams({ seed: term })
     if (currentSearch.get('siteId')) search.set('siteId', currentSearch.get('siteId')!)
-    if (market.trim()) search.set('country', market.trim().toLowerCase())
+    if (market) search.set('country', market)
     router.push(`${pathname}?${search.toString()}`)
   }
 
@@ -57,19 +57,9 @@ export function SeedForm({ seed, country }: { seed: string; country: string }) {
           />
         </label>
 
-        <label className="flex w-[10rem] shrink-0 flex-col gap-1">
-          <span className="card-kicker">Market</span>
-          <input
-            name="country"
-            value={market}
-            onChange={(event) => setMarket(event.target.value)}
-            placeholder="ke"
-            maxLength={2}
-            autoComplete="country"
-            spellCheck={false}
-            className="input"
-            aria-describedby="market-help"
-          />
+        <label className="flex w-[14rem] shrink-0 flex-col gap-1">
+          <span className="card-kicker">Country</span>
+          <CountrySelect value={market} onChange={setMarket} describedBy="market-help" />
         </label>
 
         <button type="submit" className="btn btn-primary shrink-0" disabled={!value.trim()}>
@@ -82,8 +72,8 @@ export function SeedForm({ seed, country }: { seed: string; country: string }) {
         This runs a billed query against a paid data source when you press Search.
       </p>
       <p id="market-help" className="text-muted m-0 text-[13px]">
-        Market is a two-letter country code. Search volume is per-market, so leaving it blank means
-        the United States, not everywhere.
+        Search volume differs by country, so choose where your customers search from. It starts on
+        the country your site&apos;s domain suggests.
       </p>
     </form>
   )
