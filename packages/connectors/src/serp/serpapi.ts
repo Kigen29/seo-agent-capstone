@@ -91,6 +91,17 @@ function toSources(
   return sources
 }
 
+/**
+ * What one SerpApi search costs when SERP_COST_PER_QUERY_USD is unset, for the budget guard.
+ *
+ * The highest per-search rate among SerpApi's paid plans (Starter: $25 for 1,000 searches), checked
+ * against serpapi.com/pricing on 2026-09-26. SerpApi has no pay-as-you-go option, and the rate
+ * falls as the plan grows, so the smallest plan is the safe default: the guard may stop paid work a
+ * little early on a bigger plan, but never lets it run past the cap. Set the variable to your
+ * plan's real rate to reclaim the difference.
+ */
+export const DEFAULT_SERP_COST_PER_QUERY_USD = 0.025
+
 export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
   const doFetch = options.fetch ?? globalThis.fetch
 

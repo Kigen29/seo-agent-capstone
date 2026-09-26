@@ -231,3 +231,14 @@ Decided to accept Neon Free's six-hour restore window as the only retained recov
 Crawl checkpoints were considered and not built: at the default 50-page cap a restarted audit costs about a minute, and persisting every page's HTML during the crawl would spend Neon's 0.5 GB allowance that ADR-0007 already rations. Checkpoints become worthwhile if the page cap rises by an order of magnitude.
 
 Local validation: an API integration test fails an abandoned audit and leaves alone one with a live pg-boss job, one started ten minutes ago, one with an unpublished outbox request and one already complete; a second sweep changes nothing. 205 API tests passed; type checks and lint passed.
+
+
+## Provider price validation (#208)
+
+Every entry in `packages/llm/src/pricing.ts` was checked against the vendors' published pricing on 2026-09-26. OpenAI matched. `claude-sonnet-5` was overstated ($3/$15, actually $2/$10) and `claude-haiku-4-5` gained its undated ID. The dangerous finding: every Google and Groq model was priced at $0 as a free tier, so on a billed key the budget guard would have recorded `gemini-2.5-pro` calls (the `smart` and `judge` fallback) as costing nothing and never stopped them. Google models now carry paid-tier rates (`gemini-2.5-pro` $1.25/$10); `gemini-2.0-flash` and `text-embedding-004`, which Google has shut down, were removed and replaced in the documented chains (`gemini-2.5-flash` for `fast`; no embedding fallback, since a different embedding model changes the vector space). Groq publishes no price for `llama-3.3-70b-versatile` ("Contact sales"), so it carries a documented $1/$1 ceiling that is not a quote. A new test fails if any model is priced at zero input, if a chat model has no output price, or if a model named in `.env.example` has no price.
+
+SerpApi's default was $0.015 per search and described as pay-as-you-go; SerpApi has no pay-as-you-go plan, and its smallest paid plan (Starter) costs $0.025 per search. The default is now $0.025, defined once in `@seo/connectors` instead of three hard-coded copies. DataForSEO's published per-request rates could not be retrieved from its site during this check; the configured defaults ($0.03 backlinks, $0.02 keyword ideas) remain unverified.
+
+Local validation: llm 17, budget 14, eval 20, agent 24, connectors 299, audit 77 and API 205 tests passed; workspace type checks and lint passed.
+
+Action for deployed environments: `LLM_*` chains in Render and GitHub Actions secrets that still name `google:gemini-2.0-flash` or `google:text-embedding-004` will now be refused when the chain reaches them; replace them as in `.env.example`.

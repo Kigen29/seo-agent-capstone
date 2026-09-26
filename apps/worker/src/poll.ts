@@ -5,6 +5,7 @@ import {
   pollEnginesDetailed,
   type AiEngine,
   type PollTarget,
+  DEFAULT_SERP_COST_PER_QUERY_USD,
 } from '@seo/connectors'
 import { createBudgetGuard, recordSpend } from '@seo/budget'
 import {
@@ -125,12 +126,13 @@ function serpEngine(db: Database, tenantId: string): AiEngine | null {
  *
  * Configuration rather than a table, because the rate is per plan: SerpApi's price per search
  * falls as the plan grows, so any number hard-coded here would be wrong for most operators. The
- * default is the pay-as-you-go rate at the time of writing, which errs high, and erring high is
- * the safe direction for a cost guard.
+ * default is the highest rate among SerpApi's paid plans (see DEFAULT_SERP_COST_PER_QUERY_USD),
+ * which errs high, and erring high is the safe direction for a cost guard.
  */
 function serpCostMicros(): number {
   const configured = Number(process.env.SERP_COST_PER_QUERY_USD)
-  const usd = Number.isFinite(configured) && configured > 0 ? configured : 0.015
+  const usd =
+    Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_SERP_COST_PER_QUERY_USD
   return Math.round(usd * 1_000_000)
 }
 

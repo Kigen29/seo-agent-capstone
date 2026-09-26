@@ -19,7 +19,7 @@ describe('metered model calls', () => {
     mock.chain.mockReturnValue({
       targets: [
         { provider: 'openai', model: 'text-embedding-3-small' },
-        { provider: 'google', model: 'text-embedding-004' },
+        { provider: 'openai', model: 'text-embedding-3-small' },
       ],
     })
     mock.embed
@@ -31,8 +31,10 @@ describe('metered model calls', () => {
     ).toEqual([[1, 2]])
     expect(record).toHaveBeenCalledWith(
       'tenant',
-      expect.objectContaining({ inputTokens: 17, provider: 'google' }),
+      expect.objectContaining({ inputTokens: 17, provider: 'openai' }),
     )
+    // The first target failed with a 429, so the second one served the call.
+    expect(mock.embed).toHaveBeenCalledTimes(2)
   })
   it('refuses unknown pricing before invoking a provider', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'unknown' }] })
