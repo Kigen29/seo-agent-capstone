@@ -293,3 +293,23 @@ test('lists the sessions and tokens that can act as the account, never their val
   // The credential itself is never rendered.
   expect(await page.content()).not.toContain(TOKEN)
 })
+
+test('dropdowns and their options follow the dark theme', async ({ page }) => {
+  // A transparent native select opened a white option list in dark mode on Windows Chrome.
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await signIn(page)
+  await page.goto('/findings')
+
+  const select = page.locator('select.input').first()
+  await expect(select).toBeVisible()
+  const colours = await select.evaluate((element) => {
+    const option = element.querySelector('option')!
+    return {
+      select: getComputedStyle(element).backgroundColor,
+      option: getComputedStyle(option).backgroundColor,
+      scheme: getComputedStyle(element).colorScheme,
+    }
+  })
+  // --color-surface in the dark palette: #232120.
+  expect(colours).toEqual({ select: 'rgb(35, 33, 32)', option: 'rgb(35, 33, 32)', scheme: 'dark' })
+})
