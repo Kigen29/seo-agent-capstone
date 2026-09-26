@@ -2,7 +2,11 @@
 
 import type { MinedQuestion } from '@seo/api-client'
 import { useState, useTransition } from 'react'
-import { addPrompts, mineQuestions } from './actions'
+import { addPrompts, mineQuestions, suggestPrompts } from './actions'
+
+/** One row in the list: a mined question, or one the agent drafted with its reason. */
+type Candidate =
+  MinedQuestion | { question: string; source: 'agent'; reason: string; variants: string[] }
 
 /**
  * Questions a site's customers actually ask, and a way to start tracking them.
@@ -17,6 +21,9 @@ import { addPrompts, mineQuestions } from './actions'
  * People Also Ask question is demand Google has seen somewhere, which is worth knowing and is not
  * the same claim. The badge says which, every row.
  *
+ * The first option asks for nothing at all: the agent drafts questions from what the site says
+ * about itself and its latest audit, and the person only ticks the ones worth tracking.
+ *
  * Selected questions are appended to the tracked prompts, never substituted for them: prompts
  * already being polled carry a poll history, and replacing the list would throw away windows a
  * user has waited days for.
@@ -24,11 +31,34 @@ import { addPrompts, mineQuestions } from './actions'
 export function QuestionMiner({ siteId }: { siteId: string }) {
   const [pending, start] = useTransition()
   const [seed, setSeed] = useState('')
-  const [questions, setQuestions] = useState<MinedQuestion[] | null>(null)
+  const [questions, setQuestions] = useState<Candidate[] | null>(null)
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+
+  function draft() {
+    setError(null)
+    setSaved(null)
+    start(async () => {
+      const result = await suggestPrompts(siteId)
+      if ('error' in result) {
+        setError(result.error)
+        return
+      }
+      setQuestions(
+        result.suggestions.map((entry) => ({
+          question: entry.prompt,
+          source: 'agent' as const,
+          reason: entry.reason,
+          variants: [],
+        })),
+      )
+      setNote(result.note ?? null)
+      // Drafted for this site, so all start ticked: untick what does not fit, then save.
+      setChosen(new Set(result.suggestions.map((entry) => entry.prompt)))
+    })
+  }
 
   function find() {
     setError(null)
@@ -73,12 +103,23 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
 
   return (
     <section className="mt-8">
-      <h2 className="h-section mb-1">Questions your customers actually ask</h2>
+      <h2 className="h-section mb-1">Which questions should we track?</h2>
       <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-        From your own Search Console, which is free and knows what you are already shown for. Add a
-        subject to also ask Google what it suggests alongside it, which is one billed query.
+        AI visibility checks whether assistants like ChatGPT and Google&apos;s AI answers mention
+        your site when a customer asks about what you offer. Let the agent draft those questions
+        from your site, then keep the ones that fit.
       </p>
 
+      <div className="card elev-sm mb-3 flex flex-wrap items-center gap-3 p-4">
+        <button type="button" className="btn btn-primary" onClick={draft} disabled={pending}>
+          {pending ? 'Working…' : 'Suggest questions for me'}
+        </button>
+        <span className="text-muted text-[13px]">
+          Reads your homepage and latest audit. One small model call against your monthly budget.
+        </span>
+      </div>
+
+      <p className="text-muted mt-0 mb-2 text-[13px]">Or find the questions people already ask:</p>
       <div className="card elev-sm gap-3 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-0 flex-1 flex-col gap-1">
@@ -95,7 +136,7 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
 
           <button
             type="button"
-            className="btn btn-primary shrink-0"
+            className="btn btn-secondary shrink-0"
             onClick={find}
             disabled={pending}
           >
@@ -141,7 +182,9 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm">{entry.question}</span>
                   <span className="text-muted mt-1 block text-[12px]">
-                    {entry.source === 'search-console' ? (
+                    {entry.source === 'agent' ? (
+                      <>Suggested by the agent · {entry.reason}</>
+                    ) : entry.source === 'search-console' ? (
                       <>
                         Search Console
                         {entry.impressions === undefined

@@ -27,3 +27,6 @@ export type {
 
 export { nameTopics, topicNamingPrompt, TOPIC_NAMING_SYSTEM } from './topic-names.js'
 export type { ClusterToName, TopicNamingLlm } from './topic-names.js'
+
+export { MAX_SUGGESTIONS, suggestVisibilityPrompts } from './suggest-prompts.js'
+export type { PromptSuggestionLlm, SiteContext, SuggestedPrompt } from './suggest-prompts.js'

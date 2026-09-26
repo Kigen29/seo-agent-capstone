@@ -358,6 +358,18 @@ export interface KeywordGapResult {
 }
 
 /** One question a site's customers actually ask, and where we learned it. */
+/** A question the agent drafted for AI-visibility tracking, with why it fits the business. */
+export interface SuggestedPrompt {
+  prompt: string
+  reason: string
+}
+
+export interface PromptSuggestions {
+  suggestions: SuggestedPrompt[]
+  /** Set when the homepage could not be read and the draft leaned on less context. */
+  note?: string
+}
+
 export interface MinedQuestion {
   question: string
   /**
@@ -738,6 +750,10 @@ export function createApiClient(options: ApiClientOptions) {
      * The questions this site's customers actually ask: Search Console's question queries, plus
      * People Also Ask when a seed is given (one billed query) and a SERP vendor is configured.
      */
+    /** Draft AI-visibility questions for a site from what it says about itself. One model call. */
+    suggestPrompts: async (siteId: string) =>
+      request<PromptSuggestions>(`/sites/${siteId}/visibility/suggestions`, { method: 'POST' }),
+
     mineQuestions: async (siteId: string, query: { seed?: string; country?: string } = {}) => {
       const params = new URLSearchParams()
       for (const [key, value] of Object.entries(query)) {

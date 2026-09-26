@@ -324,3 +324,16 @@ test('keyword research offers every country by name', async ({ page }) => {
   await country.selectOption({ label: 'Japan' })
   await expect(country).toHaveValue('jp')
 })
+
+test('AI visibility offers to draft the questions, and says why when it cannot', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/visibility')
+
+  const suggest = page.getByRole('button', { name: 'Suggest questions for me' })
+  await expect(suggest).toBeVisible()
+  await suggest.click()
+  // The e2e API has no model configured, so the honest answer is to say what is missing.
+  await expect(page.getByText(/need a model/)).toBeVisible()
+})
