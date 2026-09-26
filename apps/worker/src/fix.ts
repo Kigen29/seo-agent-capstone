@@ -3,8 +3,14 @@ import { getFinding } from '@seo/audit'
 import { findings, sites, withTenant, type Database } from '@seo/db'
 import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
 import type { FixJob } from '@seo/queue'
-import { createGitHubApp, githubAppConfigFromEnv, GitHubProvider } from '@seo/vcs'
-import { eq } from 'drizzle-orm'
+import {
+  createGitHubApp,
+  githubAppConfigFromEnv,
+  GitHubProvider,
+  type PullRequest,
+  type VersionControlProvider,
+} from '@seo/vcs'
+import { and, eq } from 'drizzle-orm'
 import { createWorkerLlm } from './llm.js'
 
 /**
@@ -22,9 +28,14 @@ import { createWorkerLlm } from './llm.js'
  */
 const registry = createFixerRegistry()
 
-export async function runFix(db: Database, job: FixJob): Promise<void> {
+/** Seams for tests. Production builds the GitHub provider from the environment. */
+export interface FixDeps {
+  provider?: VersionControlProvider
+}
+
+export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Promise<void> {
   try {
-    await attemptFix(db, job)
+    await attemptFix(db, job, deps)
   } catch (error) {
     /**
      * Write the reason onto the finding before rethrowing.
@@ -54,7 +65,7 @@ async function recordFixFailure(db: Database, job: FixJob, error: unknown): Prom
   )
 }
 
-async function attemptFix(db: Database, job: FixJob): Promise<void> {
+async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<void> {
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
   if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
   // A delayed delivery must not regenerate a PR or move a merged finding backwards.
@@ -73,13 +84,23 @@ async function attemptFix(db: Database, job: FixJob): Promise<void> {
   const [owner, name] = site.repoFullName.split('/')
   if (!owner || !name) throw new Error(`Malformed connected repo name: ${site.repoFullName}`)
 
+  const provider =
+    deps.provider ?? new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
+  const repo = { repo: { owner, name }, installationId: site.githubInstallationId }
+  const branchId = branchSafeId(finding.rowId)
+
+  // A previous attempt may have opened the PR and then died before recording it. Adopt that PR
+  // instead of regenerating the fix, so a crash costs neither a second model call nor a second PR.
+  const existing = await provider.findOpenPullRequest(repo, branchId)
+  if (existing) {
+    await recordPullRequest(db, job.tenantId, finding.rowId, existing)
+    return
+  }
+
   // Built per job rather than once at module load, because the client now carries the budget
   // guard and the guard needs the database handle the job was called with. It is a couple of
   // closures over an existing pool; the cost is nothing next to the crawl this sits behind.
   const llm = createWorkerLlm(db)
-
-  const provider = new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
-  const repo = { repo: { owner, name }, installationId: site.githubInstallationId }
   const read: ReadRepoFile = async (path) => (await provider.getFile(repo, path))?.content ?? null
 
   const framework = await detectFramework(read)
@@ -103,19 +124,29 @@ async function attemptFix(db: Database, job: FixJob): Promise<void> {
 
   const pr = await provider.openPullRequest(repo, {
     // Use the persisted observation ID, not the positional rule key shared by other audits.
-    finding: { ...finding, id: branchSafeId(finding.rowId) },
+    finding: { ...finding, id: branchId },
     files: fix.files,
     expectedEffect: fix.expectedEffect,
     rollback: fix.rollback,
   })
 
-  await withTenant(db, job.tenantId, (tx) =>
+  await recordPullRequest(db, job.tenantId, finding.rowId, pr)
+}
+
+async function recordPullRequest(
+  db: Database,
+  tenantId: string,
+  findingRowId: string,
+  pr: PullRequest,
+): Promise<void> {
+  await withTenant(db, tenantId, (tx) =>
     tx
       .update(findings)
       // `fixError` is cleared, not left behind: it describes the most recent attempt, and a stale
       // failure sitting next to an open pull request would read as though the PR had failed.
       .set({ status: 'pr_open', prUrl: pr.url, fixError: null })
-      .where(eq(findings.id, finding.rowId)),
+      // Only an open finding moves to pr_open; a webhook may already have recorded a merge.
+      .where(and(eq(findings.id, findingRowId), eq(findings.status, 'open'))),
   )
 }
 

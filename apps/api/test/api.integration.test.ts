@@ -1527,6 +1527,56 @@ describe.skipIf(!shouldRun)('the API', () => {
       },
     )
 
+    it('adopts a PR a crashed attempt opened instead of generating another', async () => {
+      const { runFix } = await import('../../worker/src/fix.js')
+      const lookups: string[] = []
+      const adopted = {
+        url: 'https://github.com/octo/site/pull/41',
+        number: 41,
+        branch: `seo-agent/${retryFindingId}-missing-title`,
+      }
+      const provider = {
+        findOpenPullRequest: async (_ctx: unknown, id: string) => {
+          lookups.push(id)
+          return adopted
+        },
+        getFile: async () => {
+          throw new Error('must not read the repo when a PR already exists')
+        },
+        openPullRequest: async () => {
+          throw new Error('must not open a second PR')
+        },
+      }
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ status: 'open', fixError: 'died after opening the PR' })
+          .where(eq(findings.id, retryFindingId)),
+      )
+      try {
+        await runFix(
+          db,
+          { tenantId, siteId: repoSiteId, findingRowId: retryFindingId },
+          { provider },
+        )
+        expect(lookups).toEqual([retryFindingId])
+        const [row] = await withTenant(db, tenantId, (tx) =>
+          tx
+            .select({ status: findings.status, prUrl: findings.prUrl, fixError: findings.fixError })
+            .from(findings)
+            .where(eq(findings.id, retryFindingId)),
+        )
+        expect(row).toEqual({ status: 'pr_open', prUrl: adopted.url, fixError: null })
+      } finally {
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .update(findings)
+            .set({ status: 'open', prUrl: null })
+            .where(eq(findings.id, retryFindingId)),
+        )
+      }
+    })
+
     it('refuses a second fix once one is already open', async () => {
       // Keep this last: it moves the finding out of `open`.
       await withTenant(db, tenantId, (tx) =>

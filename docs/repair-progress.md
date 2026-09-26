@@ -154,3 +154,9 @@ Verified merged PRs #183 (48378ab) and #185 (3200ccd) against their code and suc
 Added direct verification-queue regressions for concurrent delivery of the same request ID, replay after completion, a new explicit request ID, and pending work surviving queue connection restart. All 9 queue tests passed against disposable local Postgres; queue build, type checks and lint passed. This does not establish recovery from a killed worker during remote side effects or sustained load. The retained-record limit on queue deduplication remains.
 
 Corrected #185's rollback instructions: preserve `verify` publication support until accepted events drain; do not delete pending requests. Full CI and merge evidence for this follow-up are tracked on #186, under #179.
+
+## Fix PR adoption after a crash (#188)
+
+A fix job that dies after GitHub opens the PR but before the finding is marked `pr_open` is redelivered by the outbox. The worker now looks up an open PR on the finding's `seo-agent/<rowId>-` branch before it reads the repo or calls a fixer or model, and adopts it if found. A crash in that window therefore costs neither a second model call nor a second PR. Recording a PR is guarded to move only `open` findings, so a merge a webhook has already recorded is not overwritten.
+
+Still open: a PR closed or merged before the retry is left to the webhook and polling sweep, and the head-prefix lookup reads only the first 100 open PRs. Local validation: 175 API tests passed; worker and API type checks and lint passed. No schema migration.
