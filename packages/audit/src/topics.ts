@@ -103,6 +103,9 @@ export async function measureTopics(
     .sort((a, b) => a.finalUrl.localeCompare(b.finalUrl))
 
   if (usable.length < MIN_PAGES) {
+    console.log(
+      `topics: skipped, ${usable.length} usable page(s) (need ${MIN_PAGES}); no model call`,
+    )
     return unmeasured(
       `Topics are not measured: ${usable.length} usable page(s) were crawled, and a topic map ` +
         `over fewer than ${MIN_PAGES} is a list with a chart drawn on it.`,
@@ -117,9 +120,12 @@ export async function measureTopics(
       embedded.map((page) => pageText(page)),
       options.tenantId,
     )
-  } catch {
+  } catch (error) {
     // Over budget, no provider, or the provider refused. The audit's other axes are real and this
-    // one is simply dark for the run.
+    // one is simply dark for the run. Say which in the log: from outside, a budget refusal, a bad
+    // key and a vendor outage otherwise look identical to a site too small to measure.
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(`topics: embedding failed for tenant ${options.tenantId}: ${reason.slice(0, 300)}`)
     return unmeasured(
       'Topics are not measured this run: the embedding call did not return. The rest of the ' +
         'audit is unaffected.',
