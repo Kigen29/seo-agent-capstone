@@ -1,7 +1,13 @@
 import type { Finding } from '@seo/core'
 import type { ReadRepoFile } from '@seo/fixers'
 import { describe, expect, it, vi } from 'vitest'
-import { generateContentFix, type ContentLlm } from '../src/content-fix.js'
+import {
+  fitDescription,
+  generateContentFix,
+  MAX_DESCRIPTION,
+  MIN_DESCRIPTION,
+  type ContentLlm,
+} from '../src/content-fix.js'
 
 function reader(files: Record<string, string>): ReadRepoFile {
   return async (path) => (path in files ? files[path]! : null)
@@ -137,5 +143,32 @@ describe('generateContentFix', () => {
       { llm, tenantId: 'tenant-1' },
     )
     expect(result).toBeNull()
+  })
+})
+
+describe('fitDescription', () => {
+  const sentence =
+    'Solian Girls is a boarding secondary school in Nakuru, Kenya, admitting girls from Form One.'
+  it('keeps a description already inside the window, tidied', () => {
+    expect(fitDescription(`  ${sentence}  `)).toBe(sentence)
+  })
+
+  it('cuts an over-long answer at the last sentence end inside the limit', () => {
+    const long = `${sentence} It offers science, arts and sports programmes with modern laboratories and more.`
+    const fitted = fitDescription(long)!
+    expect(fitted).toBe(sentence)
+    expect(fitted.length).toBeLessThanOrEqual(MAX_DESCRIPTION)
+  })
+
+  it('falls back to a word boundary when no sentence ends inside the limit', () => {
+    const words = 'word '.repeat(40).trim()
+    const fitted = fitDescription(words)!
+    expect(fitted.length).toBeLessThanOrEqual(MAX_DESCRIPTION)
+    expect(fitted.endsWith('word')).toBe(true)
+  })
+
+  it('refuses one too short to be worth a pull request', () => {
+    expect(fitDescription('A school.')).toBeNull()
+    expect(MIN_DESCRIPTION).toBe(70)
   })
 })

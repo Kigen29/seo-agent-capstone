@@ -115,3 +115,28 @@ describe('draftOutreach', () => {
     await expect(draftOutreach(input(), { llm, tenantId: 'tenant-1' })).resolves.toBeNull()
   })
 })
+
+describe('the schema the model sees', () => {
+  it('carries no length limits, which strict structured outputs refuse', async () => {
+    let seen: { parse: (value: unknown) => unknown } | undefined
+    const llm = {
+      object: async (opts: { schema: { parse: (value: unknown) => unknown } }) => {
+        seen = opts.schema
+        return { output: { subject: 's', body: 'b', angle: 'a' } }
+      },
+    }
+    const result = await draftOutreach(
+      {
+        brand: 'Brand',
+        siteUrl: 'https://brand.test',
+        target: { domain: 'news.test' },
+        facts: [{ claim: 'A real fact', sourceUrl: 'https://brand.test/fact' }],
+      },
+      { llm: llm as never, tenantId: 't' },
+    )
+    // One-character fields parse against what the model is sent...
+    expect(() => seen!.parse({ subject: 's', body: 'b', angle: 'a' })).not.toThrow()
+    // ...and the real limits still refuse them, so no draft comes back.
+    expect(result).toBeNull()
+  })
+})

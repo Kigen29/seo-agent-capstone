@@ -46,12 +46,42 @@ export interface ContentFixDeps {
 
 /**
  * A meta description is short, factual, and easy to get wrong in a way that embarrasses the client
- * (invented awards, fake specifics), so the schema is strict and the prompt forbids invention. 70
- * to 160 characters is the window Google actually shows.
+ * (invented awards, fake specifics), so the prompt forbids invention. 70 to 160 characters is the
+ * window Google actually shows.
+ *
+ * The window is enforced in code, not in the schema the model sees. OpenAI's strict structured
+ * outputs do not accept string length limits, so a schema carrying them can be refused before the
+ * model runs, and when it does run, a 165-character answer would fail validation after the tokens
+ * were paid for. Clipping to a word boundary keeps a good answer that ran slightly long.
  */
-const descriptionSchema = z.object({
-  description: z.string().min(70).max(160),
-})
+const descriptionSchema = z.object({ description: z.string() })
+
+export const MIN_DESCRIPTION = 70
+export const MAX_DESCRIPTION = 160
+
+/**
+ * Fit a model-written description into the window Google shows, or null when it cannot be done
+ * honestly. Too long: cut at the last sentence end, else the last word boundary, inside the limit.
+ * Too short, before or after cutting: refused, because padding would be invention.
+ */
+export function fitDescription(raw: string): string | null {
+  let text = raw.replace(/\s+/g, ' ').trim()
+  if (text.length > MAX_DESCRIPTION) {
+    const head = text.slice(0, MAX_DESCRIPTION + 1)
+    const sentenceEnd = Math.max(
+      head.lastIndexOf('. '),
+      head.lastIndexOf('! '),
+      head.lastIndexOf('? '),
+    )
+    if (sentenceEnd >= MIN_DESCRIPTION - 1) {
+      text = head.slice(0, sentenceEnd + 1)
+    } else {
+      const space = head.lastIndexOf(' ')
+      text = head.slice(0, space > 0 ? space : MAX_DESCRIPTION).replace(/[,;:\s]+$/, '')
+    }
+  }
+  return text.length >= MIN_DESCRIPTION && text.length <= MAX_DESCRIPTION ? text : null
+}
 
 /**
  * Generate a fix for a content finding the deterministic fixers cannot handle. Returns a FixResult
@@ -84,7 +114,10 @@ export async function generateContentFix(
         'Base it only on the URL and the title. If you are unsure what the page offers, describe it ' +
         'in general terms rather than guessing at specifics.',
     })
-    description = result.output.description
+    const fitted = fitDescription(result.output.description)
+    // Too short to be worth a pull request, even after tidying: no fix rather than a thin one.
+    if (fitted === null) return null
+    description = fitted
   } catch {
     // The chain is unavailable, or every target failed. Leave the finding open rather than open a
     // PR with no fix in it; the worker reports that no fix could be generated.

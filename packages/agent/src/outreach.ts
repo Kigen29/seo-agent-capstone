@@ -67,6 +67,13 @@ export const outreachDraftSchema = z.object({
 
 export type OutreachDraft = z.infer<typeof outreachDraftSchema>
 
+/**
+ * What the model is asked for: the same three fields with no length limits. OpenAI's strict
+ * structured outputs do not accept string length limits, so sending `outreachDraftSchema` itself
+ * could have the call refused before the model runs. The real limits are applied to the answer.
+ */
+const modelDraftSchema = z.object({ subject: z.string(), body: z.string(), angle: z.string() })
+
 export interface OutreachResult {
   draft: OutreachDraft
   /** Restated on the result so the UI cannot render a draft without the caveat. */
@@ -108,7 +115,7 @@ export async function draftOutreach(
     const result = await deps.llm.object({
       role: 'smart',
       tenantId: deps.tenantId,
-      schema: outreachDraftSchema,
+      schema: modelDraftSchema,
       system: SYSTEM,
       prompt:
         `Pitch ${input.brand} (${input.siteUrl}) to ${input.target.domain}.\n` +
@@ -118,7 +125,15 @@ export async function draftOutreach(
         'specifically. If the facts do not support a pitch to this publication, say so plainly ' +
         'in the angle rather than inventing a reason.',
     })
-    draft = result.output
+    const checked = outreachDraftSchema.safeParse({
+      subject: result.output.subject.trim(),
+      body: result.output.body.trim(),
+      angle: result.output.angle.trim(),
+    })
+    // Outside the limits a human reviewer relies on (a two-word subject, a 3,000-word body): no
+    // draft, exactly as if the model had declined. The limits did not move, only where they apply.
+    if (!checked.success) return null
+    draft = checked.data
   } catch {
     /**
      * No chain configured, the model refused, or the output did not validate. Null, the same as
