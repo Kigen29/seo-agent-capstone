@@ -231,3 +231,40 @@ function checkCoverage() {
 
   return coverage
 }
+
+/** What a page says about itself: enough to describe the business, nothing more. */
+export interface PageSummary {
+  title: string | null
+  description: string | null
+  headings: string[]
+}
+
+/**
+ * Fetch one page through the SSRF guard and read its title, description and top headings.
+ *
+ * Used to ground the AI-visibility prompt suggestions in what the site actually says. Served HTML
+ * only, no browser: for a client-rendered site that is often just the title and description, which
+ * is still the business describing itself. Returns null when the page cannot be read, because a
+ * suggestion made without it is still useful and this should never be the reason one fails.
+ */
+export async function summarisePage(
+  input: string,
+  options: QuickCheckOptions = {},
+): Promise<PageSummary | null> {
+  try {
+    const page = await publicFetch(input, { ...guardOptions(options), timeoutMs: 8_000 })
+    if (page.status >= 400) return null
+    const extract = extractPage(page.body, page.finalUrl)
+    return {
+      title: extract.title,
+      description: extract.metaDescription,
+      headings: extract.headings
+        .filter((heading) => heading.level <= 2)
+        .map((heading) => heading.text.trim())
+        .filter(Boolean)
+        .slice(0, 15),
+    }
+  } catch {
+    return null
+  }
+}

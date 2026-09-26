@@ -3073,6 +3073,126 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('suggesting AI-visibility questions', () => {
+    const homepage = `<html><head><title>Solian Girls Senior School</title>
+      <meta name="description" content="A girls' boarding school in Nakuru"></head>
+      <body><h1>Admissions</h1><h2>Academics</h2></body></html>`
+
+    /** A separate app whose page fetch and model are fakes, so nothing leaves the test. */
+    const appWith = async (model: unknown) =>
+      buildApp({
+        db,
+        outreach: () => model as never,
+        checkFetch: (async () =>
+          new Response(homepage, { status: 200 })) as unknown as typeof globalThis.fetch,
+        checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+      })
+
+    const suggest = (instance: FastifyInstance, id: string, bearer = token) =>
+      instance.inject({
+        method: 'POST',
+        url: `/sites/${id}/visibility/suggestions`,
+        headers: { authorization: `Bearer ${bearer}` },
+      })
+
+    it('drafts questions grounded in the page, its topics and its market', async () => {
+      const kenyaSite = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://soliangirls.sc.ke', brand: 'Solian Girls' })
+          .returning()
+        await tx.insert(audits).values({
+          tenantId,
+          siteId: row!.id,
+          status: 'complete',
+          completedAt: new Date(),
+          metrics: {
+            topics: { clusters: [{ name: 'KCSE results', size: 3, pages: [] }] },
+          } as never,
+        })
+        await tx
+          .insert(visibilityPrompts)
+          .values({ tenantId, siteId: row!.id, prompt: 'best girls schools in nakuru' })
+        return row!.id
+      })
+      let seenPrompt = ''
+      const model = {
+        object: async (opts: { prompt: string }) => {
+          seenPrompt = opts.prompt
+          return {
+            output: {
+              prompts: [
+                { prompt: 'Best girls schools in Nakuru', reason: 'Already tracked' },
+                { prompt: 'Which Nakuru schools have the best KCSE results?', reason: 'Results' },
+              ],
+            },
+          }
+        },
+      }
+      const instance = await appWith(model)
+      try {
+        const res = await suggest(instance, kenyaSite)
+        expect(res.statusCode).toBe(200)
+        expect(seenPrompt).toContain('Page title: Solian Girls Senior School')
+        expect(seenPrompt).toContain('Market: Kenya')
+        expect(seenPrompt).toContain('Topics covered: KCSE results')
+        expect(seenPrompt).toContain('Headings: Admissions | Academics')
+        expect(res.json()).toEqual({
+          suggestions: [
+            { prompt: 'Which Nakuru schools have the best KCSE results?', reason: 'Results' },
+          ],
+        })
+      } finally {
+        await instance.close()
+        await withTenant(db, tenantId, (tx) => tx.delete(sites).where(eq(sites.id, kenyaSite)))
+      }
+    })
+
+    it('returns 404 for another tenant, before any model call', async () => {
+      let called = false
+      const instance = await appWith({
+        object: async () => {
+          called = true
+          return { output: { prompts: [] } }
+        },
+      })
+      try {
+        expect((await suggest(instance, siteId, otherToken)).statusCode).toBe(404)
+        expect(called).toBe(false)
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('says plainly when no model is configured', async () => {
+      const instance = await appWith(undefined)
+      try {
+        const res = await suggest(instance, siteId)
+        expect(res.statusCode).toBe(503)
+        expect((res.json() as { message: string }).message).toMatch(/need a model/)
+      } finally {
+        await instance.close()
+      }
+    })
+
+    it('answers 429 with a reason when the budget is spent', async () => {
+      const instance = await appWith({
+        object: async () => {
+          throw new Error(
+            'Budget guard: Insufficient tenant budget including pending reservations.',
+          )
+        },
+      })
+      try {
+        const res = await suggest(instance, siteId)
+        expect(res.statusCode).toBe(429)
+        expect((res.json() as { message: string }).message).toMatch(/monthly budget/)
+      } finally {
+        await instance.close()
+      }
+    })
+  })
+
   describe('the anonymous check', () => {
     /**
      * Clear this suite's own rate-limit history before asserting anything about limits.

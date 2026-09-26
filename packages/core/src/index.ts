@@ -73,3 +73,6 @@ export type { AxisCoverage, AxisScore, AxisStatus, Scorecard, ScorecardInput } f
 export { assertTestDatabase } from './test-database.js'
 
 export { isPrivateAddress } from './network.js'
+
+export { countryFromUrl, countryName, countryOptions, isCountryCode } from './country.js'
+export type { CountryOption } from './country.js'

@@ -1,11 +1,31 @@
 'use server'
 
-import type { MinedQuestions, VisibilitySettings } from '@seo/api-client'
+import type { MinedQuestions, PromptSuggestions, VisibilitySettings } from '@seo/api-client'
 import { ApiRequestError } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+
+/** Questions the agent drafts from the site itself, so nobody has to write them. */
+export async function suggestPrompts(
+  siteId: string,
+): Promise<PromptSuggestions | { error: string }> {
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  try {
+    return await api.suggestPrompts(siteId)
+  } catch (error) {
+    // 429 (budget spent), 503 (no model) and 502 (model did not answer) all carry a message a
+    // person can act on, so it is shown as it came.
+    if (error instanceof ApiRequestError && [429, 502, 503].includes(error.status)) {
+      return { error: error.message }
+    }
+    handleApiError(error)
+    return { error: 'Could not draft questions. The API may be waking up; try again shortly.' }
+  }
+}
 
 /** The questions this site's customers ask, from Search Console and optionally People Also Ask. */
 export async function mineQuestions(

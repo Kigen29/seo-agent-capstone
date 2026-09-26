@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countryFromUrl, countryOptions, isCountryCode } from './countries'
+import { countryFromUrl, countryOptions, isCountryCode } from '../src/country.js'
 
 describe('countries', () => {
   it('offers every country by name, not only Kenya', () => {
