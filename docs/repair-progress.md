@@ -70,7 +70,7 @@ The browser configuration does not load the root .env. Never point these command
 - Public HTTP requests connect to validated DNS addresses; reserved-range and redirect tests pass. The crawler's browser now refuses private destinations in code (#190); DNS-rebinding-proof, network-level egress filtering on the worker host remains open.
 - Public-check attempts reserve quota atomically before fetching. Trusted reverse-proxy handling is implemented (#196) and set to the measured three hops in production (#199).
 - Verification requires positive page/rule coverage and confirmed deployment. Only supported page-level rules currently qualify; full attempts/history persistence and the 24-hour retry schedule remain open.
-- In-flight frontier entries are recoverable from serialized state. Persisting checkpoints during production crawls remains open.
+- In-flight frontier entries are recoverable from serialized state. Production crawl checkpoints are deliberately not persisted at the 50-page cap (a restart costs about a minute, and storing every page would spend the 0.5 GB Neon allowance); audits whose worker dies are failed by a sweep instead (#206).
 - Embedding calls record usage, use fallback providers, and cap parallel SDK requests. Unknown model pricing is refused. SDK retries are disabled; a failed spend-ledger write cannot trigger another paid provider call. Atomic tenant/global reservations now cover model, embedding, SERP, keyword, and backlink calls. Provider price validation and abandoned-call reconciliation remain open.
 - Findings use the latest completed audit, and fix branches use persisted finding row IDs. Stable cross-audit finding identity and fix-attempt records remain open.
 
@@ -222,3 +222,12 @@ Emergency restore from a dump: create an empty Postgres, create the `seo_app` ro
 ## Retention policy (ADR-0026)
 
 Decided to accept Neon Free's six-hour restore window as the only retained recovery point, with no off-vendor copies, rather than keeping encrypted dumps as public-repository artifacts. Damage noticed within six hours is restored with Neon instant restore; later damage to re-derivable data is rebuilt by re-running audits, and lost poll history or ledger rows are recorded as loss. Every destructive migration or bulk data fix first creates a Neon branch named `pre-<change>` (branches outlive the history window, are free within the Free plan's ten, and are deleted once verified). The weekly restore drill stays as proof that the data can be restored on any Postgres. Retained encrypted backups in R2 become required at the first non-demo tenant, the first paying tenant, or when customers rely on visibility history.
+
+
+## Abandoned audits (#206)
+
+`runAudit` records failures it lives to see, but a cancelled, timed-out or crashed runner never reaches its `catch`, so the audit stayed on `crawling` and the dashboard showed a progress bar that never moved once pg-boss's retries were spent. `failAbandonedAudits` now runs in every drain and in the daemon's scheduled sweep. It fails an audit only when it is still `queued`, `crawling` or `evaluating`, its `started_at` is more than two hours old (beyond three thirty-minute queue attempts), pg-boss holds no waiting, retrying or active job for it (the job id is the audit id), and the outbox holds no unpublished request for it. The update re-checks status, so it is idempotent and cannot overwrite a worker that just finished. Nothing is re-queued.
+
+Crawl checkpoints were considered and not built: at the default 50-page cap a restarted audit costs about a minute, and persisting every page's HTML during the crawl would spend Neon's 0.5 GB allowance that ADR-0007 already rations. Checkpoints become worthwhile if the page cap rises by an order of magnitude.
+
+Local validation: an API integration test fails an abandoned audit and leaves alone one with a live pg-boss job, one started ten minutes ago, one with an unpublished outbox request and one already complete; a second sweep changes nothing. 205 API tests passed; type checks and lint passed.

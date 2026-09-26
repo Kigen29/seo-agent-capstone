@@ -2147,6 +2147,75 @@ describe.skipIf(!shouldRun)('the API', () => {
     })
   })
 
+  describe('abandoned audits', () => {
+    const HOUR = 60 * 60 * 1000
+
+    const auditAt = (status: 'queued' | 'crawling' | 'complete', ageMs: number) =>
+      withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(audits)
+          .values({ tenantId, siteId, status, startedAt: new Date(Date.now() - ageMs) })
+          .returning({ id: audits.id })
+        return row!.id
+      })
+
+    const stateOf = async (id: string) => {
+      const [row] = await withTenant(db, tenantId, (tx) =>
+        tx
+          .select({ status: audits.status, error: audits.error })
+          .from(audits)
+          .where(eq(audits.id, id)),
+      )
+      return row
+    }
+
+    it('fails an audit whose worker died, and leaves every live one alone', async () => {
+      const { failAbandonedAudits } = await import('../../worker/src/abandoned-audits.js')
+      const { createQueue, enqueueAudit } = await import('@seo/queue')
+
+      const dead = await auditAt('crawling', 3 * HOUR)
+      const retrying = await auditAt('crawling', 3 * HOUR)
+      const recent = await auditAt('crawling', 10 * 60 * 1000)
+      const waiting = await auditAt('queued', 3 * HOUR)
+      const done = await auditAt('complete', 3 * HOUR)
+
+      // A job pg-boss still holds, and a request the outbox has not published yet.
+      const queue = await createQueue(url!)
+      try {
+        await enqueueAudit(queue, { auditId: retrying, tenantId, siteId, seed: 'https://x.test' })
+        await asOwner(db, (tx) =>
+          tx.execute(sql`insert into job_outbox (tenant_id, event_key, kind, payload)
+            values (${tenantId}, ${`audit:${waiting}`}, 'audit', '{}'::jsonb)`),
+        )
+
+        await failAbandonedAudits(db)
+
+        expect(await stateOf(dead)).toMatchObject({
+          status: 'failed',
+          error: expect.stringMatching(/worker stopped/),
+        })
+        expect((await stateOf(retrying))?.status).toBe('crawling')
+        expect((await stateOf(recent))?.status).toBe('crawling')
+        expect((await stateOf(waiting))?.status).toBe('queued')
+        expect((await stateOf(done))?.status).toBe('complete')
+
+        // Idempotent: a second sweep does not touch what the first one settled.
+        const before = await stateOf(dead)
+        await failAbandonedAudits(db)
+        expect(await stateOf(dead)).toEqual(before)
+      } finally {
+        await asOwner(db, async (tx) => {
+          await tx.execute(sql`delete from pgboss.job where id = ${retrying}`)
+          await tx.execute(sql`delete from job_outbox where event_key = ${`audit:${waiting}`}`)
+          for (const id of [dead, retrying, recent, waiting, done]) {
+            await tx.delete(audits).where(eq(audits.id, id))
+          }
+        })
+        await queue.stop({ graceful: false })
+      }
+    })
+  })
+
   describe('verifying a site', () => {
     const verify = (siteId: string, bearer?: string) =>
       app.inject({

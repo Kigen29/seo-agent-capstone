@@ -16,6 +16,7 @@ import {
 import { createWorkerLlm } from './llm.js'
 import { enqueueDuePolls, runPollAi } from './poll.js'
 import { runFix } from './fix.js'
+import { failAbandonedAudits } from './abandoned-audits.js'
 import { reconcilePullRequests } from './reconcile.js'
 import { runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
@@ -85,6 +86,11 @@ try {
    * Before the verify drains on purpose, so a merge discovered here is verified in the same run
    * rather than waiting another fifteen minutes for the next one.
    */
+  // Audits whose worker died mid-crawl never reach runAudit's own failure handler. Say so on the
+  // audit rather than leaving the dashboard on a progress bar that will never move.
+  const abandoned = await failAbandonedAudits(db)
+  console.log(`worker: marked ${abandoned} abandoned audit(s) as failed`)
+
   console.log('worker: reconciling pull requests we are still waiting on')
   const reconciled = await reconcilePullRequests(db, {
     verifyFix: (job) => enqueueVerifyFix(queue, job),
