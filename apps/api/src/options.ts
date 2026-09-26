@@ -160,8 +160,6 @@ export interface AppOptions {
    * their own address.
    */
   trustProxyHops?: number
-  /** Temporary: expose /diagnostic/forwarding to measure the proxy chain. Off unless set. */
-  proxyDiagnostic?: boolean
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }

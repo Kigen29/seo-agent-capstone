@@ -3226,20 +3226,19 @@ describe.skipIf(!shouldRun)('the API', () => {
         }
       })
 
-      it('exposes the forwarding diagnostic only when switched on', async () => {
-        const off = await app.inject({ method: 'GET', url: '/diagnostic/forwarding' })
-        expect(off.statusCode).toBe(404)
-
-        const instance = await buildApp({ db, proxyDiagnostic: true })
+      it('reads the client from the chain Render actually sends, spoofed prefix and all', async () => {
+        // Recorded from production (#199): the client wrote "1.2.3.4, 5.6.7.8"; Render appended
+        // the real client, a Cloudflare edge and its load balancer, and a local proxy connected.
+        const recorded = '1.2.3.4, 5.6.7.8,41.90.172.99, 172.71.146.118, 10.26.236.170'
+        const instance = await buildApp({ db, trustProxyHops: 3 })
+        instance.get('/whoami', async (request) => ({ ip: request.ip }))
         try {
-          const on = await instance.inject({
+          const res = await instance.inject({
             method: 'GET',
-            url: '/diagnostic/forwarding',
-            headers: { 'x-forwarded-for': '1.2.3.4' },
+            url: '/whoami',
+            headers: { 'x-forwarded-for': recorded },
           })
-          expect(on.statusCode).toBe(200)
-          expect(on.headers['cache-control']).toBe('no-store')
-          expect(on.json()).toMatchObject({ socketAddress: '127.0.0.1', xForwardedFor: '1.2.3.4' })
+          expect(res.json()).toEqual({ ip: '41.90.172.99' })
         } finally {
           await instance.close()
         }
