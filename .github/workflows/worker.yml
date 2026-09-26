@@ -60,6 +60,10 @@ jobs:
           LLM_SMART: ${{ vars.LLM_SMART }}
           LLM_EMBED: ${{ vars.LLM_EMBED }}
           LLM_JUDGE: ${{ vars.LLM_JUDGE }}
+          # The deployment-wide monthly cap on paid work, in micro-dollars. Every model, SERP and
+          # DataForSEO call reserves against it, and an unset or zero cap refuses them all, so
+          # without this line the worker could never spend even with keys configured.
+          GLOBAL_MONTHLY_BUDGET_MICROS: ${{ vars.GLOBAL_MONTHLY_BUDGET_MICROS }}
           # The answer engine the AI-visibility axis polls. Unset on purpose until an operator
           # opts in: this is the one role that spends every day, per prompt, per site, and an
           # unset chain darkens that axis honestly rather than starting a recurring bill.
