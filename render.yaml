@@ -34,6 +34,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24
+      # Deliberately unset (zero). Render's proxy chain has not been measured, and its own forum
+      # disagrees about whether client-supplied X-Forwarded-For values survive. Until measured, the
+      # anonymous per-address quota keys on the proxy address. See AppOptions.trustProxyHops.
+      # - key: TRUSTED_PROXY_HOPS
+      #   value: '?'
       # Set in the Render dashboard, never here. This is the owner credential and it carries
       # BYPASSRLS (ADR-0008).
       - key: DATABASE_URL

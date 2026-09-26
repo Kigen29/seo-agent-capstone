@@ -3130,6 +3130,107 @@ describe.skipIf(!shouldRun)('the API', () => {
       }
     })
 
+    describe('behind a reverse proxy', () => {
+      const CLIENTS = ['127.0.0.1', '198.51.100.7', '198.51.100.8', '203.0.113.9', '93.184.216.34']
+      const hashOf = (address: string) =>
+        createHash('sha256')
+          .update(`${process.env.TOKEN_ENCRYPTION_KEY ?? 'unsalted'}:${address}`)
+          .digest('hex')
+      const clear = () =>
+        asOwner(db, async (tx) => {
+          for (const address of CLIENTS) {
+            await tx.delete(publicChecks).where(eq(publicChecks.ipHash, hashOf(address)))
+            await tx.execute(
+              sql`delete from public_check_attempts where ip_hash = ${hashOf(address)}`,
+            )
+          }
+        })
+
+      const withHops = (trustProxyHops: number) =>
+        buildApp({
+          db,
+          trustProxyHops,
+          checkFetch: (async () =>
+            new Response('<html><head><title>x</title></head><body><h1>x</h1></body></html>', {
+              status: 200,
+            })) as unknown as typeof globalThis.fetch,
+          checkResolve: (async () => [{ address: '93.184.216.34', family: 4 }]) as never,
+          checkLimits: { perIpDaily: 1, globalDaily: 10_000 },
+        })
+
+      const check = (instance: Awaited<ReturnType<typeof buildApp>>, forwardedFor: string) =>
+        instance.inject({
+          method: 'POST',
+          url: '/check',
+          headers: { 'x-forwarded-for': forwardedFor },
+          payload: { url: 'https://example.com/' },
+        })
+
+      it('keys on the hop our proxy wrote, so a spoofed prefix buys nothing', async () => {
+        const instance = await withHops(1)
+        await clear()
+        try {
+          expect((await check(instance, '198.51.100.7')).statusCode).toBe(200)
+          // Same real client, pretending to be someone else by prepending an address.
+          expect((await check(instance, '203.0.113.9, 198.51.100.7')).statusCode).toBe(429)
+        } finally {
+          await clear()
+          await instance.close()
+        }
+      })
+
+      it('gives each client behind the proxy its own quota', async () => {
+        const instance = await withHops(1)
+        await clear()
+        try {
+          expect((await check(instance, '198.51.100.7')).statusCode).toBe(200)
+          expect((await check(instance, '198.51.100.8')).statusCode).toBe(200)
+        } finally {
+          await clear()
+          await instance.close()
+        }
+      })
+
+      it('ignores the header from a peer that is not on a private network', async () => {
+        // A stranger connecting directly, claiming to be two different clients. Fastify's own
+        // reason for refusing bare hop counts: nothing here is our proxy.
+        const instance = await withHops(1)
+        await clear()
+        const direct = (forwardedFor: string) =>
+          instance.inject({
+            method: 'POST',
+            url: '/check',
+            remoteAddress: '93.184.216.34',
+            headers: { 'x-forwarded-for': forwardedFor },
+            payload: { url: 'https://example.com/' },
+          })
+        try {
+          expect((await direct('198.51.100.7')).statusCode).toBe(200)
+          expect((await direct('198.51.100.8')).statusCode).toBe(429)
+        } finally {
+          await clear()
+          await instance.close()
+        }
+      })
+
+      it('ignores the header entirely when no proxy is trusted', async () => {
+        const instance = await withHops(0)
+        await clear()
+        try {
+          expect((await check(instance, '198.51.100.7')).statusCode).toBe(200)
+          // A different claimed address is still the same socket, so the same quota.
+          expect((await check(instance, '198.51.100.8')).statusCode).toBe(429)
+        } finally {
+          await clear()
+          await instance.close()
+        }
+      })
+
+      it.each([-1, 1.5, 6])('refuses to start with %s trusted hops', async (hops) => {
+        await expect(buildApp({ db, trustProxyHops: hops })).rejects.toThrow(/trustProxyHops/)
+      })
+    })
+
     it('hides the prune route unless the caller knows the token', async () => {
       // A 404 rather than a 401: an endpoint that says "wrong token" has confirmed it exists.
       const response = await app.inject({

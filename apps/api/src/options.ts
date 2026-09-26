@@ -147,6 +147,19 @@ export interface AppOptions {
    * takes the constants in the route.
    */
   checkLimits?: { perIpDaily?: number; globalDaily?: number }
+  /**
+   * How many reverse proxies sit between the internet and this process, counted from our side.
+   *
+   * The client address is then taken that many hops back along X-Forwarded-For, from the right.
+   * Counting from the right is what makes it unforgeable: a client can prepend whatever it likes to
+   * the header, but every proxy we trust appends, so the entries nearest us are the ones our own
+   * proxies wrote. The first hop is only trusted when the peer is on a private network (see
+   * trustedProxy). Zero (the default) trusts nothing and uses the socket address, which behind a
+   * proxy is the proxy: every visitor then shares one per-address quota, which is safe but blunt.
+   * Set it only to a count measured on the real deployment; one too many lets clients choose
+   * their own address.
+   */
+  trustProxyHops?: number
   /** Where the OAuth callback sends the browser when it is done. The web app's origin. */
   webUrl?: string
 }

@@ -9,6 +9,7 @@ import {
 } from 'fastify-type-provider-zod'
 import { bearerToken, tenantForToken } from './auth.js'
 import type { AppOptions, RouteDeps } from './options.js'
+import { trustedProxy } from './proxy.js'
 import { auditRoutes } from './routes/audits.js'
 import { checkRoutes } from './routes/check.js'
 import { connectionRoutes } from './routes/connections.js'
@@ -50,6 +51,9 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   const db = options.db ?? createDb().db
 
   const app = Fastify({
+    // Never `true`: trusting every hop takes the leftmost X-Forwarded-For entry, which is whatever
+    // the client typed. See trustedProxy and AppOptions.trustProxyHops.
+    trustProxy: trustedProxy(options.trustProxyHops ?? 0),
     logger:
       process.env.NODE_ENV === 'production'
         ? {
