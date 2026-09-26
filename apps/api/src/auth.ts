@@ -63,8 +63,7 @@ export async function tenantForToken(db: Database, token: string): Promise<strin
         id: apiTokens.id,
         tenantId: apiTokens.tenantId,
         tokenHash: apiTokens.tokenHash,
-        name: apiTokens.name,
-        createdAt: apiTokens.createdAt,
+        expiresAt: apiTokens.expiresAt,
       })
       .from(apiTokens)
       .where(eq(apiTokens.tokenHash, presented))
@@ -72,11 +71,9 @@ export async function tenantForToken(db: Database, token: string): Promise<strin
   )
 
   if (!row) return undefined
-  if (
-    row.name === 'Browser session' &&
-    row.createdAt.getTime() <= Date.now() - 30 * 24 * 60 * 60 * 1000
-  )
-    return undefined
+  // Expiry is stored on the row: thirty days for a browser session, none for a hand-minted token
+  // unless one was asked for. A revoked token has no row at all, so it never reaches here.
+  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return undefined
 
   /**
    * The index lookup above already decided this, so the comparison is belt-and-braces

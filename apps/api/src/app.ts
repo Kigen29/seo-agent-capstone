@@ -21,6 +21,7 @@ import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
 import { outreachRoutes } from './routes/outreach.js'
 import { identityRoutes, signinRoutes } from './routes/signin.js'
 import { siteRoutes } from './routes/sites.js'
+import { tokenRoutes } from './routes/tokens.js'
 import { visibilityRoutes } from './routes/visibility.js'
 import { githubWebhookRoutes } from './routes/webhooks.js'
 
@@ -158,6 +159,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     outreachRoutes(protectedRoutes, deps)
     contributorRoutes(protectedRoutes, deps)
     identityRoutes(protectedRoutes, deps)
+    tokenRoutes(protectedRoutes, deps)
     keywordRoutes(protectedRoutes, deps)
     localRoutes(protectedRoutes, deps)
     questionRoutes(protectedRoutes, deps)

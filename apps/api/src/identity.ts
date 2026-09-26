@@ -190,7 +190,9 @@ export async function redeemHandoff(db: Database, code: string): Promise<string 
     tx.insert(apiTokens).values({
       tenantId: row.tenantId,
       name: SESSION_TOKEN_NAME,
+      kind: 'session',
       tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     }),
   )
 
@@ -203,8 +205,8 @@ export async function redeemHandoff(db: Database, code: string): Promise<string 
  * The name every browser session is minted under.
  *
  * It is how a human reading their token list tells a session from a token they minted by hand for
- * the CLI or the MCP server, and it is how the prune below knows which rows are safe to delete.
- * A hand-minted token must never be swept, because nobody is watching for it to stop working.
+ * the CLI or the MCP server. The prune below keys on `kind`, not on this name, so a hand-minted
+ * token must never be swept however it is named, because nobody is watching for it to stop working.
  */
 export const SESSION_TOKEN_NAME = 'Browser session'
 
@@ -233,8 +235,8 @@ async function pruneExpiredSessions(db: Database, tenantId: string): Promise<voi
         .where(
           and(
             eq(apiTokens.tenantId, tenantId),
-            eq(apiTokens.name, SESSION_TOKEN_NAME),
-            lt(apiTokens.createdAt, new Date(Date.now() - SESSION_TTL_MS)),
+            eq(apiTokens.kind, 'session'),
+            lt(apiTokens.expiresAt, new Date()),
           ),
         ),
     )
