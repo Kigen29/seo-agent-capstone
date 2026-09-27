@@ -75,6 +75,7 @@ export async function startTestSite(): Promise<TestSite> {
              <a href="/redirect">Redirected</a>
              <a href="/missing">Missing</a>
              <a href="/csr">Client rendered</a>
+             <a href="/csr-late">Client rendered from an API</a>
              <a href="/nofollowed" rel="nofollow">Nofollowed</a>
              <a href="https://example.com/external">External</a>`,
           ),
@@ -127,6 +128,29 @@ export async function startTestSite(): Promise<TestSite> {
              </script>
            </body></html>`,
         )
+        return
+
+      // A single-page app route whose content arrives from an API after the load event, which is
+      // how most real ones work. Read at `load`, it is an empty shell.
+      case '/csr-late':
+        html(
+          `<!doctype html><html><head><title>Loading</title></head><body>
+             <div id="root"></div>
+             <script>
+               fetch('/api/content').then((r) => r.json()).then((data) => {
+                 document.getElementById('root').innerHTML =
+                   '<h1>' + data.title + '</h1><p>' + 'word '.repeat(120) + '</p>'
+               })
+             </script>
+           </body></html>`,
+        )
+        return
+
+      case '/api/content':
+        setTimeout(() => {
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ title: 'Loaded from the API' }))
+        }, 600)
         return
 
       default:
