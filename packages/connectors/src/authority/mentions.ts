@@ -1,5 +1,6 @@
 import { hostOf, sameSite } from '../visibility/citation.js'
 import type { SerpSource } from '../serp/types.js'
+import { DIRECTORIES, matches, PLATFORMS } from './platforms.js'
 
 /**
  * What the web says about a brand, classified deterministically.
@@ -16,34 +17,19 @@ import type { SerpSource } from '../serp/types.js'
  */
 
 /**
- * Platforms where a brand can post about itself.
+ * Platforms where a brand can post about itself, and directories where it lists itself.
  *
  * Kept separate from earned media because they are a different kind of evidence, not a lesser
  * one. A company's own LinkedIn post is a mention it wrote; a trade publication writing about it
  * is a mention it earned, and the research says the earned kind is what the answer engines draw
- * on. Counting them together would let a busy social calendar read as authority.
+ * on. Counting them together would let a busy social calendar read as authority. A directory
+ * listing is the same: the business filled it in.
  *
- * Deliberately short and obvious. A long, cleverly-maintained list would drift and start making
- * judgements about what a "real" publication is, which is not a call a parser should be making.
+ * Deliberately short and obvious, and shared with the link gap (platforms.ts). A long,
+ * cleverly-maintained list would drift and start making judgements about what a "real"
+ * publication is, which is not a call a parser should be making.
  */
-const SELF_PUBLISHED = new Set([
-  'facebook.com',
-  'instagram.com',
-  'x.com',
-  'twitter.com',
-  'linkedin.com',
-  'tiktok.com',
-  'youtube.com',
-  'pinterest.com',
-  'reddit.com',
-  'medium.com',
-  'wordpress.com',
-  'blogspot.com',
-  'wixsite.com',
-  'crunchbase.com',
-  'yelp.com',
-  'tripadvisor.com',
-])
+const SELF_PUBLISHED: readonly string[] = [...PLATFORMS, ...DIRECTORIES]
 
 export interface MentionFootprint {
   /** Distinct domains that are neither the client's own site nor a self-publishing platform. */
@@ -58,9 +44,8 @@ export interface MentionFootprint {
 
 /** Whether a host is a platform a brand can publish itself onto. */
 function isSelfPublished(host: string): boolean {
-  if (SELF_PUBLISHED.has(host)) return true
   // Subdomains too: a brand's own `acme.wordpress.com` is self-published, not earned.
-  return [...SELF_PUBLISHED].some((platform) => host.endsWith(`.${platform}`))
+  return matches(host, SELF_PUBLISHED)
 }
 
 /**

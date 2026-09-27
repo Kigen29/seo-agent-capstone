@@ -1,4 +1,5 @@
 import { parseFinding, type Finding } from '@seo/core'
+import { DIRECTORIES, matches, PLATFORMS } from './platforms.js'
 import type { LinkGap, LinkGapDomain } from '../backlinks/types.js'
 
 /**
@@ -45,56 +46,6 @@ export const SPAM_SCORE_LIMIT = 30
  */
 const NO_RANK_BACKLINKS = 1000
 
-/**
- * Sites anybody can publish to. Shared in spirit with the mention classifier's list, kept separate
- * because the question differs: there, "did the brand write this itself"; here, "is asking for a
- * link from this a real outreach task". A subdomain counts.
- */
-const PLATFORMS = [
-  'facebook.com',
-  'instagram.com',
-  'x.com',
-  'twitter.com',
-  'linkedin.com',
-  'tiktok.com',
-  'youtube.com',
-  'pinterest.com',
-  'reddit.com',
-  'medium.com',
-  'wordpress.com',
-  'blogspot.com',
-  'wixsite.com',
-  'tumblr.com',
-  'quora.com',
-  'github.com',
-  'substack.com',
-]
-
-/**
- * Directories and citation sources.
- *
- * Short, obvious, and not an attempt to enumerate the web's directories, which is a list that
- * cannot be maintained honestly. What it does is stop the most common citation sources being
- * presented as journalism to pitch, and route them to the axis where a listing actually matters.
- */
-const DIRECTORIES = [
-  'yelp.com',
-  'yellowpages.com',
-  'yellowpageskenya.com',
-  'brownbook.net',
-  'cylex.com',
-  'hotfrog.com',
-  'foursquare.com',
-  'tripadvisor.com',
-  'trustpilot.com',
-  'crunchbase.com',
-  'bbb.org',
-  'manta.com',
-  'thomasnet.com',
-  'europages.com',
-  'kompass.com',
-]
-
 export type GapKind = 'editorial' | 'directory' | 'platform' | 'spam'
 
 export interface ClassifiedGapDomain extends LinkGapDomain {
@@ -102,9 +53,6 @@ export interface ClassifiedGapDomain extends LinkGapDomain {
   /** Why it was classified this way, in the words the finding will use. */
   reason: string
 }
-
-const matches = (host: string, list: readonly string[]): boolean =>
-  list.some((entry) => host === entry || host.endsWith(`.${entry}`))
 
 /** Sort one gap domain into its bucket. Spam wins over everything: it is a refusal, not a label. */
 export function classifyGapDomain(domain: LinkGapDomain): ClassifiedGapDomain {

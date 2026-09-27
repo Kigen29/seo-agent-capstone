@@ -55,6 +55,21 @@ describe('classifyMentions', () => {
     expect(footprint.earnedDomains).toEqual(['nation.africa'])
   })
 
+  it('counts photo-hosting and directory listings as self-published, never as coverage', () => {
+    // A real audit listed the brand's own Flickr album as a publication that "covered" it and
+    // suggested asking it for a link.
+    const footprint = classifyMentions(
+      [
+        src('https://www.flickr.com/photos/heartbeest/123'),
+        src('https://www.trustpilot.com/review/heartbeestsafaris.com'),
+        src('https://nation.africa/story'),
+      ],
+      CLIENT,
+    )
+    expect(footprint.earnedDomains).toEqual(['nation.africa'])
+    expect(footprint.selfPublishedDomains).toEqual(['flickr.com', 'trustpilot.com'])
+  })
+
   it('treats a subdomain of a publishing platform as self-published', () => {
     const footprint = classifyMentions([src('https://heartbeest.wordpress.com/post')], CLIENT)
     expect(footprint.selfPublishedDomains).toEqual(['heartbeest.wordpress.com'])
