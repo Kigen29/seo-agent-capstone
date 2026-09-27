@@ -107,14 +107,8 @@ export default async function AuthorityPage({
       {audit && authority && (
         <>
           <StatRow>
-            <Stat
-              label="Earned-media domains"
-              value={authority.earnedDomains.toLocaleString('en-US')}
-            />
-            <Stat
-              label="Self-published"
-              value={authority.selfPublishedDomains.toLocaleString('en-US')}
-            />
+            <Stat label="Earned-media domains" value={countOrDash(authority.earnedDomains)} />
+            <Stat label="Self-published" value={countOrDash(authority.selfPublishedDomains)} />
             {/*
               A dash, never a zero. Null here means no backlink index is configured, and a zero
               would read as "nobody links to you", which is the opposite claim. ADR-0018 spends a
@@ -145,6 +139,12 @@ export default async function AuthorityPage({
               }
             />
           </StatRow>
+
+          {authority.earnedDomains === null && coverage?.coverage.note && (
+            <Note tone="info" className="mb-6">
+              {coverage.coverage.note}
+            </Note>
+          )}
 
           {authority.referringDomains === null && (
             <Note tone="info" className="mb-6">
@@ -259,5 +259,16 @@ export default async function AuthorityPage({
         </>
       )}
     </main>
+  )
+}
+
+/** A dash, never a zero, for a count that was not measured. */
+function countOrDash(value: number | null) {
+  return value === null ? (
+    <span className="text-subtle">
+      &mdash;<span className="sr-only">Not measured</span>
+    </span>
+  ) : (
+    value.toLocaleString('en-US')
   )
 }

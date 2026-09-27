@@ -154,7 +154,15 @@ export function Overview({
           <>
             <Row
               label="Earned-media domains"
-              value={authority.earnedDomains.toLocaleString('en-US')}
+              value={
+                authority.earnedDomains === null ? (
+                  <span className="text-subtle" aria-label="Not measured">
+                    &mdash;
+                  </span>
+                ) : (
+                  authority.earnedDomains.toLocaleString('en-US')
+                )
+              }
             />
             <Row
               label="Referring domains"

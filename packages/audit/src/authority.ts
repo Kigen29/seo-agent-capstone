@@ -87,19 +87,22 @@ export async function measureAuthority(
   backlinks?: BacklinkProvider,
 ): Promise<AuthorityResult> {
   if (!provider) {
-    return unmeasured(
-      'Not measured. Brand mentions come from a SERP data source, which is the one paid ' +
-        'dependency in the product and is off by default (set SERPAPI_API_KEY). ' +
-        NO_BACKLINK_INDEX,
+    return linksOnly(
+      'Not scored. Brand mentions come from a SERP data source, which is the one paid ' +
+        'dependency in the product and is off by default (set SERPAPI_API_KEY).',
+      options,
+      backlinks,
     )
   }
 
   if (!options.brand?.trim()) {
-    return unmeasured(
-      'Not measured. Set the brand name for this site. It cannot be derived from the domain: ' +
+    return linksOnly(
+      'Not scored. Set the brand name for this site. It cannot be derived from the domain: ' +
         'searching for "heartbeestsafaris" finds almost nothing when the press writes ' +
         '"Heartbeest Safaris", and guessing the spaces back in would under-count every ' +
         'multi-word brand.',
+      options,
+      backlinks,
     )
   }
 
@@ -230,12 +233,82 @@ export async function measureAuthority(
         ? `this tenant is at its monthly budget, so no paid query was made (${error.message})`
         : 'the SERP request failed'
 
-    return unmeasured(
-      `Not measured this run: ${why}. The rest of the audit is unaffected. ` +
-        (backlinks
-          ? 'Referring domains were not reached either: this axis leads with mentions, and ' +
-            'without them there is nothing for a link count to be a second signal to.'
-          : NO_BACKLINK_INDEX),
+    return linksOnly(
+      `Not scored this run: ${why}. The rest of the audit is unaffected.`,
+      options,
+      backlinks,
     )
+  }
+}
+
+/**
+ * Links without mentions: measured and shown, never scored.
+ *
+ * This used to stop at the missing mention source and then report that no backlink index was
+ * configured, which was false on a deployment that had one, and it threw away a measurement the
+ * operator was paying for. Links are still not allowed to carry the score, because mentions are
+ * the lead signal (ADR-0018) and a score built on the weaker one alone would mislead; so the axis
+ * stays unscored, and the numbers and any link gap are reported beside the reason.
+ */
+async function linksOnly(
+  why: string,
+  options: { siteId: string; domain: string; competitors: readonly string[] },
+  backlinks?: BacklinkProvider,
+): Promise<AuthorityResult> {
+  if (!backlinks) return unmeasured(`${why} ${NO_BACKLINK_INDEX}`)
+
+  const compared = options.competitors.slice(0, MAX_COMPARED_COMPETITORS)
+  const links = await backlinks.referringDomains(options.domain).catch(() => undefined)
+  const gap =
+    compared.length > 0
+      ? await backlinks.intersection(compared, options.domain).catch(() => undefined)
+      : undefined
+
+  if (!links && !gap) {
+    return unmeasured(
+      `${why} The backlink index was asked for referring domains and did not answer this run.`,
+    )
+  }
+
+  const classifiedGap = gap ? classifyGap(gap) : undefined
+  const gapFindings =
+    gap && classifiedGap
+      ? linkGapFinding({ siteId: options.siteId, gap, classified: classifiedGap })
+      : []
+
+  return {
+    findings: gapFindings,
+    measured: false,
+    metrics: {
+      referringDomains: links ? links.total : null,
+      ...(links ? { referringDomainsSampled: links.domains.length } : {}),
+      earnedDomains: null,
+      selfPublishedDomains: null,
+      ...(gap && classifiedGap
+        ? {
+            linkGap: {
+              editorialDomains: classifiedGap.editorial.map((entry) => entry.domain),
+              refusedAsSpam: classifiedGap.spam.length,
+              directoryDomains: classifiedGap.directory.map((entry) => entry.domain),
+              comparedWith: gap.targets,
+            },
+          }
+        : {}),
+    },
+    coverage: {
+      // Zero keeps the axis unscored: links are the second signal and cannot carry it alone.
+      checksRun: 0,
+      note:
+        `${why} ` +
+        (links
+          ? `Links were measured: ${links.total} domain(s) link to ${links.target}. `
+          : 'Referring domains did not answer this run. ') +
+        (classifiedGap
+          ? `Against ${gap?.targets.join(', ')}, ${classifiedGap.editorial.length} ` +
+            `publication(s) link to all of them and not to this site. `
+          : '') +
+        'The area gets a score once mentions are measured too, because mentions, not links, ' +
+        'are what track appearing in AI answers.',
+    },
   }
 }
