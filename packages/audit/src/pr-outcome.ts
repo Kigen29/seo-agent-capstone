@@ -1,5 +1,5 @@
-import { appendJob, asOwner, findings, sites, type Database } from '@seo/db'
-import { and, eq } from 'drizzle-orm'
+import { appendJob, asOwner, findings, fixAttempts, sites, type Database } from '@seo/db'
+import { and, eq, isNull } from 'drizzle-orm'
 
 /**
  * What happened to a pull request we opened, and what that means for the record behind it.
@@ -69,6 +69,7 @@ export async function applyFixPrOutcome(
         return { effect: 'unchanged' as const }
       }
       await tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding.id))
+      await resolveAttempt(tx, finding, prUrl, 'merged')
       await appendJob(tx, finding.tenantId, `verify-fix:${finding.id}`, 'verify-fix', {
         tenantId: finding.tenantId,
         siteId: finding.siteId,
@@ -80,6 +81,9 @@ export async function applyFixPrOutcome(
         .update(findings)
         .set({ status: 'open', prUrl: null })
         .where(eq(findings.id, finding.id))
+      // Before this was recorded, a declined fix vanished: the finding went back to open and
+      // nothing said a person had looked at the PR and said no. That is half the merge rate.
+      await resolveAttempt(tx, finding, prUrl, 'closed')
       return { effect: 'reopened' as const }
     }
     return { effect: 'unchanged' as const }
@@ -88,6 +92,112 @@ export async function applyFixPrOutcome(
     await enqueueVerifyFix({ tenantId: result.tenantId, siteId: result.siteId })
   }
   return result.effect
+}
+
+/**
+ * Record how a PR was resolved on the attempt that opened it, in the caller's transaction, so the
+ * finding's status and the history can never disagree.
+ *
+ * Inserts a row when none exists: a PR opened before attempts were recorded still counts.
+ */
+async function resolveAttempt(
+  tx: Database,
+  finding: { id: string; tenantId: string },
+  prUrl: string,
+  resolution: 'merged' | 'closed',
+): Promise<void> {
+  const now = new Date()
+  const updated = await tx
+    .update(fixAttempts)
+    .set({ prResolution: resolution, resolvedAt: now })
+    .where(
+      and(
+        eq(fixAttempts.findingId, finding.id),
+        eq(fixAttempts.prUrl, prUrl),
+        isNull(fixAttempts.prResolution),
+      ),
+    )
+    .returning({ id: fixAttempts.id })
+  if (updated.length > 0) return
+
+  const [existing] = await tx
+    .select({ id: fixAttempts.id })
+    .from(fixAttempts)
+    .where(and(eq(fixAttempts.findingId, finding.id), eq(fixAttempts.prUrl, prUrl)))
+    .limit(1)
+  if (existing) return
+
+  await tx.insert(fixAttempts).values({
+    tenantId: finding.tenantId,
+    findingId: finding.id,
+    startedAt: now,
+    finishedAt: now,
+    outcome: 'pr_opened',
+    prUrl,
+    prResolution: resolution,
+    resolvedAt: now,
+  })
+}
+
+/**
+ * The number of the PR a GitHub revert undoes, read from the revert's branch, or null.
+ *
+ * GitHub's Revert button names its branch `revert-<number>-<original branch>`, and every fix branch
+ * starts `seo-agent/`, so a merged PR on such a branch is a person undoing one of our fixes. A
+ * revert made by hand (git revert pushed straight to main) has no such marker and is not seen
+ * here; the post-merge verification catches the issue coming back instead.
+ */
+export function revertedPullRequestNumber(headRef: string): number | null {
+  const match = /^revert-(\d+)-seo-agent\//.exec(headRef)
+  if (!match) return null
+  const number = Number(match[1])
+  return Number.isSafeInteger(number) && number > 0 ? number : null
+}
+
+/**
+ * Record that a merged fix PR was reverted. Only an attempt whose finding belongs to the site bound
+ * to this repository and installation is touched, the same check a merge gets.
+ *
+ * A revert implies a merge, so an attempt whose merge was never heard (a lost webhook) is marked
+ * merged as well. Idempotent: a second delivery finds nothing left to change.
+ */
+export async function applyFixPrRevert(
+  db: Database,
+  revertedPrUrl: string,
+  revertPrUrl: string,
+  binding: { repoFullName: string; installationId: number },
+): Promise<boolean> {
+  return asOwner(db, async (tx) => {
+    const owned = await tx
+      .select({ id: findings.id, tenantId: findings.tenantId })
+      .from(findings)
+      .innerJoin(sites, and(eq(sites.id, findings.siteId), eq(sites.tenantId, findings.tenantId)))
+      .where(
+        and(
+          eq(sites.repoFullName, binding.repoFullName),
+          eq(sites.githubInstallationId, binding.installationId),
+          eq(findings.prUrl, revertedPrUrl),
+        ),
+      )
+    let changed = false
+    for (const finding of owned) {
+      await resolveAttempt(tx, finding, revertedPrUrl, 'merged')
+      const rows = await tx
+        .update(fixAttempts)
+        .set({ revertedAt: new Date(), revertPrUrl })
+        .where(
+          and(
+            eq(fixAttempts.findingId, finding.id),
+            eq(fixAttempts.prUrl, revertedPrUrl),
+            eq(fixAttempts.prResolution, 'merged'),
+            isNull(fixAttempts.revertedAt),
+          ),
+        )
+        .returning({ id: fixAttempts.id })
+      changed ||= rows.length > 0
+    }
+    return changed
+  })
 }
 
 /**

@@ -325,6 +325,12 @@ export const fixAttempts = pgTable(
     outcome: text('outcome').$type<'pr_opened' | 'pr_adopted' | 'failed'>().notNull(),
     prUrl: text('pr_url'),
     error: text('error'),
+    /** What became of the PR: merged, or closed without merging. Null while it is open. */
+    prResolution: text('pr_resolution').$type<'merged' | 'closed'>(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** Set when a merged PR was later undone by GitHub's Revert button. */
+    revertedAt: timestamp('reverted_at', { withTimezone: true }),
+    revertPrUrl: text('revert_pr_url'),
   },
   (table) => [index('fix_attempts_finding_idx').on(table.findingId, table.finishedAt)],
 )

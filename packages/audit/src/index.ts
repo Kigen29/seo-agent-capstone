@@ -56,7 +56,13 @@ export {
 export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
 
 export { E2E, seedE2E } from './seed.js'
-export { applyFixPrOutcome, applyVerifyPrOutcome, pullRequestNumberFrom } from './pr-outcome.js'
+export {
+  applyFixPrOutcome,
+  applyFixPrRevert,
+  applyVerifyPrOutcome,
+  pullRequestNumberFrom,
+  revertedPullRequestNumber,
+} from './pr-outcome.js'
 export type { OutcomeEffect, PullRequestOutcome } from './pr-outcome.js'
 
 export { listOutcomes, OUTCOME_STATUSES } from './outcomes.js'
@@ -73,3 +79,5 @@ export {
 export type { PageTraffic } from './traffic-outcome.js'
 export { listFixAttempts } from './fix-attempts.js'
 export type { FixAttempt } from './fix-attempts.js'
+export { fixPrRates } from './fix-pr-rates.js'
+export type { FixPrRates } from './fix-pr-rates.js'

@@ -250,6 +250,31 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
           throw error
         }
       },
+
+      async findMergedRevert(number) {
+        const octokit = await octokitFor(ctx.installationId)
+        let ref: string
+        try {
+          const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+            owner,
+            repo,
+            pull_number: number,
+          })
+          ref = data.head.ref
+        } catch (error) {
+          if ((error as { status?: number }).status === 404) return null
+          throw error
+        }
+        const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls', {
+          owner,
+          repo,
+          state: 'closed',
+          head: `${owner}:revert-${number}-${ref}`,
+          per_page: 10,
+        })
+        const merged = data.find((pr) => pr.merged_at)
+        return merged ? merged.html_url : null
+      },
     }
   }
 

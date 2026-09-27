@@ -1,4 +1,9 @@
-import { applyFixPrOutcome, applyVerifyPrOutcome } from '@seo/audit'
+import {
+  applyFixPrOutcome,
+  applyFixPrRevert,
+  applyVerifyPrOutcome,
+  revertedPullRequestNumber,
+} from '@seo/audit'
 import { asOwner, sites } from '@seo/db'
 import { SIGNATURE_HEADER, verifyWebhookSignature } from '@seo/vcs'
 import { and, eq } from 'drizzle-orm'
@@ -139,6 +144,26 @@ export async function githubWebhookRoutes(app: FastifyInstance, deps: RouteDeps)
             { repoFullName, installationId },
             options.enqueueVerifyFix,
           )
+        }
+
+        // A merged PR on a `revert-<n>-seo-agent/...` branch is GitHub's Revert button undoing
+        // fix PR <n>. Recorded on that PR's attempt for the revert rate; the finding is left alone,
+        // because the post-merge verification will see the issue return and say so itself.
+        const revertOf = revertedPullRequestNumber(payload.pull_request?.head?.ref ?? '')
+        if (
+          payload.pull_request?.merged &&
+          revertOf !== null &&
+          typeof prUrl === 'string' &&
+          typeof repoFullName === 'string' &&
+          repoFullName.length > 0 &&
+          typeof installationId === 'number' &&
+          Number.isSafeInteger(installationId) &&
+          installationId > 0
+        ) {
+          await applyFixPrRevert(db, `https://github.com/${repoFullName}/pull/${revertOf}`, prUrl, {
+            repoFullName,
+            installationId,
+          })
         }
       }
 

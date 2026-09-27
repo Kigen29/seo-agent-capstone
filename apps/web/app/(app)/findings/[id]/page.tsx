@@ -278,9 +278,26 @@ function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
                 <span className="text-muted text-[12px]">
                   {attemptTime.format(new Date(attempt.finishedAt))}
                 </span>
+                {attempt.revertedAt ? (
+                  <span className="tag tag-critical">Merged, then reverted</span>
+                ) : attempt.prResolution === 'merged' ? (
+                  <span className="tag tag-success">Merged</span>
+                ) : attempt.prResolution === 'closed' ? (
+                  <span className="tag">Closed without merging</span>
+                ) : null}
                 {attempt.prUrl && (
                   <a href={attempt.prUrl} target="_blank" rel="noreferrer" className="text-[13px]">
                     View the pull request &rarr;
+                  </a>
+                )}
+                {attempt.revertPrUrl && (
+                  <a
+                    href={attempt.revertPrUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[13px]"
+                  >
+                    View the revert &rarr;
                   </a>
                 )}
               </div>

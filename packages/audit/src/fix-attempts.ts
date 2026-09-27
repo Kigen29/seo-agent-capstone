@@ -14,6 +14,10 @@ export interface FixAttempt {
   outcome: 'pr_opened' | 'pr_adopted' | 'failed'
   prUrl: string | null
   error: string | null
+  /** What became of the PR this attempt opened. Null while open, or when it opened none. */
+  prResolution: 'merged' | 'closed' | null
+  revertedAt: string | null
+  revertPrUrl: string | null
 }
 
 /** How many attempts to return. A finding retried more than this has a bigger problem to show. */
@@ -40,6 +44,9 @@ export async function listFixAttempts(
         outcome: fixAttempts.outcome,
         prUrl: fixAttempts.prUrl,
         error: fixAttempts.error,
+        prResolution: fixAttempts.prResolution,
+        revertedAt: fixAttempts.revertedAt,
+        revertPrUrl: fixAttempts.revertPrUrl,
       })
       .from(fixAttempts)
       .where(eq(fixAttempts.findingId, findingRowId))
@@ -52,6 +59,9 @@ export async function listFixAttempts(
       outcome: row.outcome,
       prUrl: row.prUrl ?? null,
       error: row.error ?? null,
+      prResolution: row.prResolution ?? null,
+      revertedAt: row.revertedAt?.toISOString() ?? null,
+      revertPrUrl: row.revertPrUrl ?? null,
     }))
   })
 }

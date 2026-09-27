@@ -369,6 +369,21 @@ export interface FixAttempt {
   outcome: 'pr_opened' | 'pr_adopted' | 'failed'
   prUrl: string | null
   error: string | null
+  /** What became of the PR this attempt opened. Null while open, or when it opened none. */
+  prResolution: 'merged' | 'closed' | null
+  revertedAt: string | null
+  revertPrUrl: string | null
+}
+
+/** How often the agent's pull requests were merged, and how often a merge was reverted. */
+export interface FixPrRates {
+  opened: number
+  open: number
+  merged: number
+  closedUnmerged: number
+  reverted: number
+  mergeRate: number | null
+  revertRate: number | null
 }
 
 /** One recorded measurement: a named count or score at a moment. */
@@ -402,6 +417,7 @@ export interface FixOutcome {
 export interface SiteOutcomes {
   outcomes: FixOutcome[]
   counts: Record<FixOutcome['status'], number>
+  rates: FixPrRates
 }
 
 /** A question the agent drafted for AI-visibility tracking, with why it fits the business. */
