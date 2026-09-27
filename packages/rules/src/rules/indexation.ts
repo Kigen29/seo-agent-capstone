@@ -1,5 +1,6 @@
 import { normaliseUrl } from '@seo/crawler'
 import { httpEvidence, indexableHtmlPages, markupEvidence } from '../evidence.js'
+import type { CrawledPage } from '@seo/crawler'
 import type { Rule } from '../types.js'
 
 /**
@@ -154,5 +155,85 @@ export const TECH_007: Rule = {
         },
       ]
     })
+  },
+}
+
+/**
+ * How many distinct pages must share one foreign canonical before it is a site-wide mistake.
+ *
+ * Two can be deliberate (a print view and its article). Three different paths all naming the same
+ * other page is the signature of one static tag in a shared layout or `index.html`, which is the
+ * failure TECH-006 explains it cannot fix for exactly this reason.
+ */
+export const SHARED_CANONICAL_MIN_PAGES = 3
+
+/**
+ * TECH-023: many different pages declare the same canonical, pointing away from themselves.
+ *
+ * Worse than TECH-007 and far worse than a missing canonical: each of these pages tells Google
+ * "I am a copy of that page, index it instead", so Google is being asked to drop every one of
+ * them. Seen on a real single-page app whose `index.html` carried the homepage's canonical, so all
+ * 34 routes named the homepage. One finding for the site, not one per page, because it is one tag.
+ *
+ * Query-string variants of the target are excluded: `/shoes?sort=price` naming `/shoes` is correct.
+ */
+export const TECH_023: Rule = {
+  id: 'TECH-023',
+  axis: 'crawl_health',
+  severity: 'critical',
+  estimatedEffort: 'small',
+  // Not fixable by the agent, for TECH-006's reason: the fix is a per-page canonical, and a
+  // shared head file is the one place a fixer can write.
+  fixable: false,
+  description: 'Many different pages declare the same canonical, pointing at another page.',
+
+  evaluate: (context) => {
+    const pathOf = (url: string): string | null => {
+      try {
+        const parsed = new URL(url)
+        return `${parsed.host.replace(/^www\./, '')}${parsed.pathname.replace(/\/+$/, '') || '/'}`
+      } catch {
+        return null
+      }
+    }
+
+    // One entry per final page: two crawled addresses that land on the same page count once.
+    const pages = new Map<string, CrawledPage>()
+    for (const page of indexableHtmlPages(context.pages)) {
+      const key = pathOf(page.finalUrl)
+      if (key && !pages.has(key)) pages.set(key, page)
+    }
+
+    const byTarget = new Map<string, CrawledPage[]>()
+    for (const [path, page] of pages) {
+      const canonical = page.extract.canonical
+      if (!canonical) continue
+      const target = pathOf(canonical)
+      if (!target || target === path) continue
+      byTarget.set(target, [...(byTarget.get(target) ?? []), page])
+    }
+
+    return [...byTarget.values()]
+      .filter((group) => group.length >= SHARED_CANONICAL_MIN_PAGES)
+      .map((group) => {
+        const canonical = group[0]!.extract.canonical!
+        return {
+          title: `${group.length} different pages all declare ${canonical} as their canonical`,
+          evidence: markupEvidence(
+            group[0]!,
+            'link[rel="canonical"]',
+            `<link rel="canonical" href="${canonical}">`,
+          ),
+          affectedUrls: group.map((page) => page.finalUrl),
+          confidence: 0.95,
+          estimatedImpact: 95,
+          falsification:
+            `Re-fetch ${group[0]!.finalUrl} and ${group[1]!.finalUrl}. If each declares a ` +
+            'canonical pointing at itself, or none, this was wrong. After the fix, Search ' +
+            'Console URL Inspection for one of them should show a user-declared canonical ' +
+            "matching that page, and the Pages report should stop listing them as 'Alternate " +
+            "page with proper canonical tag'.",
+        }
+      })
   },
 }

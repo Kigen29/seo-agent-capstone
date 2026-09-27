@@ -64,6 +64,17 @@ describe('Frontier', () => {
     expect(frontier.pendingCount).toBe(1)
   })
 
+  it('does not queue or refetch a page an earlier URL already redirected to', () => {
+    // example.com/about redirected to www.example.com/about; the menu links the www form.
+    const frontier = new Frontier('https://example.com/')
+    frontier.next()
+    frontier.add(['https://example.com/b'], 1)
+
+    frontier.markSeen('https://example.com/b')
+    expect(frontier.pendingCount).toBe(0)
+    expect(frontier.add(['https://example.com/b'], 1)).toBe(0)
+  })
+
   it('never re-queues the seed', () => {
     const frontier = new Frontier('https://example.com/')
 

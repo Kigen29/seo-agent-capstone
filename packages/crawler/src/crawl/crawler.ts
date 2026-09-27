@@ -321,6 +321,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
           })
 
           pages.push(crawled)
+          if (crawled.finalUrl !== entry.url) frontier.markSeen(crawled.finalUrl)
 
           // The seed redirected to another host (apex to www, or a new domain). Its links point
           // there, so the crawl has to be allowed there, or it ends after this one page.

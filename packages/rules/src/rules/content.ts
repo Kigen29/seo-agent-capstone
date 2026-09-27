@@ -1,5 +1,5 @@
 import { normaliseUrl } from '@seo/crawler'
-import { indexableHtmlPages, markupEvidence, metricEvidence } from '../evidence.js'
+import { indexableHtmlPages, landingPages, markupEvidence, metricEvidence } from '../evidence.js'
 import type { Rule } from '../types.js'
 
 /**
@@ -17,7 +17,7 @@ export const TECH_015: Rule = {
   description: 'An HTTPS page loads a script, stylesheet or image over insecure HTTP.',
 
   evaluate: (context) =>
-    context.pages
+    landingPages(context.pages)
       .filter((page) => page.finalUrl.startsWith('https://'))
       .flatMap((page) => {
         const insecure = page.extract.resources.filter((resource) =>
@@ -137,7 +137,7 @@ export const TECH_017: Rule = {
   description: 'A page says "not found" but returns HTTP 200, so Google indexes it.',
 
   evaluate: (context) =>
-    context.pages
+    landingPages(context.pages)
       .filter((page) => {
         if (page.status !== 200) return false
 
@@ -177,7 +177,7 @@ export const TECH_018: Rule = {
   description: 'The server sends an empty shell; the page only exists after JavaScript runs.',
 
   evaluate: (context) =>
-    context.pages
+    landingPages(context.pages)
       .filter((page) => page.status === 200 && page.render.likelyCsrOnly)
       .map((page) => ({
         title: `${page.finalUrl} renders nothing until JavaScript runs`,

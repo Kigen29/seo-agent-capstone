@@ -12,7 +12,7 @@ import {
   TECH_021,
 } from './rules/content.js'
 import { TECH_011, TECH_012 } from './rules/duplication.js'
-import { TECH_005, TECH_006, TECH_007 } from './rules/indexation.js'
+import { TECH_005, TECH_006, TECH_007, TECH_023 } from './rules/indexation.js'
 import { TECH_008, TECH_009, TECH_010 } from './rules/redirects.js'
 import { TECH_001, TECH_002 } from './rules/robots.js'
 import { TECH_003, TECH_004 } from './rules/sitemap.js'
@@ -51,6 +51,7 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_020,
   TECH_021,
   TECH_022,
+  TECH_023,
   AGENT_001,
   AGENT_002,
   AGENT_003,
