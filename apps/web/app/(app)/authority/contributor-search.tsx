@@ -16,6 +16,9 @@ import { OutreachPitch } from './outreach-pitch'
  * been read before it appears, with the ones selling placements shown as refused rather than
  * quietly dropped, so a client can see the filter working and argue with it.
  */
+/** Matches the API's limit on the niche. */
+const NICHE_MAX = 120
+
 export function ContributorSearchPanel({ siteId }: { siteId: string }) {
   const [pending, start] = useTransition()
   const [niche, setNiche] = useState('')
@@ -48,13 +51,15 @@ export function ContributorSearchPanel({ siteId }: { siteId: string }) {
       <div className="card elev-sm gap-3 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="card-kicker">What you do</span>
+            <span className="card-kicker">What you do, in a few words</span>
             <input
               className="input"
               value={niche}
               onChange={(event) => setNiche(event.target.value)}
-              placeholder="for example, running shoes"
+              placeholder="for example, safari tours"
               spellCheck={false}
+              // The API's limit. It is searched as a phrase, so a sentence would find nothing anyway.
+              maxLength={NICHE_MAX}
             />
           </label>
 
@@ -80,7 +85,9 @@ export function ContributorSearchPanel({ siteId }: { siteId: string }) {
         </div>
 
         <p className="text-muted m-0 text-[13px]">
-          This runs billed searches and then reads each page it found, so it takes a few seconds.
+          Use the words a publication would use for its topic, such as &ldquo;safari tours&rdquo; or
+          &ldquo;Kenya travel&rdquo;, not a description of your business: it is searched as an exact
+          phrase. This runs billed searches and reads each page found, so it takes a few seconds.
         </p>
       </div>
 
