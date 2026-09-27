@@ -268,8 +268,9 @@ export interface AuthorityMetrics {
   /** Null when no backlink index is configured. NOT the same as a site with no backlinks. */
   referringDomains: number | null
   referringDomainsSampled?: number
-  earnedDomains: number
-  selfPublishedDomains: number
+  /** Null when mentions were not measured on that audit, though links may have been. */
+  earnedDomains: number | null
+  selfPublishedDomains: number | null
   /** Domains that mention the brand without linking. Undefined when links were never checked. */
   unlinkedMentions?: string[]
   /**

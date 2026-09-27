@@ -31,10 +31,13 @@ export const authorityMetricsSchema = z.object({
   referringDomains: z.number().int().min(0).nullable(),
   /** How many of the linking domains we enumerated, so a caller can qualify what it derives. */
   referringDomainsSampled: z.number().int().min(0).optional(),
-  /** Distinct earned-media domains that mention the brand. The axis's headline number. */
-  earnedDomains: z.number().int().min(0),
+  /**
+   * Distinct earned-media domains that mention the brand. The axis's headline number. Null when
+   * mentions were not measured (no SERP source, no brand, or the query failed) but links were.
+   */
+  earnedDomains: z.number().int().min(0).nullable(),
   /** Self-publishing platforms carrying the brand. Not authority, not an error either. */
-  selfPublishedDomains: z.number().int().min(0),
+  selfPublishedDomains: z.number().int().min(0).nullable(),
   /**
    * Domains that mention the brand without linking to it: the AUTH-004 list, and the most
    * actionable thing on the axis. Undefined when no backlink index was consulted, which is not
