@@ -1,7 +1,12 @@
-import { applyFixPrOutcome, applyVerifyPrOutcome, pullRequestNumberFrom } from '@seo/audit'
-import { asOwner, findings, sites, type Database } from '@seo/db'
+import {
+  applyFixPrOutcome,
+  applyFixPrRevert,
+  applyVerifyPrOutcome,
+  pullRequestNumberFrom,
+} from '@seo/audit'
+import { asOwner, findings, fixAttempts, sites, type Database } from '@seo/db'
 import { createGitHubApp, githubAppConfigFromEnv, GitHubProvider } from '@seo/vcs'
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull } from 'drizzle-orm'
 
 /**
  * Ask GitHub what became of every pull request we are still waiting on.
@@ -32,7 +37,15 @@ export interface ReconcileReport {
   unchanged: number
   /** PRs we could not read: deleted, or the App lost access. Left alone rather than guessed at. */
   unreadable: number
+  /** Merged fix PRs found reverted by this sweep, for reverts whose webhook was lost. */
+  reverted: number
 }
+
+/**
+ * How long after a merge a revert is still looked for. A fix undone after a month is a different
+ * story from a fix that was wrong, and the sweep must not grow with every PR ever merged.
+ */
+const REVERT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function reconcilePullRequests(
   db: Database,
@@ -47,6 +60,7 @@ export async function reconcilePullRequests(
     reopened: 0,
     unchanged: 0,
     unreadable: 0,
+    reverted: 0,
   }
 
   if (!process.env.GH_APP_ID || !process.env.GH_APP_PRIVATE_KEY) return report
@@ -125,7 +139,60 @@ export async function reconcilePullRequests(
     report[effect] += 1
   }
 
+  report.reverted = await sweepReverts(db, provider)
+
   return report
+}
+
+/**
+ * Look for reverts of recently merged fix PRs. The webhook records most of them; this catches the
+ * ones whose delivery was lost, the same reason the merge sweep above exists.
+ */
+async function sweepReverts(db: Database, provider: GitHubProvider): Promise<number> {
+  const since = new Date(Date.now() - REVERT_WINDOW_MS)
+  const merged = await asOwner(db, (tx) =>
+    tx
+      .selectDistinct({
+        prUrl: fixAttempts.prUrl,
+        repo: sites.repoFullName,
+        installation: sites.githubInstallationId,
+      })
+      .from(fixAttempts)
+      .innerJoin(findings, eq(findings.id, fixAttempts.findingId))
+      .innerJoin(sites, eq(sites.id, findings.siteId))
+      .where(
+        and(
+          eq(fixAttempts.prResolution, 'merged'),
+          isNull(fixAttempts.revertedAt),
+          gt(fixAttempts.resolvedAt, since),
+          isNotNull(fixAttempts.prUrl),
+        ),
+      ),
+  )
+
+  let reverted = 0
+  for (const row of merged) {
+    if (!row.prUrl || !row.repo || !row.installation) continue
+    const number = pullRequestNumberFrom(row.prUrl)
+    const [owner, name] = row.repo.split('/')
+    if (number === null || !owner || !name) continue
+    try {
+      const revertUrl = await provider.findMergedRevert(
+        { repo: { owner, name }, installationId: row.installation },
+        number,
+      )
+      if (!revertUrl) continue
+      const changed = await applyFixPrRevert(db, row.prUrl, revertUrl, {
+        repoFullName: row.repo,
+        installationId: row.installation,
+      })
+      if (changed) reverted += 1
+    } catch (error) {
+      // One unreadable repository must not stop the sweep for everyone else.
+      console.error(`reconcile: could not check ${row.prUrl} for a revert:`, error)
+    }
+  }
+  return reverted
 }
 
 /**

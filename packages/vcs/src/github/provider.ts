@@ -50,6 +50,11 @@ export interface GitHubApi {
    * trying. Without a way to ask, a merge that happened is a merge we never learn about.
    */
   getPullRequest(number: number): Promise<PullRequestOutcome | null>
+  /**
+   * The URL of a merged pull request that reverts PR `number` through GitHub's Revert button, or
+   * null. Found by the branch that button creates, `revert-<number>-<original branch>`.
+   */
+  findMergedRevert(number: number): Promise<string | null>
 }
 
 /** The only two facts about a closed pull request that change what we do next. */
@@ -87,6 +92,11 @@ export class GitHubProvider implements VersionControlProvider {
   async getPullRequest(ctx: RepoContext, number: number): Promise<PullRequestOutcome | null> {
     const api = await this.apiFor(ctx)
     return api.getPullRequest(number)
+  }
+
+  async findMergedRevert(ctx: RepoContext, number: number): Promise<string | null> {
+    const api = await this.apiFor(ctx)
+    return api.findMergedRevert(number)
   }
 
   async openPullRequest(ctx: RepoContext, input: FixPullRequest): Promise<PullRequest> {

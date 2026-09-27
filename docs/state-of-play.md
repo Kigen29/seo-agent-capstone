@@ -163,15 +163,19 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
 | Judge on a different model family, asserted | done (#136) |
 | Prompt snapshot tests | done (#137) |
 | Golden dataset of ~50 pages | **4 pages, 1 case** |
-| Production merge rate and revert rate | **not started** |
+| Production merge rate and revert rate | **built**; shown per site on Outcomes |
 
 The dataset is the real work and it is slow rather than hard: capture, read the raw HTML, label
 with a `why`, then a second pass over whatever the engine raised that you did not label. The method
 is in `packages/eval/README.md` and the one rule that matters is **never label from engine output;
 use it only as a reason to go and look.**
 
-Merge rate and revert rate were impossible until a fix PR had been merged. One has, so the numbers
-can start.
+Merge rate and revert rate are recorded on `fix_attempts` (migration 0027): each agent PR is marked
+merged or closed unmerged in the same transaction that moves its finding, by the webhook or the
+reconciler. A revert is a merged PR on a `revert-<n>-seo-agent/...` branch, which is what GitHub's
+Revert button creates; the reconciler also looks for one for 30 days after each merge. A revert made
+by hand (`git revert` pushed to main) is not seen here; post-merge verification catches the issue
+returning instead. PRs closed unmerged before 0027 left no trace and are not counted.
 
 ### 2. Two open stories
 

@@ -53,6 +53,11 @@ class FakeGitHubApi implements GitHubApi {
     this.calls.push(`getPullRequest:${number}`)
     return this.prOutcomes.get(number) ?? null
   }
+  reverts = new Map<number, string>()
+  async findMergedRevert(number: number) {
+    this.calls.push(`findMergedRevert:${number}`)
+    return this.reverts.get(number) ?? null
+  }
 }
 
 const ctx: RepoContext = { repo: { owner: 'o', name: 'r' }, installationId: 1 }
@@ -196,5 +201,15 @@ describe('getPullRequest', () => {
     // Deleted, or the App lost access to the repo. The caller must be able to tell this apart
     // from "closed unmerged": one leaves the finding untouched, the other reopens it.
     expect(await providerWith(new FakeGitHubApi()).getPullRequest(ctx, 999)).toBeNull()
+  })
+})
+
+describe('findMergedRevert', () => {
+  it('returns the revert PR when one was merged, and null when none was', async () => {
+    const api = new FakeGitHubApi()
+    api.reverts.set(24, 'https://github.com/o/r/pull/30')
+
+    expect(await providerWith(api).findMergedRevert(ctx, 24)).toBe('https://github.com/o/r/pull/30')
+    expect(await providerWith(api).findMergedRevert(ctx, 25)).toBeNull()
   })
 })

@@ -114,7 +114,7 @@ export default async function OutcomesPage({
     )
   }
 
-  const { counts, outcomes } = result
+  const { counts, outcomes, rates } = result
   const decided = counts.verified + counts.rejected
 
   return (
@@ -134,6 +134,15 @@ export default async function OutcomesPage({
       {decided > 0 && (
         <p className="text-muted mt-2 mb-0 text-[13px]">
           {counts.verified} of {decided} checked fix{decided === 1 ? '' : 'es'} worked.
+        </p>
+      )}
+      {rates.merged + rates.closedUnmerged > 0 && (
+        <p className="text-muted mt-1 mb-0 text-[13px]" data-testid="pr-rates">
+          {rates.merged} of {rates.merged + rates.closedUnmerged} decided pull request
+          {rates.merged + rates.closedUnmerged === 1 ? ' was' : 's were'} merged (
+          {percent(rates.mergeRate)}).
+          {rates.merged > 0 &&
+            ` ${rates.reverted} ${rates.reverted === 1 ? 'was' : 'were'} later reverted (${percent(rates.revertRate)}).`}
         </p>
       )}
 
@@ -204,3 +213,5 @@ export default async function OutcomesPage({
     </main>
   )
 }
+
+const percent = (rate: number | null) => (rate === null ? 'n/a' : `${Math.round(rate * 100)}%`)

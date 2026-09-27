@@ -1112,6 +1112,90 @@ describe.skipIf(!shouldRun)('the API', () => {
       expect(events.rows).toHaveLength(1)
     })
 
+    describe('merge rate and revert rate', () => {
+      const closedEvent = (prUrl: string, merged: boolean, ref: string, repo = 'octo/owned') =>
+        JSON.stringify({
+          action: 'closed',
+          repository: { full_name: repo },
+          installation: { id: INSTALLATION_ID },
+          pull_request: { merged, html_url: prUrl, head: { ref } },
+        })
+      const deliver = async (body: string) =>
+        expect((await webhook('pull_request', body, signWebhook(body))).statusCode).toBe(204)
+      const ratesFor = async (site: string) =>
+        (
+          (await get(`/sites/${site}/outcomes`, token)).json() as {
+            rates: Record<string, number | null>
+          }
+        ).rates
+
+      it('records a merge and a later GitHub revert, and reports both rates', async () => {
+        const prUrl = 'https://github.com/octo/owned/pull/601'
+        const { fxSiteId, findingId } = await seedFixFinding(
+          'https://rates-merge.example.com',
+          prUrl,
+        )
+
+        await deliver(closedEvent(prUrl, true, 'seo-agent/TECH-007-0-canonical'))
+        expect(await ratesFor(fxSiteId)).toMatchObject({
+          opened: 1,
+          merged: 1,
+          reverted: 0,
+          mergeRate: 1,
+          revertRate: 0,
+        })
+
+        // A revert from another repository names the same number and must not count.
+        await deliver(
+          closedEvent(
+            'https://github.com/other/repo/pull/9',
+            true,
+            'revert-601-seo-agent/TECH-007-0-canonical',
+            'other/repo',
+          ),
+        )
+        expect((await ratesFor(fxSiteId)).reverted).toBe(0)
+
+        const revertUrl = 'https://github.com/octo/owned/pull/610'
+        const revert = closedEvent(revertUrl, true, 'revert-601-seo-agent/TECH-007-0-canonical')
+        await deliver(revert)
+        await deliver(revert) // a duplicate delivery changes nothing
+        expect(await ratesFor(fxSiteId)).toMatchObject({ merged: 1, reverted: 1, revertRate: 1 })
+
+        const attempts = (await get(`/findings/${findingId}/attempts`, token)).json() as {
+          attempts: { prResolution: string; revertPrUrl: string | null }[]
+        }
+        expect(attempts.attempts).toHaveLength(1)
+        expect(attempts.attempts[0]).toMatchObject({
+          prResolution: 'merged',
+          revertPrUrl: revertUrl,
+        })
+      })
+
+      it('counts a PR closed without merging against the merge rate', async () => {
+        const prUrl = 'https://github.com/octo/owned/pull/602'
+        const { fxSiteId, findingId } = await seedFixFinding(
+          'https://rates-close.example.com',
+          prUrl,
+        )
+
+        await deliver(closedEvent(prUrl, false, 'seo-agent/TECH-007-0-canonical'))
+
+        // The finding is open again, but the decline is kept.
+        expect(await ratesFor(fxSiteId)).toMatchObject({
+          opened: 1,
+          merged: 0,
+          closedUnmerged: 1,
+          mergeRate: 0,
+          revertRate: null,
+        })
+        const attempts = (await get(`/findings/${findingId}/attempts`, token)).json() as {
+          attempts: { prResolution: string }[]
+        }
+        expect(attempts.attempts[0]?.prResolution).toBe('closed')
+      })
+    })
+
     it('resets a finding to open when its fix PR is closed unmerged', async () => {
       const prUrl = 'https://github.com/octo/owned/pull/502'
       const before = verifyFixEnqueued.length

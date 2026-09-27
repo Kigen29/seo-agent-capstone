@@ -1,6 +1,7 @@
 import type { MetricSnapshot, Severity, VerificationResult } from '@seo/core'
 import { findings, sites, withTenant, type Database } from '@seo/db'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { fixPrRates, type FixPrRates } from './fix-pr-rates.js'
 
 /**
  * Every fix the agent has proposed for a site, and what became of it.
@@ -38,6 +39,8 @@ export interface FixOutcome {
 export interface SiteOutcomes {
   outcomes: FixOutcome[]
   counts: Record<OutcomeStatus, number>
+  /** How often the agent's pull requests were merged, and how often a merge was reverted. */
+  rates: FixPrRates
 }
 
 /** Null when the site is not the tenant's, so the route can answer 404 rather than an empty list. */
@@ -97,6 +100,6 @@ export async function listOutcomes(
       }
     })
 
-    return { outcomes, counts }
+    return { outcomes, counts, rates: await fixPrRates(tx, siteId) }
   })
 }

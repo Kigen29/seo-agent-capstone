@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pullRequestNumberFrom } from '../src/pr-outcome.js'
+import { pullRequestNumberFrom, revertedPullRequestNumber } from '../src/pr-outcome.js'
 
 /**
  * The URL-to-number conversion, which is the one part of the reconciler that can silently address
@@ -40,5 +40,17 @@ describe('pullRequestNumberFrom', () => {
     expect(pullRequestNumberFrom('https://github.com/o/r/pull/abc')).toBeNull()
     expect(pullRequestNumberFrom('https://github.com/o/r/pull/0')).toBeNull()
     expect(pullRequestNumberFrom('')).toBeNull()
+  })
+})
+
+describe('revertedPullRequestNumber', () => {
+  it("reads the reverted PR's number from GitHub's revert branch", () => {
+    expect(revertedPullRequestNumber('revert-24-seo-agent/TECH-007-0-canonical')).toBe(24)
+  })
+
+  it('ignores reverts of PRs the agent did not open, and ordinary branches', () => {
+    expect(revertedPullRequestNumber('revert-24-feature/login')).toBeNull()
+    expect(revertedPullRequestNumber('seo-agent/TECH-007-0-canonical')).toBeNull()
+    expect(revertedPullRequestNumber('revert-0-seo-agent/x')).toBeNull()
   })
 })
