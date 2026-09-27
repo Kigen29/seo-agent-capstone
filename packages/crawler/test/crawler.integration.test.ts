@@ -93,6 +93,14 @@ describe('crawl: against a live server', () => {
     expect(csr?.render.postJsWordCount).toBeGreaterThan(50)
   })
 
+  it('waits for a client-rendered page to fetch its content before reading it', () => {
+    // Read at the load event, this page is empty: its content arrives from an API 600ms later.
+    const late = result.pages.find((p) => p.url.endsWith('/csr-late'))
+
+    expect(late?.extract.h1s).toEqual(['Loaded from the API'])
+    expect(late?.render.postJsWordCount).toBeGreaterThan(50)
+  })
+
   it('does not flag a server-rendered page as client-rendered', () => {
     const home = result.pages.find((p) => new URL(p.finalUrl).pathname === '/')
 

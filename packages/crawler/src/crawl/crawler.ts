@@ -28,6 +28,15 @@ import type { CrawledPage, CrawlResult, SkippedUrl } from './types.js'
 export const DEFAULT_USER_AGENT =
   'Rankwright/0.1 (SEO audit agent; +https://seo-agent-capstone.vercel.app)'
 
+/** Below this many words of server HTML, a page is treated as a shell still to be rendered. */
+const SHELL_WORDS = 50
+
+/**
+ * The longest to wait for a shell's network to go quiet. Three seconds covers an API call on a
+ * slow origin; anything still loading after that is polling, not rendering.
+ */
+const SETTLE_MS = 3_000
+
 export interface CrawlOptions {
   seed: string
   maxPages?: number
@@ -181,6 +190,16 @@ async function crawlOne(
      * never fetch a page twice just to see it with and without JavaScript.
      */
     const preJsHtml = await response.text()
+
+    // An empty server response is a single-page app shell, and its content usually arrives from
+    // an API after the load event. Read immediately, the same route came back empty on one crawl
+    // and complete on the next, so findings about it flickered between audits. Wait for the
+    // network to go quiet, capped so a page that never stops polling cannot stall the crawl.
+    // Server-rendered pages skip this and cost nothing extra.
+    if (extractPage(preJsHtml, url).wordCount < SHELL_WORDS) {
+      await page.waitForLoadState('networkidle', { timeout: SETTLE_MS }).catch(() => {})
+    }
+
     const renderedHtml = await page.content()
 
     // Walk the redirect chain backwards from the response we ended on.
