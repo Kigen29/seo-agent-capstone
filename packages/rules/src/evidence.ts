@@ -1,5 +1,5 @@
 import type { Evidence } from '@seo/core'
-import type { CrawledPage, GraphNode } from '@seo/crawler'
+import { normaliseUrl, type CrawledPage, type GraphNode } from '@seo/crawler'
 
 /**
  * Evidence builders. Every finding must carry a machine-verifiable observation, so these
@@ -66,6 +66,27 @@ export const siteEvidence = (
 })
 
 /**
+ * One record per page actually served, whatever address reached it.
+ *
+ * The crawl keeps a record for every address it fetched, redirects included, because the redirect
+ * and sitemap rules need them. But `example.com/about` and `www.example.com/about` landing on the
+ * same page are one page: counted twice, a site with one empty-shell homepage reported it twice and
+ * "34 pages share a title" counted some of them twice. The record reached without a redirect wins,
+ * since it is the page as the site links to it.
+ */
+export const landingPages = (pages: readonly CrawledPage[]): CrawledPage[] => {
+  const byFinal = new Map<string, CrawledPage>()
+  for (const page of pages) {
+    const key = normaliseUrl(page.finalUrl) ?? page.finalUrl
+    const existing = byFinal.get(key)
+    if (!existing || (existing.redirectChain.length > 0 && page.redirectChain.length === 0)) {
+      byFinal.set(key, page)
+    }
+  }
+  return [...byFinal.values()]
+}
+
+/**
  * The pages a rule about on-page SEO should actually look at.
  *
  * A 404, a redirect, or a page the site has told Google not to index is not a page with
@@ -73,7 +94,7 @@ export const siteEvidence = (
  * findings nobody should act on, and that is how an audit tool gets closed and ignored.
  */
 export const indexableHtmlPages = (pages: readonly CrawledPage[]): CrawledPage[] =>
-  pages.filter(
+  landingPages(pages).filter(
     (page) =>
       page.status === 200 &&
       !page.error &&

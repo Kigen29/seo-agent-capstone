@@ -1,5 +1,5 @@
 import { normaliseUrl, type CrawledPage } from '@seo/crawler'
-import { markupEvidence } from '../evidence.js'
+import { landingPages, markupEvidence } from '../evidence.js'
 import type { Rule } from '../types.js'
 
 /**
@@ -58,7 +58,9 @@ export const TECH_022: Rule = {
     'A single-page app has no catch-all rewrite, so its own internal links 404 at the host.',
 
   evaluate: (context) => {
-    const shells = context.pages.filter((page) => page.status === 200 && page.render.likelyCsrOnly)
+    const shells = landingPages(context.pages).filter(
+      (page) => page.status === 200 && page.render.likelyCsrOnly,
+    )
     if (shells.length === 0) return []
 
     const byUrl = new Map(

@@ -233,6 +233,91 @@ describe('TECH-007: canonical points at a broken page', () => {
   })
 })
 
+describe('TECH-023: many pages share one foreign canonical', () => {
+  const home = html.withCanonical(u('/'))
+
+  it('fires once when three different pages all name the homepage', () => {
+    const findings = fire(
+      'TECH-023',
+      context({
+        pages: [
+          page({ path: '/', html: home }),
+          page({ path: '/about', html: home }),
+          page({ path: '/safaris', html: home }),
+          page({ path: '/contact', html: home }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.severity).toBe('critical')
+    // The homepage names itself, so it is not one of the pages being told to drop out.
+    expect(findings[0]?.affectedUrls).toEqual([u('/about'), u('/safaris'), u('/contact')])
+    expect(findings[0]?.falsification).toMatch(/Re-fetch/)
+  })
+
+  it('stays silent on self-referencing canonicals', () => {
+    expect(
+      fire(
+        'TECH-023',
+        context({
+          pages: ['/a', '/b', '/c'].map((path) =>
+            page({ path, html: html.withCanonical(u(path)) }),
+          ),
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent on two pages, which can be deliberate', () => {
+    expect(
+      fire(
+        'TECH-023',
+        context({
+          pages: [
+            page({ path: '/a', html: html.withCanonical(u('/main')) }),
+            page({ path: '/b', html: html.withCanonical(u('/main')) }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('does not count query-string variants of the target, which are correct', () => {
+    expect(
+      fire(
+        'TECH-023',
+        context({
+          pages: ['/shoes?sort=a', '/shoes?sort=b', '/shoes?page=2'].map((path) =>
+            page({ path, html: html.withCanonical(u('/shoes')) }),
+          ),
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('counts two addresses that land on the same page once', () => {
+    // The apex and www addresses of one page must not add up to the threshold on their own.
+    expect(
+      fire(
+        'TECH-023',
+        context({
+          pages: [
+            page({ path: '/a', html: html.withCanonical(u('/')) }),
+            page({
+              path: '/a-old',
+              finalPath: '/a',
+              redirectChain: ['/a-old'],
+              html: html.withCanonical(u('/')),
+            }),
+            page({ path: '/b', html: html.withCanonical(u('/')) }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
 describe('TECH-008 and TECH-009: redirect chains and loops', () => {
   it('TECH-008 fires on a chain of two hops', () => {
     const findings = fire(
@@ -615,6 +700,28 @@ describe('TECH-018: client-side rendered', () => {
     )
 
     expect(findings).toHaveLength(1)
+  })
+
+  it('reports a page once when an old address also redirects to it', () => {
+    // The apex address from the sitemap and the www address from the menu are one page.
+    const shell = { preJsHtml: html.doc('<div id="root"></div>'), html: html.prose(300) }
+    const findings = fire(
+      'TECH-018',
+      context({
+        pages: [
+          page({ path: '/about', ...shell }),
+          page({
+            path: '/about-old',
+            redirectChain: ['/about-old'],
+            finalPath: '/about',
+            ...shell,
+          }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toContain('/about')
   })
 
   it('stays silent on a server-rendered page', () => {

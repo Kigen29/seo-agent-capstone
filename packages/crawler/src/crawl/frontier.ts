@@ -136,6 +136,20 @@ export class Frontier {
     return entry
   }
 
+  /**
+   * Record where a fetched URL actually landed, so a redirect target is not queued and fetched
+   * again as a page of its own. `example.com/about` redirecting to `www.example.com/about` is one
+   * page, and the menu linking the www form would otherwise make the crawl fetch it twice.
+   */
+  markSeen(raw: string): void {
+    const url = normaliseUrl(raw)
+    if (!url) return
+    this.seen.add(url)
+    // Already queued (the menu linked it before the redirect was followed): drop it.
+    const queued = this.queue.findIndex((entry) => entry.url === url)
+    if (queued >= 0) this.queue.splice(queued, 1)
+  }
+
   /** Call once a page is fully processed AND persisted, never before. */
   complete(url: string): void {
     this.inFlight.delete(url)
