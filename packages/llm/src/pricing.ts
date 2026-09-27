@@ -16,7 +16,7 @@
  *   Google     https://ai.google.dev/gemini-api/docs/pricing  (paid tier, prompts up to 200k)
  *   Groq       https://console.groq.com/docs/models           (see the Groq note below)
  */
-export const PRICES_VERIFIED_ON = '2026-09-26'
+export const PRICES_VERIFIED_ON = '2026-09-27'
 
 export interface Price {
   inputPerMTok: number
@@ -46,4 +46,10 @@ export const PRICING: Record<string, Price> = {
   // is a deliberate ceiling, not a quote: set well above what the model has historically cost, so
   // the cap errs towards stopping early. Replace it with the real rate once Groq bills the key.
   'groq:llama-3.3-70b-versatile': { inputPerMTok: 1.0, outputPerMTok: 1.0 },
+
+  // Groq's published per-model rates (console.groq.com/docs/model/<id>, verified 2026-09-27).
+  // These two are the Groq models that support json_schema structured outputs, which every
+  // generateObject call needs; the Llama model above does not, so it cannot fill `smart`.
+  'groq:openai/gpt-oss-120b': { inputPerMTok: 0.15, outputPerMTok: 0.6 },
+  'groq:openai/gpt-oss-20b': { inputPerMTok: 0.075, outputPerMTok: 0.3 },
 }
