@@ -38,7 +38,7 @@ type AttemptResult = { outcome: 'pr_opened' | 'pr_adopted'; prUrl: string } | nu
 
 export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Promise<void> {
   // Intent is durable before any repository read/write. Retry an interrupted attempt in place.
-  const attemptId = await withTenant(db, job.tenantId, async (tx) => {
+  const intent = await withTenant(db, job.tenantId, async (tx) => {
     const [finding] = await tx
       .select()
       .from(findings)
@@ -51,7 +51,7 @@ export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Pro
       .from(fixAttempts)
       .where(and(eq(fixAttempts.findingId, finding.id), eq(fixAttempts.outcome, 'running')))
       .limit(1)
-    if (pending) return pending.id
+    if (pending) return { id: pending.id, requestId: pending.requestId }
     const [attempt] = await tx
       .insert(fixAttempts)
       .values({
@@ -62,12 +62,17 @@ export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Pro
         finishedAt: null,
         outcome: 'running',
       })
-      .returning({ id: fixAttempts.id })
-    return attempt!.id
+      .returning({ id: fixAttempts.id, requestId: fixAttempts.requestId })
+    return attempt!
   })
-  if (!attemptId) return
+  if (!intent) return
+  const attemptId = intent.id
+  const retryJob = { ...job }
+  // A newer delivery must resume the persisted intent's branch identity, including legacy IDs.
+  if (intent.requestId) retryJob.requestId = intent.requestId
+  else delete retryJob.requestId
   try {
-    await attemptFix(db, job, deps, attemptId)
+    await attemptFix(db, retryJob, deps, attemptId)
   } catch (error) {
     /**
      * Write the reason onto the finding before rethrowing.

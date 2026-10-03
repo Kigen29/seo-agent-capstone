@@ -1752,9 +1752,22 @@ describe.skipIf(!shouldRun)('the API', () => {
           .set({ status: 'open', prUrl: null })
           .where(eq(findings.id, retryFindingId)),
       )
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .insert(fixAttempts)
+          .values({
+            tenantId,
+            findingId: retryFindingId,
+            requestId: 'original-request',
+            startedAt: new Date(),
+            finishedAt: null,
+            outcome: 'running',
+          }),
+      )
       const provider = {
         findOpenPullRequest: async () => null,
-        findPullRequest: async () => {
+        findPullRequest: async (_ctx: unknown, findingId: string) => {
+          expect(findingId).toBe(`${retryFindingId}-original-request`)
           const rows = await withTenant(db, tenantId, (tx) =>
             tx.select().from(fixAttempts).where(eq(fixAttempts.findingId, retryFindingId)),
           )
