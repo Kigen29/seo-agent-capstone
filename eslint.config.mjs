@@ -61,6 +61,7 @@ const DB_ALLOWED = [
 export default tseslint.config(
   {
     ignores: [
+      'artifacts/**',
       '**/dist/**',
       '**/node_modules/**',
       '**/.turbo/**',

@@ -44,6 +44,8 @@ export interface SkippedUrl {
 }
 
 export interface CrawlResult {
+  /** Actual root-resource observations; absent metadata cannot prove a fix. */
+  resources?: { robots: boolean; llmsTxt: boolean; sitemaps: boolean }
   pages: CrawledPage[]
   /** URLs we deliberately did not fetch, and why. Mostly robots.txt disallows. */
   skipped: SkippedUrl[]

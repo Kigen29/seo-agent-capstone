@@ -37,15 +37,37 @@ export interface FixDeps {
 type AttemptResult = { outcome: 'pr_opened' | 'pr_adopted'; prUrl: string } | null
 
 export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Promise<void> {
-  const startedAt = new Date()
-  try {
-    const result = await attemptFix(db, job, deps)
-    // A delivery for a finding that is no longer open did nothing, and is not an attempt.
-    if (result) {
-      await recordAttempt(db, job, startedAt, result).catch((writeError: unknown) => {
-        console.error('fix: could not record the attempt:', writeError)
+  // Intent is durable before any repository read/write. Retry an interrupted attempt in place.
+  const attemptId = await withTenant(db, job.tenantId, async (tx) => {
+    const [finding] = await tx
+      .select()
+      .from(findings)
+      .where(eq(findings.id, job.findingRowId))
+      .for('update')
+    if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
+    if (finding.status !== 'open') return null
+    const [pending] = await tx
+      .select()
+      .from(fixAttempts)
+      .where(and(eq(fixAttempts.findingId, finding.id), eq(fixAttempts.outcome, 'running')))
+      .limit(1)
+    if (pending) return pending.id
+    const [attempt] = await tx
+      .insert(fixAttempts)
+      .values({
+        tenantId: job.tenantId,
+        findingId: finding.id,
+        requestId: job.requestId ?? null,
+        startedAt: new Date(),
+        finishedAt: null,
+        outcome: 'running',
       })
-    }
+      .returning({ id: fixAttempts.id })
+    return attempt!.id
+  })
+  if (!attemptId) return
+  try {
+    await attemptFix(db, job, deps, attemptId)
   } catch (error) {
     /**
      * Write the reason onto the finding before rethrowing.
@@ -59,7 +81,7 @@ export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Pro
      * Best-effort, and it must not mask the original error: if we cannot even write the reason
      * down, the useful thing to surface is still what actually went wrong.
      */
-    await recordFixFailure(db, job, error, startedAt).catch((writeError: unknown) => {
+    await recordFixFailure(db, job, error, attemptId).catch((writeError: unknown) => {
       console.error('fix: could not record why the fix failed:', writeError)
     })
     throw error
@@ -74,43 +96,32 @@ async function recordFixFailure(
   db: Database,
   job: FixJob,
   error: unknown,
-  startedAt: Date,
+  attemptId: string,
 ): Promise<void> {
   const message = error instanceof Error ? error.message : String(error)
 
   await withTenant(db, job.tenantId, async (tx) => {
-    await tx.update(findings).set({ fixError: message }).where(eq(findings.id, job.findingRowId))
-    await tx.insert(fixAttempts).values({
-      tenantId: job.tenantId,
-      findingId: job.findingRowId,
-      requestId: job.requestId ?? null,
-      startedAt,
-      outcome: 'failed',
-      error: message.slice(0, 2000),
-    })
+    await tx
+      .update(findings)
+      .set({ fixError: message })
+      .where(and(eq(findings.id, job.findingRowId), eq(findings.status, 'open')))
+    await tx
+      .update(fixAttempts)
+      .set({
+        finishedAt: new Date(),
+        outcome: 'failed',
+        error: message.slice(0, 2000),
+      })
+      .where(and(eq(fixAttempts.id, attemptId), eq(fixAttempts.outcome, 'running')))
   })
 }
 
-/** A successful attempt: a pull request opened, or one a crashed attempt had opened, reused. */
-async function recordAttempt(
+async function attemptFix(
   db: Database,
   job: FixJob,
-  startedAt: Date,
-  result: NonNullable<AttemptResult>,
-): Promise<void> {
-  await withTenant(db, job.tenantId, (tx) =>
-    tx.insert(fixAttempts).values({
-      tenantId: job.tenantId,
-      findingId: job.findingRowId,
-      requestId: job.requestId ?? null,
-      startedAt,
-      outcome: result.outcome,
-      prUrl: result.prUrl,
-    }),
-  )
-}
-
-async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<AttemptResult> {
+  deps: FixDeps,
+  attemptId: string,
+): Promise<AttemptResult> {
   const finding = await getFinding(db, job.tenantId, job.findingRowId)
   if (!finding) throw new Error(`Finding ${job.findingRowId} not found.`)
   // A delayed delivery must not regenerate a PR or move a merged finding backwards.
@@ -132,13 +143,15 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<Att
   const provider =
     deps.provider ?? new GitHubProvider(createGitHubApp(githubAppConfigFromEnv()).apiFor)
   const repo = { repo: { owner, name }, installationId: site.githubInstallationId }
-  const branchId = branchSafeId(finding.rowId)
+  const branchId = branchSafeId(`${finding.rowId}${job.requestId ? `-${job.requestId}` : ''}`)
 
   // A previous attempt may have opened the PR and then died before recording it. Adopt that PR
   // instead of regenerating the fix, so a crash costs neither a second model call nor a second PR.
-  const existing = await provider.findOpenPullRequest(repo, branchId)
+  const existing =
+    (await provider.findOpenPullRequest(repo, branchSafeId(finding.rowId))) ??
+    (await provider.findPullRequest?.(repo, branchId))
   if (existing) {
-    await recordPullRequest(db, job.tenantId, finding, existing)
+    await recordPullRequest(db, job.tenantId, finding, existing, attemptId, 'pr_adopted')
     return { outcome: 'pr_adopted', prUrl: existing.url }
   }
 
@@ -175,27 +188,54 @@ async function attemptFix(db: Database, job: FixJob, deps: FixDeps): Promise<Att
     rollback: fix.rollback,
   })
 
-  await recordPullRequest(db, job.tenantId, finding, pr)
+  await recordPullRequest(db, job.tenantId, finding, pr, attemptId, 'pr_opened')
   return { outcome: 'pr_opened', prUrl: pr.url }
 }
 
 async function recordPullRequest(
   db: Database,
   tenantId: string,
-  finding: { rowId: string; ruleId: string; affectedUrls: string[] },
+  finding: {
+    rowId: string
+    ruleId: string
+    affectedUrls: string[]
+    evidence?: { observedAt: string }
+  },
   pr: PullRequest,
+  attemptId: string,
+  outcome: 'pr_opened' | 'pr_adopted',
 ): Promise<void> {
-  await withTenant(db, tenantId, (tx) =>
-    tx
+  await withTenant(db, tenantId, async (tx) => {
+    await tx
       .update(findings)
       // `fixError` is cleared, not left behind: it describes the most recent attempt, and a stale
       // failure sitting next to an open pull request would read as though the PR had failed.
       // The baseline is what "did it work?" is later measured against: every page the rule
       // flagged, failing, at the moment the fix was proposed.
-      .set({ status: 'pr_open', prUrl: pr.url, fixError: null, baseline: baselineFor(finding) })
+      .set({
+        status:
+          pr.resolution === 'merged' ? 'merged' : pr.resolution === 'closed' ? 'open' : 'pr_open',
+        prUrl: pr.url,
+        fixError:
+          pr.resolution === 'closed'
+            ? 'The previous pull request was closed without merging. Request a new fix to try again.'
+            : null,
+        baseline: baselineFor(finding),
+      })
       // Only an open finding moves to pr_open; a webhook may already have recorded a merge.
-      .where(and(eq(findings.id, finding.rowId), eq(findings.status, 'open'))),
-  )
+      .where(and(eq(findings.id, finding.rowId), eq(findings.status, 'open')))
+    await tx
+      .update(fixAttempts)
+      .set({
+        outcome,
+        prUrl: pr.url,
+        finishedAt: new Date(),
+        error: null,
+        prResolution: pr.resolution ?? null,
+        resolvedAt: pr.resolution ? new Date() : null,
+      })
+      .where(eq(fixAttempts.id, attemptId))
+  })
 }
 
 /** Make a finding key usable in a git branch: '#' and other stray characters become hyphens. */

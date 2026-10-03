@@ -45,6 +45,7 @@ describe('traffic outcome', () => {
       endDate: '2026-10-02',
       dimensions: ['page'],
       rowLimit: 25_000,
+      startRow: 0,
     })
   })
 
@@ -65,4 +66,24 @@ describe('traffic outcome', () => {
     // The rule-level measurement is untouched.
     expect(twice.after.metrics[0]!.metric).toBe('TECH-022 failing pages')
   })
+})
+
+it('finds affected pages beyond the first full GSC response', async () => {
+  const searchAnalytics = vi
+    .fn()
+    .mockResolvedValueOnce(
+      Array.from({ length: 25_000 }, () => ({
+        keys: ['https://ex.com/other'],
+        clicks: 1,
+        impressions: 1,
+      })),
+    )
+    .mockResolvedValueOnce([{ keys: ['https://ex.com/affected'], clicks: 9, impressions: 90 }])
+  expect(
+    await measurePageTraffic({ searchAnalytics }, 'sc-domain:ex.com', ['https://ex.com/affected'], {
+      startDate: '2026-01-01',
+      endDate: '2026-01-28',
+    }),
+  ).toEqual({ clicks: 9, impressions: 90 })
+  expect(searchAnalytics.mock.calls[1]?.[1].startRow).toBe(25_000)
 })

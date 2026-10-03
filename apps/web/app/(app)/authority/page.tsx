@@ -97,8 +97,8 @@ export default async function AuthorityPage({
           {coverage?.coverage.note ??
             'This axis was not measured on the last audit. It needs a SERP data source, which is a paid dependency and off by default.'}
           <span className="mt-2 block">
-            To turn it on: add DataForSEO credentials for links and a SerpApi key for mentions to
-            the deployment&apos;s settings, then run an audit.
+            This data source is not enabled for this deployment. Contact the application operator to
+            enable authority measurement, then run another audit.
           </span>
         </Note>
       )}

@@ -630,3 +630,25 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Site summaries become readable stacked rows on narrow screens. */
+@media (max-width: 767px) {
+  .classical .site-table,
+  .classical .site-table tbody,
+  .classical .site-table tr,
+  .classical .site-table td {
+    display: block;
+    width: 100%;
+  }
+  .classical .site-table thead {
+    display: none;
+  }
+  .classical .site-table tr {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .classical .site-table td {
+    border: 0;
+    padding: var(--space-1) 0;
+  }
+}

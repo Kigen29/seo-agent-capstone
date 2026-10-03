@@ -78,7 +78,13 @@ export interface PageTraffic {
 export interface SearchAnalyticsSource {
   searchAnalytics(
     property: string,
-    query: { startDate: string; endDate: string; dimensions: string[]; rowLimit?: number },
+    query: {
+      startDate: string
+      endDate: string
+      dimensions: string[]
+      rowLimit?: number
+      startRow?: number
+    },
   ): Promise<{ keys?: string[]; clicks: number; impressions: number }[]>
 }
 
@@ -90,20 +96,27 @@ export async function measurePageTraffic(
   window: DateWindow,
 ): Promise<PageTraffic> {
   const wanted = new Set(pages.map(pageKey))
-  const rows = await gsc.searchAnalytics(property, {
-    ...window,
-    dimensions: ['page'],
-    rowLimit: 25_000,
-  })
   let clicks = 0
   let impressions = 0
-  for (const row of rows) {
-    const page = row.keys?.[0]
-    if (!page || !wanted.has(pageKey(page))) continue
-    clicks += row.clicks
-    impressions += row.impressions
+  // Refuse partial measurements instead of inventing zeros after a truncated response.
+  for (let startRow = 0; startRow < 250_000; startRow += 25_000) {
+    const rows = await gsc.searchAnalytics(property, {
+      ...window,
+      dimensions: ['page'],
+      rowLimit: 25_000,
+      startRow,
+    })
+    for (const row of rows) {
+      const page = row.keys?.[0]
+      if (!page || !wanted.has(pageKey(page))) continue
+      clicks += row.clicks
+      impressions += row.impressions
+    }
+    if (rows.length < 25_000) return { clicks, impressions }
   }
-  return { clicks, impressions }
+  throw new Error(
+    'Search Console page results exceeded the measurement limit; comparison remains unmeasured.',
+  )
 }
 
 function withTraffic(snapshot: MetricSnapshot, traffic: PageTraffic, at: string): MetricSnapshot {

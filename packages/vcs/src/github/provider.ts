@@ -40,6 +40,7 @@ export interface GitHubApi {
   }): Promise<{ url: string; number: number }>
   findOpenPullRequestByHeadPrefix(
     prefix: string,
+    state?: 'open' | 'all',
   ): Promise<{ url: string; number: number; branch: string } | null>
   /**
    * What became of a pull request we opened. Null when it no longer exists.
@@ -87,6 +88,23 @@ export class GitHubProvider implements VersionControlProvider {
   async findOpenPullRequest(ctx: RepoContext, findingId: string): Promise<PullRequest | null> {
     const api = await this.apiFor(ctx)
     return api.findOpenPullRequestByHeadPrefix(branchPrefixFor(findingId))
+  }
+
+  async findPullRequest(ctx: RepoContext, findingId: string): Promise<PullRequest | null> {
+    const api = await this.apiFor(ctx)
+    const pr = await api.findOpenPullRequestByHeadPrefix(branchPrefixFor(findingId), 'all')
+    if (!pr) return null
+    const result = await api.getPullRequest(pr.number)
+    if (!result)
+      throw new Error('The existing pull request could not be read; retry before creating another.')
+    return {
+      ...pr,
+      ...(result.merged
+        ? { resolution: 'merged' as const }
+        : result.closed
+          ? { resolution: 'closed' as const }
+          : {}),
+    }
   }
 
   async getPullRequest(ctx: RepoContext, number: number): Promise<PullRequestOutcome | null> {

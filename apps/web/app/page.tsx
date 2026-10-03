@@ -12,11 +12,11 @@ const AXES = [
 ]
 
 const STEPS = [
-  { n: '01', title: 'Crawl', body: 'We read your whole search surface.' },
+  { n: '01', title: 'Crawl', body: 'We crawl up to 50 pages per audit.' },
   { n: '02', title: 'Diagnose', body: 'Deterministic rules find the issue.' },
   { n: '03', title: 'Prioritise', body: 'Sorted by impact over effort.' },
   { n: '04', title: 'Open a PR', body: 'A real fix, on a new branch.' },
-  { n: '05', title: 'Verify', body: 'Proven in Search Console.' },
+  { n: '05', title: 'Verify', body: 'Rechecked after deployment.' },
 ]
 
 export default function Home() {
@@ -53,9 +53,9 @@ export default function Home() {
               marginBottom: 'var(--space-6)',
             }}
           >
-            RankWright audits eight independent surfaces of your search presence, opens a pull
-            request for what is broken, and waits for your review. You merge. We measure what
-            actually moved, and say so when nothing did.
+            RankWright checks your search presence across eight separate axes and proposes pull
+            requests for supported fixes. You review and merge. We recheck the deployed change and
+            report what we can measure. Some axes need connected accounts or paid data.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             <Link href="/login" className="btn btn-primary">
@@ -91,17 +91,17 @@ export default function Home() {
             </span>
           </div>
           <div style={{ padding: 'var(--space-4)' }}>
-            <div className="card-kicker">seo-agent/perf-003</div>
+            <div className="card-kicker">seo-agent/tech-002</div>
             <div className="card-title" style={{ marginBottom: 'var(--space-3)' }}>
-              Prioritise the LCP hero image
+              Allow AI search crawlers
             </div>
             <div className="mono" style={{ padding: 0, lineHeight: 1.9 }}>
-              <div style={{ padding: '4px 12px', opacity: 0.7 }}>app/page.tsx</div>
+              <div style={{ padding: '4px 12px', opacity: 0.7 }}>public/robots.txt</div>
               <div style={{ padding: '4px 12px', color: 'var(--color-neutral-700)' }}>
-                &minus; &lt;Image src="/hero.jpg" alt="&hellip;" /&gt;
+                &minus; Disallow: /
               </div>
               <div style={{ padding: '4px 12px', color: 'var(--color-accent-700)' }}>
-                + &lt;Image src="/hero.jpg" alt="&hellip;" priority /&gt;
+                + Allow: /
               </div>
             </div>
           </div>
@@ -113,7 +113,8 @@ export default function Home() {
               opacity: 0.6,
             }}
           >
-            Expected: p75 LCP 3.4s &rarr; under 2.5s. Verified up to 28 days after merge.
+            Example: allow OAI-SearchBot in robots.txt. Rechecked after confirmed deployment; access
+            does not guarantee citation.
           </div>
         </div>
       </section>
@@ -145,7 +146,7 @@ export default function Home() {
           </div>
           <div style={{ padding: '0 var(--space-4)' }}>
             <h4 style={{ color: 'var(--color-accent-700)' }}>RankWright</h4>
-            <p>Opens the pull request that fixes it, and proves it worked.</p>
+            <p>Proposes supported fixes as pull requests and checks the deployed result.</p>
           </div>
         </div>
       </section>

@@ -76,9 +76,13 @@ export interface PullRequest {
   number: number
   /** The `seo-agent/*` branch it was opened from. */
   branch: string
+  resolution?: 'merged' | 'closed'
 }
 
 export interface VersionControlProvider {
+  /** Recover a side effect even if the PR closed before its URL was stored. */
+  findPullRequest?(ctx: RepoContext, findingId: string): Promise<PullRequest | null>
+
   /** Read a file at a ref (the default branch when omitted). Null when the file is absent. */
   getFile(ctx: RepoContext, path: string, ref?: string): Promise<RepoFile | null>
 

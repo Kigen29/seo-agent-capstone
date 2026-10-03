@@ -55,7 +55,12 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
         }
       />
 
-      <LiveProgress auditId={audit.id} status={audit.status} pagesCrawled={audit.pagesCrawled} />
+      <LiveProgress
+        auditId={audit.id}
+        startedAt={audit.startedAt}
+        status={audit.status}
+        pagesCrawled={audit.pagesCrawled}
+      />
 
       {audit.status === 'failed' && (
         <div className="note note-error mt-6">

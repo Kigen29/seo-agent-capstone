@@ -143,15 +143,19 @@ export function SetupChecklist({
   const done = rows.filter((row) => row.status.tone === 'success').length
 
   return (
-    <section aria-labelledby="setup-heading" className="mt-6 mb-8">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+    <details className="mt-6 mb-8">
+      <summary className="mb-3 cursor-pointer">
         <h2 id="setup-heading" className="h-section m-0">
-          Setup
+          Connections and optional setup
         </h2>
         <span className="text-muted text-[13px]">
           {done} of {rows.length} done
         </span>
-      </div>
+      </summary>
+      <p className="text-muted text-sm">
+        Audits work without connections. Connect a repository for pull requests; Search Console adds
+        traffic measurement. Business Profile and AI questions are optional.
+      </p>
       {/* Padding set inline: .card's own padding outranks the p-0 utility (DESIGN.md, Layout). */}
       <ul className="card elev-sm m-0 list-none gap-0" style={{ padding: 0 }}>
         {rows.map((row, index) => (
@@ -171,6 +175,6 @@ export function SetupChecklist({
           </li>
         ))}
       </ul>
-    </section>
+    </details>
   )
 }

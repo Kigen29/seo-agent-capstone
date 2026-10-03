@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs'
 import { publishPendingJobs } from './outbox.js'
 import { nameTopics } from '@seo/agent'
 import { runAudit } from '@seo/audit'
@@ -19,7 +20,7 @@ import { runFix } from './fix.js'
 import { failAbandonedAudits } from './abandoned-audits.js'
 import { recordTrafficOutcomes } from './traffic-outcomes.js'
 import { reconcilePullRequests } from './reconcile.js'
-import { runVerifyFix } from './verify-fix.js'
+import { enqueuePendingFixVerifications, runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
 /**
@@ -109,6 +110,7 @@ try {
 
   // Then verify any merged fixes: a re-audit per site, reconciling every finding awaiting
   // verification against the fresh crawl. A crawl failure here fails only its own job.
+  await enqueuePendingFixVerifications(db, queue)
   console.log('worker: draining the verify-fix queue')
   const verifiedFixes = await drainVerifyFix(queue, (job) => runVerifyFix(db, job))
   console.log(
@@ -154,6 +156,24 @@ try {
     )
   })
   console.log(`worker: polling done. ${polled.completed} completed, ${polled.failed} failed.`)
+  const lanes = {
+    audits: result,
+    fixes: fixed,
+    fixVerification: verifiedFixes,
+    siteVerification: verified,
+    confirmation: confirmed,
+    visibility: polled,
+  }
+  console.log(JSON.stringify({ event: 'worker_drain_summary', lanes }))
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const rows = Object.entries(lanes)
+      .map(([name, counts]) => `| ${name} | ${counts.completed} | ${counts.failed} |`)
+      .join('\n')
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `\n## Application job results\n\n| Queue | Completed | Failed / awaiting retry |\n| --- | ---: | ---: |\n${rows}\n\nA successful workflow means the runner completed. Failed or inconclusive jobs remain visible above and in the application; deployment waits are not verified fixes.\n`,
+    )
+  }
 } finally {
   await queue.stop({ graceful: false })
   await pool.end()
