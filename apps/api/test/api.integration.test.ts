@@ -1753,16 +1753,14 @@ describe.skipIf(!shouldRun)('the API', () => {
           .where(eq(findings.id, retryFindingId)),
       )
       await withTenant(db, tenantId, (tx) =>
-        tx
-          .insert(fixAttempts)
-          .values({
-            tenantId,
-            findingId: retryFindingId,
-            requestId: 'original-request',
-            startedAt: new Date(),
-            finishedAt: null,
-            outcome: 'running',
-          }),
+        tx.insert(fixAttempts).values({
+          tenantId,
+          findingId: retryFindingId,
+          requestId: 'original-request',
+          startedAt: new Date(),
+          finishedAt: null,
+          outcome: 'running',
+        }),
       )
       const provider = {
         findOpenPullRequest: async () => null,

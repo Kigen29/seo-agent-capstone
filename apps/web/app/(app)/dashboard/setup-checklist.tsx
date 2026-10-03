@@ -145,10 +145,10 @@ export function SetupChecklist({
   return (
     <details className="mt-6 mb-8">
       <summary className="mb-3 cursor-pointer">
-        <h2 id="setup-heading" className="h-section m-0">
+        <h2 id="setup-heading" className="h-section m-0" style={{ display: 'inline' }}>
           Connections and optional setup
         </h2>
-        <span className="text-muted text-[13px]">
+        <span className="text-muted ml-3 text-[13px]">
           {done} of {rows.length} done
         </span>
       </summary>

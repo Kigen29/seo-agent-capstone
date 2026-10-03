@@ -443,10 +443,8 @@ for (const theme of ['light', 'dark'] as const) {
     await signIn(page)
     await page.emulateMedia({ colorScheme: theme })
     await page.goto('/dashboard')
-    const ratio = await page
-      .locator('.text-muted')
-      .first()
-      .evaluate((element) => {
+    const ratios = await page.locator('.text-muted, .text-subtle').evaluateAll((elements) =>
+      elements.map((element) => {
         const canvas = document.createElement('canvas')
         canvas.width = canvas.height = 1
         const ctx = canvas.getContext('2d')!
@@ -467,7 +465,17 @@ for (const theme of ['light', 'dark'] as const) {
         const foreground = luminance(rgb(style.color))
         const background = luminance(rgb(style.getPropertyValue('--color-bg')))
         return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
-      })
-    expect(ratio).toBeGreaterThanOrEqual(4.5)
+      }),
+    )
+    expect(ratios.length).toBeGreaterThan(3)
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 }
+
+test('a bookmarked audit restores its site context before navigation', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/audits/${AUDIT}`)
+  await expect(page).toHaveURL(new RegExp(`/audits/${AUDIT}\\?siteId=`))
+  await page.getByRole('link', { name: 'All findings', exact: true }).click()
+  await expect(page).toHaveURL(/\/findings\?siteId=00000000-0000-4000-8000-000000000003/)
+})

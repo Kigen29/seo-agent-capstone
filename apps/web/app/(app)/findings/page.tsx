@@ -134,7 +134,7 @@ export default async function FindingsPage({
                   </Link>
                 </h2>
                 <p className="text-muted m-0 text-sm break-words">
-                  {hostOf(finding.siteUrl)} ? {AXIS_LABEL[finding.axis]} ?{' '}
+                  {hostOf(finding.siteUrl)} / {AXIS_LABEL[finding.axis]} /{' '}
                   {finding.affectedUrlCount} pages
                 </p>
                 <p className="m-0 text-sm">

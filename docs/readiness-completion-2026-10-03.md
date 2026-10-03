@@ -36,13 +36,13 @@ Browser HTTP and HTTPS traffic now uses a crawl-scoped proxy that validates DNS 
 
 ## Product changes
 
-- Site selection survives dashboard, finding, and research navigation. A site-specific dashboard no longer presents an All sites selection.
+- Site selection survives dashboard, finding, bookmarked audit, and research navigation. A site-specific dashboard no longer presents an All sites selection.
 - Mobile findings use readable cards; mobile site summaries stack instead of splitting hostnames across narrow columns.
 - Results precede optional setup, which is an expandable section explaining which connections are necessary for which actions.
 - Queued work is distinguished from crawling and shows waiting time on the audit page.
 - Automatic-fix labels describe availability; repository compatibility is checked before a PR is written. Unsupported source layouts remain a reported limitation, not a promised universal edit.
 - Missing attempt history is reported as unavailable, rather than appearing as no attempts.
-- Secondary text contrast is increased; mobile navigation supports Escape and focus return.
+- Secondary and unmeasured text contrast is increased; mobile navigation supports Escape and focus return. The setup disclosure stays inline and mobile metadata uses readable separators.
 - The landing example uses a supported robots.txt fix. Crawl scope, optional data dependencies, deployment checks, and citation uncertainty are stated.
 - The existing screenshot harness now uses the current session flow and documented screenshot command.
 
@@ -62,5 +62,7 @@ The following are separate acceptance gates and must not be marked complete mere
 6. Revisit the accepted backup-retention trigger before the first non-demo/paying tenant. Existing restore drills and the demo retention decision remain credited.
 
 For deployment rollback, prefer a forward fix. Do not drop 0028 or delete running intents. Stop the changed worker before reverting application code; older readers do not understand a running attempt with a null completion time. Resolve or explicitly fail interrupted attempts before serving them through an older version.
+
+Local validation passed 220 API tests (including the real-stack lifecycle), 112 audit tests, 193 crawler tests, and 41 VCS tests. The monorepo build and typecheck passed. Final browser and CI evidence is recorded on PR #261.
 
 Local evidence is saved under ignored `artifacts/readiness-*.log` and screenshots under `apps/web/screens/`. GitHub CI and the PR provide the durable review record. No credentials, private key material, or test database dumps belong in the PR.
