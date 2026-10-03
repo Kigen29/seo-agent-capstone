@@ -193,7 +193,7 @@ test('keeps an old bookmarked finding URL working', async ({ page }) => {
   await signIn(page)
   await page.goto(`/dashboard/findings/${BLOCKED_FINDING}`)
 
-  await expect(page).toHaveURL(new RegExp(`/findings/${BLOCKED_FINDING}$`))
+  await expect(page).toHaveURL(new RegExp(`/findings/${BLOCKED_FINDING}\\?siteId=`))
   await expect(page.getByText('How you would know we were wrong')).toBeVisible()
 })
 
@@ -207,7 +207,7 @@ test('offers a way back to the inbox, not only to the audit', async ({ page }) =
   const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' })
   await expect(crumbs.getByRole('link', { name: 'Findings' })).toBeVisible()
   await crumbs.getByRole('link', { name: 'Findings' }).click()
-  await expect(page).toHaveURL(/\/findings$/)
+  await expect(page).toHaveURL(/\/findings\?siteId=00000000-0000-4000-8000-000000000003/)
 })
 
 test('filters the inbox on the server, and says how many matched', async ({ page }) => {
@@ -344,7 +344,8 @@ test('the dashboard says what is connected for the site, in words', async ({ pag
   await signIn(page)
   await page.goto('/dashboard')
 
-  const setup = page.getByRole('region', { name: 'Setup' })
+  await page.getByText('Connections and optional setup', { exact: true }).click()
+  const setup = page.locator('details').filter({ hasText: 'Connections and optional setup' })
   await expect(setup).toBeVisible()
   for (const name of [
     'Google Search Console',
@@ -390,4 +391,91 @@ test('outcomes says, in words, what became of each proposed fix', async ({ page 
   await expect(page.getByText('Did not work', { exact: true })).toBeVisible()
   await expect(page.getByText('No fixes proposed yet')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Outcomes' })).toBeVisible()
+})
+
+test('preserves the selected site through dashboard and research navigation', async ({ page }) => {
+  await signIn(page)
+  const selected = '00000000-0000-4000-8000-000000000007'
+  await page.goto(`/keywords?siteId=${selected}`)
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Dashboard', exact: true })
+    .click()
+  await expect(page).toHaveURL(new RegExp(`siteId=${selected}`))
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('z-second.example.com')
+  await expect(page.getByLabel('Which site to show')).toHaveValue(selected)
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Outcomes', exact: true })
+    .click()
+  await expect(page).toHaveURL(new RegExp(`siteId=${selected}`))
+})
+
+test('mobile findings keep the full title and action in the viewport', async ({ page }) => {
+  await signIn(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/findings')
+  const card = page.locator('article').filter({ hasText: 'robots.txt blocks' })
+  await expect(card).toBeVisible()
+  const box = await card.boundingBox()
+  expect(box && box.x >= 0 && box.x + box.width <= 391).toBeTruthy()
+  await card.getByRole('link').click()
+  await expect(page).toHaveURL(/siteId=00000000-0000-4000-8000-000000000003/)
+})
+
+test('mobile navigation works from the keyboard and restores focus on Escape', async ({ page }) => {
+  await signIn(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/dashboard')
+  const menu = page.getByRole('button', { name: 'Menu', exact: true })
+  await menu.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeFocused()
+  await expect(menu).toHaveAttribute('aria-expanded', 'false')
+})
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`secondary dashboard text has at least 4.5:1 contrast in ${theme} mode`, async ({
+    page,
+  }) => {
+    await signIn(page)
+    await page.emulateMedia({ colorScheme: theme })
+    await page.goto('/dashboard')
+    const ratios = await page.locator('.text-muted, .text-subtle').evaluateAll((elements) =>
+      elements.map((element) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = 1
+        const ctx = canvas.getContext('2d')!
+        const rgb = (color: string) => {
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.fillStyle = color
+          ctx.fillRect(0, 0, 1, 1)
+          return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3)
+        }
+        const luminance = (channels: number[]) =>
+          channels
+            .map((value) => {
+              const s = value / 255
+              return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+            })
+            .reduce((sum, value, i) => sum + value * [0.2126, 0.7152, 0.0722][i]!, 0)
+        const style = getComputedStyle(element)
+        const foreground = luminance(rgb(style.color))
+        const background = luminance(rgb(style.getPropertyValue('--color-bg')))
+        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
+      }),
+    )
+    expect(ratios.length).toBeGreaterThan(3)
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5)
+  })
+}
+
+test('a bookmarked audit restores its site context before navigation', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/audits/${AUDIT}`)
+  await expect(page).toHaveURL(new RegExp(`/audits/${AUDIT}\\?siteId=`))
+  await page.getByRole('link', { name: 'All findings', exact: true }).click()
+  await expect(page).toHaveURL(/\/findings\?siteId=00000000-0000-4000-8000-000000000003/)
 })

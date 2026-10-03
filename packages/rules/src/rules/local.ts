@@ -137,7 +137,7 @@ export const LOCAL_002: Rule = {
 }
 
 /** Does a `hasMap` or `sameAs` value already point at this profile? */
-function linksToProfile(value: unknown, cid: string): boolean {
+export function linksToProfile(value: unknown, cid: string): boolean {
   const matches = (entry: unknown): boolean =>
     typeof entry === 'string' && entry.includes(`cid=${cid}`)
 
@@ -154,7 +154,7 @@ export interface Contact {
 }
 
 /** Flatten JSON-LD blocks into their nodes, walking arrays and `@graph` containers. */
-function flattenNodes(blocks: readonly unknown[]): JsonObject[] {
+export function flattenNodes(blocks: readonly unknown[]): JsonObject[] {
   const out: JsonObject[] = []
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) {
@@ -213,7 +213,7 @@ const LOCAL_BUSINESS_TYPES = new Set([
 
 const LOCAL_SUFFIX = /(Business|Store|Shop|Restaurant|Service|Salon)$/
 
-function isLocalBusiness(node: JsonObject): boolean {
+export function isLocalBusiness(node: JsonObject): boolean {
   return typesOf(node).some((type) => LOCAL_BUSINESS_TYPES.has(type) || LOCAL_SUFFIX.test(type))
 }
 

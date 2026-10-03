@@ -23,7 +23,7 @@ export function failingPagesMetric(ruleId: string): string {
 
 /** Snapshot taken when the fix's pull request opens: every flagged page fails the rule. */
 export function baselineFor(
-  finding: { ruleId: string; affectedUrls: readonly string[] },
+  finding: { ruleId: string; affectedUrls: readonly string[]; evidence?: { observedAt: string } },
   now: Date = new Date(),
 ): MetricSnapshot {
   const at = now.toISOString()
@@ -33,7 +33,7 @@ export function baselineFor(
       {
         kind: 'metric',
         source: 'crawler',
-        observedAt: at,
+        observedAt: finding.evidence?.observedAt ?? at,
         metric: failingPagesMetric(finding.ruleId),
         value: finding.affectedUrls.length,
         unit: 'count',
@@ -62,7 +62,7 @@ export function verificationFor(
   current: readonly Finding[],
   now: Date = new Date(),
 ): VerificationResult {
-  const before = merged.baseline ?? baselineFor(merged, now)
+  const before = merged.baseline ?? { capturedAt: now.toISOString(), metrics: [] }
   const total = merged.affectedUrls.length
   const remaining = outcome === 'verified' ? 0 : stillFailingCount(merged, current)
   const at = now.toISOString()
@@ -74,20 +74,25 @@ export function verificationFor(
     before,
     after: {
       capturedAt: at,
-      metrics: [
-        {
-          kind: 'metric',
-          source: 'crawler',
-          observedAt: at,
-          metric: failingPagesMetric(merged.ruleId),
-          value: remaining,
-          unit: 'count',
-        },
-      ],
+      metrics:
+        outcome === 'rejected' && remaining === 0
+          ? []
+          : [
+              {
+                kind: 'metric',
+                source: 'crawler',
+                observedAt: at,
+                metric: failingPagesMetric(merged.ruleId),
+                value: remaining,
+                unit: 'count',
+              },
+            ],
     },
     summary:
       outcome === 'verified'
         ? `After the fix was deployed, ${merged.ruleId} no longer fires on any of the ${pages(total)} it flagged.`
-        : `After the fix was deployed, ${merged.ruleId} still fires on ${remaining} of the ${pages(total)} it flagged, so the fix did not work.`,
+        : remaining === 0
+          ? `The deployed change did not satisfy the positive verification condition for ${merged.ruleId}. The original diagnostic no longer reproduces, but that alone does not prove the fix worked.`
+          : `After the fix was deployed, ${merged.ruleId} still fires on ${remaining} of the ${pages(total)} it flagged, so the fix did not work.`,
   }
 }

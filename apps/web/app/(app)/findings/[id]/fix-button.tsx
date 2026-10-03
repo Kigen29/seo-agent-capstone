@@ -15,7 +15,13 @@ export function FixButton({ findingId }: { findingId: string }) {
   return (
     <form action={openFixPr}>
       <input type="hidden" name="findingId" value={findingId} />
-      <SubmitButton pendingLabel="Opening the pull request...">Open a pull request</SubmitButton>
+      <SubmitButton pendingLabel="Queueing the repository check...">
+        Open a pull request
+      </SubmitButton>
+      <p className="text-muted mt-2 text-sm">
+        The agent checks the repository before writing a change. Unsupported layouts are reported
+        without opening a pull request.
+      </p>
     </form>
   )
 }

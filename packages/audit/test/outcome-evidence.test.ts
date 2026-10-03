@@ -51,7 +51,7 @@ describe('outcome evidence', () => {
       now,
     )
     expect(record.after.metrics[0]!.value).toBe(2)
-    expect(record.before.metrics[0]!.value).toBe(3)
+    expect(record.before.metrics).toEqual([]) // A missing historical baseline is not a new observation.
     expect(record.summary).toContain('still fires on 2 of the 3 pages')
     expect(record.summary).toContain('did not work')
     expect(record.summary).not.toMatch(/—/)

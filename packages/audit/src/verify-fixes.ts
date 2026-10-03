@@ -25,6 +25,8 @@ export interface MergedFindingRef {
 export type FixVerdict = 'verified' | 'rejected' | 'inconclusive'
 
 export interface VerificationCoverage {
+  /** Rule-specific checks, keyed by persisted finding ID. Missing means inconclusive. */
+  checks?: Record<string, FixVerdict>
   successfulUrls: readonly string[]
   evaluatedRuleIds: readonly string[]
   /** Established by deployment evidence, never inferred from a merge alone. */
@@ -59,6 +61,15 @@ export function reconcileFixVerifications(
 ): Map<string, FixVerdict> {
   const verdicts = new Map<string, FixVerdict>()
   for (const finding of merged) {
+    if (coverage?.checks) {
+      verdicts.set(
+        finding.id,
+        coverage.deploymentConfirmed
+          ? (coverage.checks[finding.id] ?? 'inconclusive')
+          : 'inconclusive',
+      )
+      continue
+    }
     const covered =
       coverage?.deploymentConfirmed &&
       coverage.evaluatedRuleIds.includes(finding.ruleId) &&

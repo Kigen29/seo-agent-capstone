@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import type { FixAttempt } from '@seo/api-client'
 import { ApiAsleep } from '@/components/api-asleep'
 import Link from 'next/link'
@@ -45,36 +46,47 @@ export default async function FindingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ fix?: string }>
+  searchParams: Promise<{ fix?: string; siteId?: string }>
 }) {
   const { id } = await params
-  const { fix } = await searchParams
+  const { fix, siteId } = await searchParams
   const api = await getClient()
   if (!api) return null
 
   let finding
   let connections
   let attempts: FixAttempt[] = []
+  let historyUnavailable = false
   try {
     ;[finding, connections, attempts] = await Promise.all([
       api.getFinding(id),
       api.getConnections(),
       // History is secondary: if it cannot load, the finding still renders without it.
-      api.getFixAttempts(id).catch(() => []),
+      api.getFixAttempts(id).catch(() => {
+        historyUnavailable = true
+        return []
+      }),
     ])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
   }
 
+  if (siteId !== finding.siteId)
+    redirect(
+      `/findings/${id}?siteId=${finding.siteId}${fix ? `&fix=${encodeURIComponent(fix)}` : ''}`,
+    )
   const fixMessage = fix ? FIX_MESSAGE[fix] : undefined
 
   return (
     <main id="main" className="wrap-narrow">
+      {historyUnavailable && (
+        <Note tone="warn">Fix history could not be loaded. Refresh to try again.</Note>
+      )}
       <Breadcrumbs
         trail={[
-          { label: 'Findings', href: '/findings' },
-          { label: 'Audit', href: `/audits/${finding.auditId}` },
+          { label: 'Findings', href: `/findings?siteId=${finding.siteId}` },
+          { label: 'Audit', href: `/audits/${finding.auditId}?siteId=${finding.siteId}` },
           { label: finding.ruleId },
         ]}
       />
@@ -82,7 +94,7 @@ export default async function FindingPage({
       <div className="mt-4 mb-3 flex flex-wrap gap-2">
         <SeverityBadge severity={finding.severity} />
         <span className="tag tag-neutral">{finding.ruleId}</span>
-        {finding.fixable && <span className="tag tag-success">Agent can fix</span>}
+        {finding.fixable && <span className="tag tag-success">Automatic fix available</span>}
       </div>
 
       <h1 className="mb-4">{finding.title}</h1>
@@ -139,7 +151,7 @@ export default async function FindingPage({
           */}
           {finding.fixError && (
             <Note tone="error" className="mb-3">
-              The last attempt to fix this did not produce a pull request. {finding.fixError}
+              The last fix attempt needs attention. {finding.fixError}
             </Note>
           )}
           {finding.fixable ? (
@@ -154,7 +166,7 @@ export default async function FindingPage({
                   Connect a repository
                 </Link>
                 <span className="text-muted text-[13px]">
-                  The agent can fix this with a pull request once the site&apos;s code is connected.
+                  Connect the code to check whether this repository supports an automatic fix.
                 </span>
               </div>
             )
@@ -181,7 +193,7 @@ export default async function FindingPage({
         />
         <Stat label="Impact" value={`${finding.estimatedImpact}/100`} />
         <Stat label="Confidence" value={`${Math.round(finding.confidence * 100)}%`} />
-        <Stat label="Fixable" value={finding.fixable ? 'We can write it' : 'Needs a human'} />
+        <Stat label="Fixable" value={finding.fixable ? 'Check repository' : 'Needs a human'} />
       </StatRow>
 
       {/*
@@ -242,6 +254,7 @@ export default async function FindingPage({
 }
 
 const ATTEMPT_LABEL: Record<FixAttempt['outcome'], { label: string; tag: string }> = {
+  running: { label: 'Checking repository / preparing fix', tag: 'tag tag-outline' },
   pr_opened: { label: 'Opened a pull request', tag: 'tag tag-success' },
   pr_adopted: {
     label: 'Reused the pull request an earlier attempt opened',
@@ -276,7 +289,7 @@ function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={label.tag}>{label.label}</span>
                 <span className="text-muted text-[12px]">
-                  {attemptTime.format(new Date(attempt.finishedAt))}
+                  {attemptTime.format(new Date(attempt.finishedAt ?? attempt.startedAt))}
                 </span>
                 {attempt.revertedAt ? (
                   <span className="tag tag-critical">Merged, then reverted</span>

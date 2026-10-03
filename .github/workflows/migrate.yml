@@ -19,11 +19,12 @@
 #   - A workflow runs exactly once per merge, on infrastructure that is already free, and fails
 #     loudly in a place somebody is already looking.
 #
-# Ordering: this runs on push to main, in parallel with Render picking up the same commit. That is
-# correct for additive migrations, which is all this project has ever made: the column appears
-# slightly before or slightly after the code that reads it, and neither order breaks, because the
-# old code ignores a column it does not know about and the new code fails only if the column is
-# missing. A destructive migration would need a deliberate two-phase plan and an ADR to go with it.
+# Ordering: this runs on push to main, in parallel with Render picking up the same commit.
+# Additive changes preserve compatibility for the OLD code, but NEW code still fails if it reads
+# a column before this workflow creates it. This workflow alone is not a deployment barrier.
+# Apply and confirm a required migration before releasing its API/worker build (for example,
+# dispatch this workflow on the reviewed release branch first). Destructive migrations require
+# a separate two-phase plan and an ADR.
 name: migrate
 
 on:

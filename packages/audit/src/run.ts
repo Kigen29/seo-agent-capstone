@@ -33,6 +33,8 @@ import {
 import { createBudgetGuard, recordSpend } from '@seo/budget'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
+import { checkDeployedFixes } from './fix-checks.js'
+import type { MergedFindingRef, VerificationCoverage } from './verify-fixes.js'
 import { measurePerformance } from './performance.js'
 import { measureTopics, type NameClusters, type TopicsLlm } from './topics.js'
 import { measureSearch } from './search.js'
@@ -128,6 +130,7 @@ export interface RunAuditOptions {
   auditId?: string
   /** The homepage. Click depth and orphan status are measured from here. */
   seed: string
+  verificationFindings?: MergedFindingRef[]
   maxPages?: number
   concurrency?: number
   /** Where the crawler may connect. Only tests set this, to reach fixtures on 127.0.0.1. */
@@ -169,7 +172,7 @@ export interface AuditResult {
   findings: Finding[]
   scorecard: Scorecard
   pagesCrawled: number
-  verificationCoverage: { successfulUrls: string[]; evaluatedRuleIds: string[] }
+  verificationCoverage: Omit<VerificationCoverage, 'deploymentConfirmed'>
 }
 
 /**
@@ -294,6 +297,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     const result = await crawl(
       {
         seed,
+        priorityUrls: options.verificationFindings?.flatMap((finding) => finding.affectedUrls),
         maxPages: options.maxPages ?? 50,
         concurrency: options.concurrency ?? 2,
         egress: options.egress,
@@ -565,6 +569,9 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       scorecard,
       pagesCrawled: result.pages.length,
       verificationCoverage: {
+        ...(options.verificationFindings
+          ? { checks: checkDeployedFixes(result, options.verificationFindings, found, profile) }
+          : {}),
         successfulUrls: result.pages
           .filter(
             (page) =>

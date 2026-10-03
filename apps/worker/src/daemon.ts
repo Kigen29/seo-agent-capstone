@@ -21,7 +21,7 @@ import { enqueueDuePolls, runPollAi } from './poll.js'
 import { failAbandonedAudits } from './abandoned-audits.js'
 import { recordTrafficOutcomes } from './traffic-outcomes.js'
 import { reconcilePullRequests } from './reconcile.js'
-import { runVerifyFix } from './verify-fix.js'
+import { enqueuePendingFixVerifications, runVerifyFix } from './verify-fix.js'
 import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './verify.js'
 
 const { db, pool } = createDb()
@@ -111,6 +111,7 @@ try {
             verifyFix: (job) => enqueueVerifyFix(queue, job),
             confirmVerify: (job) => enqueueConfirmVerify(queue, job),
           })
+          await enqueuePendingFixVerifications(db, queue)
           await enqueuePendingConfirmations(db, queue)
           await enqueueDuePolls(db, queue)
         })

@@ -1,3 +1,4 @@
+import { confirmsDeployment } from './deployment.js'
 import { createPrivateKey } from 'node:crypto'
 import { App } from 'octokit'
 import type { RepoContext, RepoFile } from '../provider.js'
@@ -126,23 +127,28 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
         if (!pr.merged_at || !pr.merge_commit_sha) return false
         const { data: deployments } = await octokit.request(
           'GET /repos/{owner}/{repo}/deployments',
-          { owner, repo, sha: pr.merge_commit_sha, per_page: 100 },
+          { owner, repo, per_page: 100 },
         )
-        for (const deployment of deployments) {
-          if (!deployment.production_environment) continue
-          const { data: statuses } = await octokit.request(
-            'GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses',
-            { owner, repo, deployment_id: deployment.id, per_page: 1 },
-          )
-          const status = statuses[0]
-          if (status?.state !== 'success' || !status.environment_url) continue
-          try {
-            if (new URL(status.environment_url).origin === new URL(siteUrl).origin) return true
-          } catch {
-            /* An invalid environment URL is not deployment evidence. */
-          }
-        }
-        return false
+        return confirmsDeployment(
+          pr.merge_commit_sha,
+          siteUrl,
+          deployments,
+          async (id) => {
+            const { data: statuses } = await octokit.request(
+              'GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses',
+              { owner, repo, deployment_id: id, per_page: 1 },
+            )
+            return statuses[0]
+          },
+          async (base, head) => {
+            const { data } = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+              owner,
+              repo,
+              basehead: `${base}...${head}`,
+            })
+            return data.status
+          },
+        )
       },
 
       async getDefaultBranch() {
@@ -221,16 +227,28 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
         return { url: data.html_url, number: data.number }
       },
 
-      async findOpenPullRequestByHeadPrefix(prefix) {
+      async findOpenPullRequestByHeadPrefix(prefix, state = 'open') {
         const octokit = await octokitFor(ctx.installationId)
-        const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls', {
-          owner,
-          repo,
-          state: 'open',
-          per_page: 100,
-        })
-        const match = data.find((pr) => pr.head.ref.startsWith(prefix))
-        return match ? { url: match.html_url, number: match.number, branch: match.head.ref } : null
+        for (let page = 1; page <= 10; page++) {
+          const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls', {
+            owner,
+            repo,
+            state,
+            per_page: 100,
+            page,
+            sort: 'created',
+            direction: 'desc',
+          })
+          const match = data.find(
+            (pr) =>
+              pr.head.ref.startsWith(prefix) && pr.head.repo?.full_name === `${owner}/${repo}`,
+          )
+          if (match) return { url: match.html_url, number: match.number, branch: match.head.ref }
+          if (data.length < 100) return null
+        }
+        throw new Error(
+          'Pull request lookup exceeded its page limit; refusing to risk a duplicate.',
+        )
       },
 
       async getPullRequest(number) {

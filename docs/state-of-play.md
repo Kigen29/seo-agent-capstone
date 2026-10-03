@@ -2,7 +2,9 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last updated: 2026-09-26.
+Last reviewed: 2026-10-03.
+
+The readiness implementation is documented in [readiness-completion-2026-10-03.md](readiness-completion-2026-10-03.md), with the earlier independent assessment in [readiness-review-2026-10-03.md](readiness-review-2026-10-03.md). Use those for current capability and release gates. Historical production measurements below retain their dates. The new lifecycle regressions do not constitute a fresh live deployment acceptance.
 
 Repair status is tracked in [repair-progress.md](repair-progress.md) and GitHub epic #179. PRs #177 and #178 are merged, migrations through 0024 passed, and post-merge CI passed all 14 browser tests. Older measurements below retain their original dates; container deployment and live-provider acceptance are still open.
 
@@ -30,8 +32,7 @@ Until that day both had been stuck. See "the webhook is not a channel you can re
 because the reason is a permanent property of the free tier rather than a bug that is now gone.
 
 **Production numbers, measured 2026-08-24 and not re-read since:** 95 findings, 45 fixable, 1
-verified, 2 sites with Search Console verified. The code-side counts are still current: 31 rules,
-9 deterministic fixers, plus the LLM content fixer.
+verified, 2 sites with Search Console verified. Those historical code counts are superseded: the current registry has ten deterministic fixers plus the model-assisted content fixer. See the readiness capability matrix for verification support.
 
 ---
 

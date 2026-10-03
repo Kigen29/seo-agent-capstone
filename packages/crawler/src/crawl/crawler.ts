@@ -14,6 +14,7 @@ import {
   type EgressPolicy,
 } from './egress.js'
 import { Frontier, normaliseUrl, type FrontierState } from './frontier.js'
+import { startEgressProxy } from './proxy.js'
 import { Pacer } from './pacer.js'
 import type { CrawledPage, CrawlResult, SkippedUrl } from './types.js'
 
@@ -39,6 +40,8 @@ const SETTLE_MS = 3_000
 
 export interface CrawlOptions {
   seed: string
+  /** Recheck these URLs before ordinary link discovery, within the crawl cap. */
+  priorityUrls?: string[]
   maxPages?: number
   /** Parallel workers. Keep it low: we are a guest on someone else's origin. */
   concurrency?: number
@@ -107,16 +110,18 @@ interface RootFetch {
   context: BrowserContext
   guard: EgressGuard
   onBlocked: (blocked: BlockedRequest) => void
+  resources: { robots: boolean; llmsTxt: boolean; sitemaps: boolean }
 }
 
 async function fetchRobots(
-  { context, guard, onBlocked }: RootFetch,
+  { context, guard, onBlocked, resources }: RootFetch,
   seed: string,
 ): Promise<RobotsTxt> {
   const robotsUrl = new URL('/robots.txt', seed).toString()
 
   try {
     const response = await guardedGet(context, guard, robotsUrl, 15_000, onBlocked)
+    resources.robots = !!response && (response.ok() || [404, 410].includes(response.status()))
     if (!response) return ALLOW_ALL
 
     // 4xx means no robots.txt, which means no restrictions. A 5xx arguably means we
@@ -126,6 +131,7 @@ async function fetchRobots(
 
     return parseRobotsTxt(await response.text())
   } catch {
+    resources.robots = false
     return ALLOW_ALL
   }
 }
@@ -137,15 +143,17 @@ async function fetchRobots(
  * agent-readiness rule needs to know.
  */
 async function fetchLlmsTxt(
-  { context, guard, onBlocked }: RootFetch,
+  { context, guard, onBlocked, resources }: RootFetch,
   seed: string,
 ): Promise<string | null> {
   try {
     const url = new URL('/llms.txt', seed).toString()
     const response = await guardedGet(context, guard, url, 15_000, onBlocked)
+    resources.llmsTxt = !!response && (response.ok() || [404, 410].includes(response.status()))
     if (!response || !response.ok()) return null
     return await response.text()
   } catch {
+    resources.llmsTxt = false
     return null
   }
 }
@@ -259,18 +267,25 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
   }
   const guard = createEgressGuard(options.egress)
 
+  const proxy = await startEgressProxy(options.egress)
   let browser: Browser | undefined
 
   try {
     browser = await chromium.launch({
       // WebRTC ICE candidates are UDP the route handler never sees; keep them off private networks.
-      args: ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],
+      args: [
+        '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+        '--disable-quic',
+        '--proxy-bypass-list=<-loopback>',
+      ],
+      proxy: { server: proxy.server, bypass: '<-loopback>' },
     })
     // Service workers fetch outside context routing, so a crawled page must not install one.
     const context = await browser.newContext({ userAgent, serviceWorkers: 'block' })
     // Images, fonts and media are skipped unless a screenshot needs the pixels.
     await installEgressGuard(context, guard, onBlocked, { skipAssets: !captureScreenshots })
-    const root: RootFetch = { context, guard, onBlocked }
+    const resources = { robots: false, llmsTxt: false, sitemaps: false }
+    const root: RootFetch = { context, guard, onBlocked, resources }
 
     const robots = respectRobots ? await fetchRobots(root, options.seed) : ALLOW_ALL
     const llmsTxt = await fetchLlmsTxt(root, options.seed)
@@ -287,6 +302,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
       ? Frontier.fromState(options.seed, options.resumeFrom, { maxPages, sameHostOnly })
       : new Frontier(options.seed, { maxPages, sameHostOnly })
 
+    frontier.add(options.priorityUrls ?? [], 1)
     const fromSitemap = new Set<string>()
 
     if (options.useSitemap !== false && robots.sitemaps.length > 0) {
@@ -295,6 +311,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
         return response?.ok() ? response.text() : undefined
       })
 
+      resources.sitemaps = resources.robots && !expanded.truncated && expanded.problems.length === 0
       for (const entry of expanded.urls) {
         const normalised = normaliseUrl(entry.loc)
         if (normalised) fromSitemap.add(normalised)
@@ -340,6 +357,8 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
           })
 
           pages.push(crawled)
+          // Canonical targets are dependencies of canonical verification, not just links.
+          if (crawled.extract.canonical) frontier.add([crawled.extract.canonical], entry.depth + 1)
           if (crawled.finalUrl !== entry.url) frontier.markSeen(crawled.finalUrl)
 
           // The seed redirected to another host (apex to www, or a new domain). Its links point
@@ -392,6 +411,7 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
 
     return {
       pages,
+      resources,
       skipped,
       robots,
       posture: evaluateAiCrawlerPosture(robots),
@@ -403,5 +423,6 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
     }
   } finally {
     await browser?.close()
+    await proxy.close()
   }
 }

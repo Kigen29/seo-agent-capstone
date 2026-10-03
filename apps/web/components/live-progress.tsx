@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import type { AuditProgress } from '@seo/api-client'
 
 import { fetchAuditProgress } from '@/app/(app)/audits/[id]/progress-action'
@@ -38,10 +39,12 @@ export function LiveProgress({
   auditId,
   status,
   pagesCrawled,
+  startedAt,
 }: {
   auditId: string
   status: string
   pagesCrawled: number
+  startedAt?: string
 }) {
   /*
     `enabled` reads the prop, not the polled value, and the two differ in a way that matters.
@@ -57,6 +60,16 @@ export function LiveProgress({
     intervalMs: INTERVAL_MS,
   })
 
+  const [waitMinutes, setWaitMinutes] = useState(0)
+  useEffect(() => {
+    if (!startedAt) return
+    const update = () =>
+      setWaitMinutes(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60_000)))
+    update()
+    const timer = setInterval(update, 15_000)
+    return () => clearInterval(timer)
+  }, [startedAt])
+
   // The last thing we heard, falling back to what the server rendered with before the first poll.
   const live = latest ?? { status, pagesCrawled }
   if (!RUNNING.has(live.status)) return null
@@ -65,16 +78,29 @@ export function LiveProgress({
     <div role="status" aria-live="polite" className="card elev-sm mt-6">
       <div className="flex items-baseline justify-between gap-4">
         <p className="m-0 text-sm">
-          {live.status === 'evaluating' ? 'Running the rules' : 'Crawling'}
+          {live.status === 'queued'
+            ? 'Waiting for a worker'
+            : live.status === 'evaluating'
+              ? 'Running the rules'
+              : 'Crawling'}
         </p>
         <p className="tnum m-0 text-sm" style={{ color: 'var(--color-accent-700)' }}>
           {live.pagesCrawled} {live.pagesCrawled === 1 ? 'page' : 'pages'}
         </p>
       </div>
 
+      {live.status === 'queued' && waitMinutes > 0 && (
+        <p className="text-muted m-0 text-xs">
+          Queued {waitMinutes} minutes ago.{' '}
+          {waitMinutes >= 15
+            ? 'The worker is taking longer than expected. Your request remains saved.'
+            : ''}
+        </p>
+      )}
       <p className="text-muted m-0 text-xs">
-        We crawl slowly, one request at a time per host, because we are a guest on someone
-        else&apos;s origin. This updates as it goes.
+        {live.status === 'queued'
+          ? 'Your audit is saved in the queue. You can leave this page; it will start when a worker is available. If it stays queued, check back later rather than submitting it again.'
+          : 'We pace requests to respect the site. This updates as pages are crawled.'}
       </p>
     </div>
   )
