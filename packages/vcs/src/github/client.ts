@@ -1,4 +1,5 @@
 import { confirmsDeployment } from './deployment.js'
+import type { DeploymentLookup } from '../vercel-deployment.js'
 import { createPrivateKey } from 'node:crypto'
 import { App } from 'octokit'
 import type { RepoContext, RepoFile } from '../provider.js'
@@ -16,6 +17,7 @@ import type { GitHubApi, GitHubApiFactory } from './provider.js'
 export interface GitHubAppConfig {
   appId: string
   privateKey: string
+  deploymentLookup?: DeploymentLookup
 }
 
 /**
@@ -125,6 +127,26 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
           { owner, repo, pull_number: number },
         )
         if (!pr.merged_at || !pr.merge_commit_sha) return false
+        if (config.deploymentLookup) {
+          const evidence = await config.deploymentLookup(siteUrl, pr.base.repo.id)
+          if (evidence.status === 'unconfirmed') return false
+          if (evidence.status === 'confirmed') {
+            if (evidence.sha === pr.merge_commit_sha) return true
+            try {
+              const { data } = await octokit.request(
+                'GET /repos/{owner}/{repo}/compare/{basehead}',
+                {
+                  owner,
+                  repo,
+                  basehead: `${pr.merge_commit_sha}...${evidence.sha}`,
+                },
+              )
+              return data.status === 'ahead' || data.status === 'identical'
+            } catch {
+              return false
+            }
+          }
+        }
         const { data: deployments } = await octokit.request(
           'GET /repos/{owner}/{repo}/deployments',
           { owner, repo, per_page: 100 },

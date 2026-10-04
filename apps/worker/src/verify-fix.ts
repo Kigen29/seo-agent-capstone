@@ -1,4 +1,4 @@
-import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
+import { createGitHubApp, createVercelDeploymentLookup, githubAppConfigFromEnv } from '@seo/vcs'
 import {
   reconcileFixVerifications,
   runAudit,
@@ -75,7 +75,17 @@ export async function runVerifyFix(
   ) {
     const [owner, name] = site.repoFullName.split('/')
     if (owner && name) {
-      const api = await createGitHubApp(githubAppConfigFromEnv()).apiFor({
+      const api = await createGitHubApp({
+        ...githubAppConfigFromEnv(),
+        ...(process.env.VERCEL_TOKEN
+          ? {
+              deploymentLookup: createVercelDeploymentLookup({
+                token: process.env.VERCEL_TOKEN,
+                ...(process.env.VERCEL_TEAM_ID ? { teamId: process.env.VERCEL_TEAM_ID } : {}),
+              }),
+            }
+          : {}),
+      }).apiFor({
         repo: { owner, name },
         installationId: site.installationId,
       })
@@ -131,7 +141,7 @@ export async function runVerifyFix(
         .set({
           fixError: deployed.has(id)
             ? 'Deployment confirmed, but the required pages or root files could not be checked completely. The worker will check again; no success is inferred from missing evidence.'
-            : 'Waiting for deployment evidence: GitHub must report a successful production deployment containing this pull request merge commit, with an environment URL matching this site. The worker checks again hourly when available.',
+            : 'Waiting for deployment evidence: a successful production deployment containing this merge must be confirmed for this site through GitHub or the configured hosting provider. The worker checks again hourly when available.',
         })
         .where(and(eq(findings.id, id), eq(findings.status, 'merged')))
     }
