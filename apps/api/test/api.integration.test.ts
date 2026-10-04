@@ -206,7 +206,16 @@ describe.skipIf(!shouldRun)('the API', () => {
       const res = await app.inject({ method: 'GET', url: '/health' })
 
       expect(res.statusCode).toBe(200)
-      expect(res.json()).toEqual({ status: 'ok' })
+      expect(res.json()).toEqual({ status: 'ok', revision: null })
+      const revision = 'a'.repeat(40)
+      const released = await buildApp({ db, revision })
+      try {
+        const health = await released.inject({ method: 'GET', url: '/health' })
+        expect(health.statusCode).toBe(200)
+        expect(health.json()).toEqual({ status: 'ok', revision })
+      } finally {
+        await released.close()
+      }
     })
 
     it.each([

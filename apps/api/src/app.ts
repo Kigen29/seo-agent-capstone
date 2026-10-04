@@ -99,7 +99,11 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   })
 
   /** Render's health check hits this, and it must not require a token. */
-  app.get('/health', async () => ({ status: 'ok' }))
+  app.get('/health', async () => ({
+    status: 'ok',
+    revision:
+      options.revision && /^[a-f0-9]{40}$/i.test(options.revision) ? options.revision : null,
+  }))
   app.get('/ready', async (_request, reply) => {
     try {
       await db.execute(sql`select 1`)

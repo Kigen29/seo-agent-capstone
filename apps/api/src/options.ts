@@ -7,6 +7,8 @@ import type { GitHubApp } from '@seo/vcs'
 
 export interface AppOptions {
   db?: Database
+  /** Public commit SHA used to confirm the deployed API revision. */
+  revision?: string
   /** Origins allowed to call the API from a browser. The web app, and nothing else. */
   corsOrigins?: string[]
   /**
