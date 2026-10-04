@@ -115,6 +115,8 @@ jobs:
           # The GitHub App, so the verify job can open the pull request (ADR-0002).
           GH_APP_ID: ${{ secrets.GH_APP_ID }}
           GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           QUEUE: ${{ github.event.inputs.queue || 'all' }}
         # Claims jobs from pg-boss, runs them, writes results back, exits when the queue is empty.
         run: pnpm --filter @seo/worker drain
