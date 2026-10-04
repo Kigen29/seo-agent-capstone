@@ -19,6 +19,7 @@ export {
   authHandoffs,
   findings,
   oauthCredentials,
+  hostingConnections,
   publicChecks,
   sites,
   spend,

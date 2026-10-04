@@ -374,6 +374,37 @@ export const artefacts = pgTable(
 )
 
 /**
+ * One site's own hosting connection, used only to confirm that a merged fix is what the site's
+ * domain now serves (ADR-0028).
+ *
+ * Per site and per tenant on purpose. Verification first worked through one operator-wide Vercel
+ * token, which could only ever see the operator's own projects: every other customer's fix stayed
+ * unverified, and widening that token's access would have made one credential the key to every
+ * customer's hosting account.
+ *
+ * `tokenEncrypted` is ciphertext of `{ tenantId, siteId, token }`, so a row copied onto another
+ * site decrypts to a binding that does not match and is refused. `origin` and `repoFullName` are
+ * what the connection was validated against; if the site's URL or repository changes, the worker
+ * refuses it until it is validated again. `revision` changes on every replacement, so a
+ * verification that started under one credential cannot be saved under another.
+ */
+export const hostingConnections = pgTable('hosting_connections', {
+  siteId: uuid('site_id')
+    .primaryKey()
+    .references(() => sites.id, { onDelete: 'cascade' }),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id, { onDelete: 'cascade' }),
+  revision: uuid('revision').notNull().defaultRandom(),
+  origin: text('origin').notNull(),
+  repoFullName: text('repo_full_name').notNull(),
+  projectId: text('project_id').notNull(),
+  teamId: text('team_id'),
+  tokenEncrypted: text('token_encrypted').notNull(),
+  validatedAt: timestamp('validated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
  * OAuth refresh tokens for a tenant's Google account, encrypted at rest.
  *
  * `refreshTokenEncrypted` is ciphertext produced with TOKEN_ENCRYPTION_KEY, never the raw
@@ -633,6 +664,7 @@ export const authHandoffs = pgTable(
 
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
 export const TENANT_SCOPED = [
+  hostingConnections,
   sites,
   audits,
   findings,

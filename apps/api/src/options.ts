@@ -6,6 +6,15 @@ import type { AuditJob, ConfirmVerifyJob, FixJob, VerifyFixJob, VerifyJob } from
 import type { GitHubApp } from '@seo/vcs'
 
 export interface AppOptions {
+  /** Injectable provider check; production resolves repository identity through the installed App. */
+  validateHosting?: (input: {
+    token: string
+    teamId?: string
+    projectId: string
+    siteUrl: string
+    repoFullName: string
+    installationId: number
+  }) => Promise<boolean>
   db?: Database
   /** Public commit SHA used to confirm the deployed API revision. */
   revision?: string

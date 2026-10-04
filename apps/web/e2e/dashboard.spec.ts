@@ -294,6 +294,22 @@ test('lists the sessions and tokens that can act as the account, never their val
   expect(await page.content()).not.toContain(TOKEN)
 })
 
+test('hosting is set up per site, and never asks for a token it does not need', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/settings/connections')
+  await page.getByRole('link', { name: 'Set up hosting for a site' }).click()
+
+  await expect(page).toHaveURL(/\/settings\/connections\/hosting/)
+  await expect(page.getByRole('heading', { name: 'Hosted on Vercel' })).toBeVisible()
+  // The other path is offered beside it, and says outright that it needs no credential.
+  await expect(page.getByRole('heading', { name: 'Hosted somewhere else' })).toBeVisible()
+  await expect(page.locator('main')).toContainText('No token is needed')
+  // And the page says this is optional, so nobody connects a token to run an audit.
+  await expect(page.locator('main')).toContainText('Audits and fix pull requests work without this')
+})
+
 test('dropdowns and their options follow the dark theme', async ({ page }) => {
   // A transparent native select opened a white option list in dark mode on Windows Chrome.
   await page.emulateMedia({ colorScheme: 'dark' })

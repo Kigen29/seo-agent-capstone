@@ -1,4 +1,5 @@
-import { createGitHubApp, createVercelDeploymentLookup, githubAppConfigFromEnv } from '@seo/vcs'
+import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
+import { HostingConnectionError, siteHosting } from './hosting.js'
 import {
   reconcileFixVerifications,
   runAudit,
@@ -6,7 +7,7 @@ import {
   verificationFor,
   type MergedFindingRef,
 } from '@seo/audit'
-import { asOwner, findings, sites, withTenant, type Database } from '@seo/db'
+import { asOwner, findings, sites, hostingConnections, withTenant, type Database } from '@seo/db'
 import { enqueueVerifyFix, type Queue, type VerifyFixJob } from '@seo/queue'
 import { and, eq, lt, or, isNull } from 'drizzle-orm'
 
@@ -62,7 +63,10 @@ export async function runVerifyFix(
   // Confirm deployment before crawling, so a deployment finishing during the crawl cannot
   // validate observations collected from the previous version.
   const deployed = new Set<string>()
+  let hostingRevision: string | null = null
   try {
+    const hosting = await siteHosting(db, job.tenantId, site)
+    hostingRevision = hosting.revision
     if (deps.isDeployed) {
       for (const finding of merged) {
         const number = pullRequestNumberFrom(finding.prUrl ?? '')
@@ -78,14 +82,7 @@ export async function runVerifyFix(
       if (owner && name) {
         const api = await createGitHubApp({
           ...githubAppConfigFromEnv(),
-          ...(process.env.VERCEL_TOKEN
-            ? {
-                deploymentLookup: createVercelDeploymentLookup({
-                  token: process.env.VERCEL_TOKEN,
-                  ...(process.env.VERCEL_TEAM_ID ? { teamId: process.env.VERCEL_TEAM_ID } : {}),
-                }),
-              }
-            : {}),
+          deploymentLookup: hosting.deploymentLookup,
         }).apiFor({
           repo: { owner, name },
           installationId: site.installationId,
@@ -101,11 +98,13 @@ export async function runVerifyFix(
     const status =
       typeof error === 'object' && error !== null && 'status' in error ? error.status : undefined
     const reason =
-      status === 403
-        ? 'GitHub denied deployment evidence access. Check the GitHub App installation, its repository Deployments read permission, and GitHub rate limits.'
-        : status === 401
-          ? 'GitHub authentication failed while reading deployment evidence. Check the GitHub App credentials and installation access.'
-          : 'Deployment evidence could not be read. Check GitHub or hosting availability and integration access.'
+      error instanceof HostingConnectionError
+        ? error.message
+        : status === 403
+          ? 'GitHub denied deployment evidence access. Check the GitHub App installation, its repository Deployments read permission, and GitHub rate limits.'
+          : status === 401
+            ? 'GitHub authentication failed while reading deployment evidence. Check the GitHub App credentials and installation access.'
+            : 'Deployment evidence could not be read. Check GitHub or hosting availability and integration access.'
     const message = `${reason} The fix remains unverified; the worker will retry.`
     await withTenant(db, job.tenantId, (tx) =>
       tx
@@ -148,6 +147,20 @@ export async function runVerifyFix(
     verificationFor(byId.get(id)!, outcome, result?.findings ?? [])
 
   await withTenant(db, job.tenantId, async (tx) => {
+    // Serialize against connection replacement/disconnect and repository changes.
+    const [currentSite] = await tx.select().from(sites).where(eq(sites.id, site.id)).for('update')
+    const [currentHosting] = await tx
+      .select({ revision: hostingConnections.revision })
+      .from(hostingConnections)
+      .where(eq(hostingConnections.siteId, site.id))
+    if (
+      !currentSite ||
+      currentSite.url !== site.url ||
+      currentSite.repoFullName !== site.repoFullName ||
+      currentSite.githubInstallationId !== site.installationId ||
+      (currentHosting?.revision ?? null) !== hostingRevision
+    )
+      throw new Error('Site or hosting connection changed during verification; retry required.')
     for (const id of verified) {
       await tx
         .update(findings)

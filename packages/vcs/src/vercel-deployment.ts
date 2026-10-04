@@ -8,6 +8,7 @@ export type DeploymentLookup = (
 
 interface VercelOptions {
   token: string
+  projectId?: string
   teamId?: string
   fetch?: typeof globalThis.fetch
 }
@@ -59,6 +60,7 @@ export function createVercelDeploymentLookup(options: VercelOptions): Deployment
           alias.deletedAt ||
           alias.microfrontends ||
           typeof alias.projectId !== 'string' ||
+          (options.projectId !== undefined && alias.projectId !== options.projectId) ||
           (projectId !== undefined && projectId !== alias.projectId)
         )
           return { status: 'unconfirmed' }
