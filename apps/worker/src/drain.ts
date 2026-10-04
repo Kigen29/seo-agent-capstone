@@ -1,4 +1,5 @@
 import { appendFileSync } from 'node:fs'
+import { drainScope } from './drain-scope.js'
 import { publishPendingJobs } from './outbox.js'
 import { nameTopics } from '@seo/agent'
 import { runAudit } from '@seo/audit'
@@ -35,6 +36,7 @@ import { enqueuePendingConfirmations, runConfirmVerify, runVerify } from './veri
  * Drain-and-exit, not a long-lived daemon, because the runner is ephemeral: it does its work
  * and dies. Durability lives in the queue, not in this process staying up.
  */
+const scope = drainScope(process.env.QUEUE)
 const { db, pool } = createDb()
 
 /**
@@ -44,27 +46,29 @@ const { db, pool } = createDb()
 const llm = createWorkerLlm(db)
 const queue = await createQueue()
 
-console.log('worker: draining the audit queue')
+console.log(`worker: selected queue ${scope.selected}`)
 
 try {
   await publishPendingJobs(db, queue)
-  const result = await drainAudits(queue, async (job) => {
-    console.log(`worker: auditing ${job.seed} (audit ${job.auditId})`)
+  const result = await scope.run('audit', () =>
+    drainAudits(queue, async (job) => {
+      console.log(`worker: auditing ${job.seed} (audit ${job.auditId})`)
 
-    // runAudit records its own failure on the audit row before rethrowing, so the drain's
-    // fail path marks the job for retry while the dashboard already shows the user what broke.
-    await runAudit(db, {
-      tenantId: job.tenantId,
-      siteId: job.siteId,
-      auditId: job.auditId,
-      seed: job.seed,
-      maxPages: job.maxPages,
-      // The topic map: this worker's LLM client supplies the vectors, and the naming prompt
-      // comes from @seo/agent, which the audit package deliberately does not depend on.
-      topics: llm,
-      nameTopics: (clusters) => nameTopics(llm, job.tenantId, clusters),
-    })
-  })
+      // runAudit records its own failure on the audit row before rethrowing, so the drain's
+      // fail path marks the job for retry while the dashboard already shows the user what broke.
+      await runAudit(db, {
+        tenantId: job.tenantId,
+        siteId: job.siteId,
+        auditId: job.auditId,
+        seed: job.seed,
+        maxPages: job.maxPages,
+        // The topic map: this worker's LLM client supplies the vectors, and the naming prompt
+        // comes from @seo/agent, which the audit package deliberately does not depend on.
+        topics: llm,
+        nameTopics: (clusters) => nameTopics(llm, job.tenantId, clusters),
+      })
+    }),
+  )
 
   console.log(`worker: done. ${result.completed} completed, ${result.failed} failed.`)
 
@@ -72,7 +76,7 @@ try {
   // revoked token, an unreachable repo, a fixer that cannot locate the source) fails only its
   // own job and is surfaced on the finding rather than taking the drain down.
   console.log('worker: draining the fix queue')
-  const fixed = await drainFix(queue, (job) => runFix(db, job))
+  const fixed = await scope.run('fix', () => drainFix(queue, (job) => runFix(db, job)))
   console.log(`worker: fixes done. ${fixed.completed} completed, ${fixed.failed} failed.`)
 
   /**
@@ -90,18 +94,21 @@ try {
    */
   // Audits whose worker died mid-crawl never reach runAudit's own failure handler. Say so on the
   // audit rather than leaving the dashboard on a progress bar that will never move.
-  const abandoned = await failAbandonedAudits(db)
+  const abandoned = scope.includes('audit') ? await failAbandonedAudits(db) : 0
   console.log(`worker: marked ${abandoned} abandoned audit(s) as failed`)
 
   // Search traffic before and after each checked fix, once its 28-day window has closed.
-  const measured = await recordTrafficOutcomes(db)
+  const measured = scope.includes('verify-fix') ? await recordTrafficOutcomes(db) : 0
   console.log(`worker: recorded search traffic for ${measured} fix outcome(s)`)
 
   console.log('worker: reconciling pull requests we are still waiting on')
-  const reconciled = await reconcilePullRequests(db, {
-    verifyFix: (job) => enqueueVerifyFix(queue, job),
-    confirmVerify: (job) => enqueueConfirmVerify(queue, job),
-  })
+  const reconciled =
+    scope.includes('verify-fix') || scope.includes('confirm-verify')
+      ? await reconcilePullRequests(db, {
+          verifyFix: (job) => enqueueVerifyFix(queue, job),
+          confirmVerify: (job) => enqueueConfirmVerify(queue, job),
+        })
+      : { checked: 0, merged: 0, reopened: 0, unchanged: 0, unreadable: 0 }
   console.log(
     `worker: reconciled ${reconciled.checked} PR(s). ${reconciled.merged} newly merged, ` +
       `${reconciled.reopened} closed unmerged, ${reconciled.unchanged} unchanged, ` +
@@ -110,9 +117,11 @@ try {
 
   // Then verify any merged fixes: a re-audit per site, reconciling every finding awaiting
   // verification against the fresh crawl. A crawl failure here fails only its own job.
-  await enqueuePendingFixVerifications(db, queue)
+  if (scope.includes('verify-fix')) await enqueuePendingFixVerifications(db, queue)
   console.log('worker: draining the verify-fix queue')
-  const verifiedFixes = await drainVerifyFix(queue, (job) => runVerifyFix(db, job))
+  const verifiedFixes = await scope.run('verify-fix', () =>
+    drainVerifyFix(queue, (job) => runVerifyFix(db, job)),
+  )
   console.log(
     `worker: fix verification done. ${verifiedFixes.completed} completed, ${verifiedFixes.failed} failed.`,
   )
@@ -120,7 +129,7 @@ try {
   // Then drain any verification-PR jobs. Same runner, same drain-and-exit shape; a failure here
   // (a revoked token, an unreachable repo) fails only its own job.
   console.log('worker: draining the verification queue')
-  const verified = await drainVerify(queue, (job) => runVerify(db, job))
+  const verified = await scope.run('verify', () => drainVerify(queue, (job) => runVerify(db, job)))
   console.log(
     `worker: verification done. ${verified.completed} completed, ${verified.failed} failed.`,
   )
@@ -129,9 +138,13 @@ try {
   // propagated) fails the job so it retries later rather than marking the site verified early.
   // Re-enqueue a check for every site still awaiting confirmation first, so a site whose deploy
   // landed after its earlier confirm gave up is picked back up rather than stranded on merged.
-  const pending = await enqueuePendingConfirmations(db, queue)
+  const pending = scope.includes('confirm-verify')
+    ? await enqueuePendingConfirmations(db, queue)
+    : 0
   console.log(`worker: re-checking ${pending} site(s) awaiting confirmation`)
-  const confirmed = await drainConfirmVerify(queue, (job) => runConfirmVerify(db, job))
+  const confirmed = await scope.run('confirm-verify', () =>
+    drainConfirmVerify(queue, (job) => runConfirmVerify(db, job)),
+  )
   console.log(
     `worker: confirmation done. ${confirmed.completed} completed, ${confirmed.failed} failed.`,
   )
@@ -146,15 +159,17 @@ try {
    * verification is somebody waiting; this is one observation in a measurement that will not be
    * complete for three days either way.
    */
-  const due = await enqueueDuePolls(db, queue)
+  const due = scope.includes('poll-ai') ? await enqueueDuePolls(db, queue) : 0
   console.log(`worker: ${due} site(s) due an AI-visibility poll today`)
-  const polled = await drainPollAi(queue, async (job) => {
-    const result = await runPollAi(db, job)
-    console.log(
-      `worker: polled ${result.prompts} prompt(s) for site ${job.siteId} on ${job.day}, ` +
-        `${result.checks} new check(s).`,
-    )
-  })
+  const polled = await scope.run('poll-ai', () =>
+    drainPollAi(queue, async (job) => {
+      const result = await runPollAi(db, job)
+      console.log(
+        `worker: polled ${result.prompts} prompt(s) for site ${job.siteId} on ${job.day}, ` +
+          `${result.checks} new check(s).`,
+      )
+    }),
+  )
   console.log(`worker: polling done. ${polled.completed} completed, ${polled.failed} failed.`)
   const lanes = {
     audits: result,
@@ -164,14 +179,14 @@ try {
     confirmation: confirmed,
     visibility: polled,
   }
-  console.log(JSON.stringify({ event: 'worker_drain_summary', lanes }))
+  console.log(JSON.stringify({ event: 'worker_drain_summary', scope: scope.selected, lanes }))
   if (process.env.GITHUB_STEP_SUMMARY) {
     const rows = Object.entries(lanes)
       .map(([name, counts]) => `| ${name} | ${counts.completed} | ${counts.failed} |`)
       .join('\n')
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `\n## Application job results\n\n| Queue | Completed | Failed / awaiting retry |\n| --- | ---: | ---: |\n${rows}\n\nA successful workflow means the runner completed. Failed or inconclusive jobs remain visible above and in the application; deployment waits are not verified fixes.\n`,
+      `\n## Application job results\n\nSelected queue: ${scope.selected}. Unselected queues are skipped.\n\n| Queue | Completed | Failed / awaiting retry |\n| --- | ---: | ---: |\n${rows}\n\nA successful workflow means the runner completed. Failed or inconclusive jobs remain visible above and in the application; deployment waits are not verified fixes.\n`,
     )
   }
 } finally {

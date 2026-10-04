@@ -227,6 +227,7 @@ const keywordCostMicros = (() => {
 })()
 
 const app = await buildApp({
+  ...(process.env.RENDER_GIT_COMMIT ? { revision: process.env.RENDER_GIT_COMMIT } : {}),
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   trustProxyHops,
