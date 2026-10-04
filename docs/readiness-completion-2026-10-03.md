@@ -24,7 +24,7 @@ Missing, blocked, truncated, or failed observations remain inconclusive. A remov
 
 Affected URLs are prioritized within the existing crawl cap. Canonical targets join the frontier. Root-resource observations distinguish genuine absence from failed fetching. Pending merged findings are rebuilt into queue jobs hourly when workers run, even after previous jobs exhaust retries. This is not an hourly uptime guarantee for a scheduled free-tier worker.
 
-GitHub deployment evidence must be production, successful, and associated with the site's exact origin. The latest successful matching deployment may be the merge commit or a descendant. A rollback, diverged commit, or unreadable comparison does not fall back to an older deployment as proof. Hosting integrations that do not publish matching GitHub deployment evidence remain unsupported for automatic deployment confirmation; the UI explains why verification is waiting.
+GitHub deployment evidence must be production, successful, and associated with the site's exact origin. The latest successful matching deployment may be the merge commit or a descendant. A rollback, diverged commit, or unreadable comparison does not fall back to an older deployment as proof. The optional Vercel lookup added during live acceptance can instead confirm the current custom-domain assignment and source commit through the hosting API; see [deployment-evidence.md](deployment-evidence.md). Other integrations without authoritative origin and commit evidence remain inconclusive; the UI explains why verification is waiting.
 
 ## Recovery and measurements
 
