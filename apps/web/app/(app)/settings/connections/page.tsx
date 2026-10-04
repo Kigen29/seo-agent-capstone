@@ -107,6 +107,24 @@ export default async function ConnectionsSettingsPage() {
           )}
         </div>
       </section>
+
+      <section>
+        <h2 className="h-section mb-1">Hosting</h2>
+        <p className="text-muted mt-0 mb-3 max-w-[62ch] text-sm">
+          After you merge a fix, the agent checks it is live before calling it verified. That needs
+          proof of what your site is serving: connect each site&apos;s own Vercel project, or have
+          another host report its deployments through GitHub.
+        </p>
+        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
+          <p className="text-muted m-0 text-sm">
+            Set up per site. A token you add is used for that site only and is never shared with
+            another account.
+          </p>
+          <Link href="/settings/connections/hosting" className="btn btn-primary btn-sm self-start">
+            Set up hosting for a site
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }

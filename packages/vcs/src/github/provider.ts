@@ -20,6 +20,7 @@ import type {
  * and open a PR. Writing to the default branch is not a capability this interface grants.
  */
 export interface GitHubApi {
+  getRepositoryId?(): Promise<number>
   isPullRequestDeployed?(number: number, siteUrl: string): Promise<boolean>
   getDefaultBranch(): Promise<string>
   getBranchHeadSha(branch: string): Promise<string>

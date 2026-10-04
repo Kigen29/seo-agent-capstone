@@ -14,10 +14,13 @@ For other hosts, use the [host-independent deployment reporting action](hosting-
 
 Vercel's GitHub status can name an immutable generated deployment URL instead of the custom domain. The live acceptance in issue #262 also observed a record named Production with `production_environment=false`. Inferring the custom-domain assignment from either that name or the hostname would be unsafe.
 
-Configure the worker with:
+Each site connects its own Vercel project in **Settings, Connections, Manage site hosting** (ADR-0028):
 
-- `VERCEL_TOKEN`: GitHub Actions secret with access to the site's Vercel project. Never expose it in the web app or paste it into an issue.
-- `VERCEL_TEAM_ID`: repository variable for a team-owned project, when needed. Omit for personal resources.
+- a Vercel access token with access to that project, the project ID (`prj_...`), and the team ID (`team_...`) when the project belongs to a team;
+- the API validates the connection before saving it: the project must currently serve the site's domain from a ready production deployment built from the site's connected GitHub repository;
+- the token is stored encrypted, bound to that tenant and site, and is never returned by the API.
+
+There is no operator-wide `VERCEL_TOKEN`. The worker loads only the connection belonging to the site it is verifying, and only confirms a domain served by the project that site named. A site with no connection uses the GitHub deployment path alone.
 
 The lookup makes authenticated read requests only to `api.vercel.com`. It resolves the connected hostname's **current alias assignment**, reads that deployment, and requires a ready production deployment with completed alias assignment. Alias and deployment project IDs must agree, and the GitHub source repository ID must match the connected repository. GitHub then checks the source SHA against the PR merge commit.
 

@@ -179,6 +179,12 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
         return data.default_branch
       },
 
+      async getRepositoryId() {
+        const octokit = await octokitFor(ctx.installationId)
+        const { data } = await octokit.request('GET /repos/{owner}/{repo}', { owner, repo })
+        return data.id
+      },
+
       async getBranchHeadSha(branch) {
         const octokit = await octokitFor(ctx.installationId)
         const { data } = await octokit.request('GET /repos/{owner}/{repo}/git/ref/{ref}', {

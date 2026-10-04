@@ -57,6 +57,17 @@ describe('Vercel deployment evidence', () => {
     })
   })
 
+  it('refuses a domain served by a different project than the one the site connected', async () => {
+    // The token can often see several projects. Only the one the customer named may confirm.
+    const pinned = (projectId: string) =>
+      createVercelDeploymentLookup({ token: 'test-token', projectId, fetch: provider() })
+
+    expect(await pinned('prj_1')('https://site.example', 7)).toEqual({ status: 'confirmed', sha })
+    expect(await pinned('prj_other')('https://site.example', 7)).toEqual({
+      status: 'unconfirmed',
+    })
+  })
+
   it('reads the current rollback commit instead of searching for an older successful deployment', async () => {
     const rollback = 'b'.repeat(40)
     expect(

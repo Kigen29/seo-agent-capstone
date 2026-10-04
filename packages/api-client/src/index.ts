@@ -14,6 +14,16 @@ export interface ApiError {
   message: string
 }
 
+export interface HostingStatus {
+  mode: 'vercel' | 'github'
+  connection: {
+    projectId: string
+    teamId: string | null
+    validatedAt: string
+    needsReconnect: boolean
+  } | null
+}
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
@@ -622,6 +632,17 @@ export function createApiClient(options: ApiClientOptions) {
     health: () => request<{ status: string }>('/health'),
 
     listSites: async () => (await request<{ sites: Site[] }>('/sites')).sites,
+    getHosting: async (siteId: string) => request<HostingStatus>(`/sites/${siteId}/hosting`),
+    connectHosting: async (
+      siteId: string,
+      input: { token: string; projectId: string; teamId?: string },
+    ) =>
+      request<{ connected: boolean }>(`/sites/${siteId}/hosting`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }),
+    disconnectHosting: async (siteId: string) =>
+      request<{ connected: boolean }>(`/sites/${siteId}/hosting`, { method: 'DELETE' }),
 
     addSite: async (url: string) =>
       (

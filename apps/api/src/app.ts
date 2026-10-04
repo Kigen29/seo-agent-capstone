@@ -13,6 +13,7 @@ import { trustedProxy } from './proxy.js'
 import { auditRoutes } from './routes/audits.js'
 import { checkRoutes } from './routes/check.js'
 import { connectionRoutes } from './routes/connections.js'
+import { hostingRoutes } from './routes/hosting.js'
 import { contributorRoutes } from './routes/contributors.js'
 import { findingRoutes } from './routes/findings.js'
 import { keywordRoutes } from './routes/keywords.js'
@@ -166,6 +167,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     findingRoutes(protectedRoutes, deps)
     auditRoutes(protectedRoutes, deps)
     connectionRoutes(protectedRoutes, deps)
+    hostingRoutes(protectedRoutes, deps)
     outreachRoutes(protectedRoutes, deps)
     contributorRoutes(protectedRoutes, deps)
     identityRoutes(protectedRoutes, deps)

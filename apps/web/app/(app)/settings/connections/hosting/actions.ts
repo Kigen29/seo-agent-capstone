@@ -1,0 +1,36 @@
+'use server'
+
+import { ApiRequestError } from '@seo/api-client'
+import { revalidatePath } from 'next/cache'
+import { getClient } from '@/lib/session'
+
+export async function saveHosting(_state: { message: string; ok: boolean }, form: FormData) {
+  const api = await getClient()
+  if (!api) return { message: 'Please sign in again.', ok: false }
+  const siteId = String(form.get('siteId') ?? '')
+  try {
+    if (form.get('operation') === 'disconnect') await api.disconnectHosting(siteId)
+    else
+      await api.connectHosting(siteId, {
+        token: String(form.get('token') ?? ''),
+        projectId: String(form.get('projectId') ?? '').trim(),
+        ...(form.get('teamId') ? { teamId: String(form.get('teamId')).trim() } : {}),
+      })
+    revalidatePath('/settings/connections/hosting')
+    return {
+      message:
+        form.get('operation') === 'disconnect'
+          ? 'Disconnected, and the saved token is deleted. Fixes can still be verified through GitHub deployment reports.'
+          : 'Connected. Merged fixes for this site will now be checked against this project.',
+      ok: true,
+    }
+  } catch (error) {
+    return {
+      message:
+        error instanceof ApiRequestError && [400, 409, 422].includes(error.status)
+          ? error.message
+          : 'That did not go through. Nothing was changed. Try again in a minute.',
+      ok: false,
+    }
+  }
+}

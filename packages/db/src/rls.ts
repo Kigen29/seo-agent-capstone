@@ -77,6 +77,7 @@ export const tenantPolicy = (table: string): string => `
  * without a tenant context, and it holds nothing but an id and a name.
  */
 export const TENANT_SCOPED_TABLES = [
+  'hosting_connections',
   'sites',
   'audits',
   'findings',
