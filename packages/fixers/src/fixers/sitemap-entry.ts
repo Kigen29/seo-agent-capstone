@@ -37,13 +37,18 @@ export class SitemapEntryFixer implements Fixer {
 
     for (const path of SITEMAP_FILES) {
       const content = await ctx.read(path)
-      if (content === null || !content.includes(plan.listed)) continue
+      if (content === null) continue
 
-      // Exact string replacement of one URL. A sitemap is XML, and rewriting it through a parser
-      // would reformat every other entry and bury the one line that changed in a diff nobody can
-      // review. The listed URL is a full absolute URL, so it cannot collide with a fragment of
-      // another entry.
-      const next = content.split(plan.listed).join(plan.destination)
+      // Match the complete loc text, not a URL prefix: replacing the homepage URL globally
+      // would also rewrite every child page. Preserve formatting and ignore commented markup
+      // and CDATA. Unsupported element forms are declined instead of guessed at.
+      const next = content.replace(
+        /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|(<loc>\s*)([^<]*?)(\s*<\/loc>)/g,
+        (match, opening: string | undefined, value: string, closing: string) =>
+          opening && value === xmlText(plan.listed)
+            ? `${opening}${xmlText(plan.destination)}${closing}`
+            : match,
+      )
       if (next === content) continue
 
       return {
@@ -62,6 +67,10 @@ export class SitemapEntryFixer implements Fixer {
     // somewhere the reader cannot fetch. Reported honestly rather than guessed at.
     return null
   }
+}
+
+function xmlText(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
 interface RedirectPlan {
