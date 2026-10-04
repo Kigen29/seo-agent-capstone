@@ -33,6 +33,7 @@ Then: `crawl -> diagnose -> prioritise -> open a PR -> human merges -> verify in
 | [`docs/research-dossier.md`](docs/research-dossier.md) | The full SEO / AEO / GEO / LLMO research this is built on. Source of truth for every SEO claim. |
 | [`docs/design-and-testing.md`](docs/design-and-testing.md) | The graded design and testing document: decisions, patterns, deployment cost, testing |
 | [`docs/architecture.md`](docs/architecture.md) | System map and patterns |
+| [`docs/hosting-independent-deployments.md`](docs/hosting-independent-deployments.md) | Connect any trusted hosting pipeline to deployment verification |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`docs/sprint-1-backlog.md`](docs/sprint-1-backlog.md) | User stories |
 

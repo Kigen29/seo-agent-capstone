@@ -9,7 +9,7 @@ interface Status {
   environment_url?: string | null
 }
 
-/** The latest successful production deployment for this origin must contain the merge. */
+/** The latest production report for this origin must succeed and contain the merge. */
 export async function confirmsDeployment(
   mergeSha: string,
   siteUrl: string,
@@ -24,12 +24,13 @@ export async function confirmsDeployment(
   for (const deployment of latestFirst) {
     if (!deployment.production_environment) continue
     const status = await statusOf(deployment.id)
-    if (status?.state !== 'success' || !status.environment_url) continue
+    if (!status?.environment_url) continue
     try {
       if (new URL(status.environment_url).origin !== origin) continue
     } catch {
       continue
     }
+    if (status.state !== 'success') return false
     if (deployment.sha === mergeSha) return true
     // Never fall back to an older success if the latest origin deployment rolled back,
     // diverged, or cannot be compared. Missing evidence must stay inconclusive.
