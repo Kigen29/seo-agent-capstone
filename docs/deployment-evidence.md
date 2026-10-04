@@ -4,7 +4,9 @@ A merged pull request is not deployment proof. Verification first confirms which
 
 ## GitHub deployment records
 
-Without a hosting integration, the latest successful production deployment must name the connected site's exact origin. Its SHA must equal the PR merge commit or include it as an ancestor. A rollback, divergent history, or unreadable comparison cannot fall back to an older successful deployment.
+Without a hosting integration, the latest production report for the connected site's exact origin must be successful. Its SHA must equal the PR merge commit or include it as an ancestor. A pending, failed, or inactive report, rollback, divergent history, or unreadable comparison cannot fall back to an older successful deployment.
+
+For other hosts, use the [host-independent deployment reporting action](hosting-independent-deployments.md) in the site's trusted release pipeline. It uses GitHub deployment permissions and requires no Vercel credential. The pipeline must confirm production completion before reporting success; the action does not deploy or probe the host itself.
 
 ## Vercel custom domains
 

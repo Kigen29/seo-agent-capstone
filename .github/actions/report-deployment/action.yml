@@ -1,0 +1,38 @@
+name: Report production deployment
+description: Report an exact production origin and commit from any hosting pipeline
+inputs:
+  phase:
+    description: start, success, or failure
+    required: true
+  site-origin:
+    description: Exact connected HTTPS origin
+    required: true
+  sha:
+    description: Exact commit delivered by the deployment pipeline
+    required: true
+  deployment-id:
+    description: Output from the start step, required for success or failure
+    default: ''
+  token:
+    description: Repository token with deployments write permission
+    required: true
+outputs:
+  deployment-id:
+    description: GitHub deployment record ID
+    value: ${{ steps.report.outputs.deployment-id }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+    - id: report
+      shell: bash
+      env:
+        REPORT_ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ inputs.token }}
+        DEPLOYMENT_PHASE: ${{ inputs.phase }}
+        SITE_ORIGIN: ${{ inputs.site-origin }}
+        DEPLOYED_SHA: ${{ inputs.sha }}
+        DEPLOYMENT_ID: ${{ inputs.deployment-id }}
+      run: node "$REPORT_ACTION_PATH/../../../packages/vcs/src/report-deployment.ts"

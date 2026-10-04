@@ -4,7 +4,7 @@ Where the product actually is, what constrains it, and what to pick up next.
 
 Last reviewed: 2026-10-04.
 
-PRs #261, #263, and #264 are merged. Migration 0028 preceded the release; production API, web, queue dispatch, audit, PR creation, closed-PR recovery, and a one-line deployed sitemap fix were checked. The remaining custom-domain deployment-evidence integration and live acceptance are tracked in #265/#262. See [deployment-evidence.md](deployment-evidence.md) for configuration, exact evidence, and the checks that are still incomplete.
+PRs #261, #263, #264, and #266 are merged. Migration 0028 preceded the release; production API, web, queue dispatch, audit, PR creation, closed-PR recovery, and a one-line deployed sitemap fix were checked. Vercel evidence lookup is implemented, but its configured live acceptance remains open in #265/#262. Host-independent pipeline reporting and non-Vercel acceptance are tracked in #267; see [hosting-independent-deployments.md](hosting-independent-deployments.md). See [deployment-evidence.md](deployment-evidence.md) for configuration, exact evidence, and the checks that are still incomplete.
 
 The readiness implementation is documented in [readiness-completion-2026-10-03.md](readiness-completion-2026-10-03.md), with the earlier independent assessment in [readiness-review-2026-10-03.md](readiness-review-2026-10-03.md). Use those for current capability and release gates. Historical production measurements below retain their dates. The new lifecycle regressions do not constitute a fresh live deployment acceptance.
 

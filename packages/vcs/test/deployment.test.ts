@@ -9,6 +9,24 @@ const deployment = (id: number, sha: string) => ({
 })
 const success = async () => ({ state: 'success', environment_url: 'https://example.com/' })
 
+it.each(['pending', 'queued', 'in_progress', 'failure', 'error', 'inactive'])(
+  'does not reuse older success when the latest origin report is %s',
+  async (state) => {
+    expect(
+      await confirmsDeployment(
+        'fix',
+        'https://example.com',
+        [deployment(1, 'fix'), deployment(2, 'next')],
+        async (id) => ({
+          state: id === 2 ? state : 'success',
+          environment_url: 'https://example.com',
+        }),
+        vi.fn(),
+      ),
+    ).toBe(false)
+  },
+)
+
 it('accepts the exact merge and a later deployment containing it', async () => {
   expect(
     await confirmsDeployment(
