@@ -4,6 +4,8 @@ A merged pull request is not deployment proof. Verification first confirms which
 
 ## GitHub deployment records
 
+The installed Rankwright GitHub App needs repository **Deployments: Read** permission, including approval of that permission by existing installation owners. A 403 access failure is distinct from a readable deployment record that does not confirm the origin. See [ADR-0027](adr/0027-read-deployment-evidence.md) and issue #269.
+
 Without a hosting integration, the latest production report for the connected site's exact origin must be successful. Its SHA must equal the PR merge commit or include it as an ancestor. A pending, failed, or inactive report, rollback, divergent history, or unreadable comparison cannot fall back to an older successful deployment.
 
 For other hosts, use the [host-independent deployment reporting action](hosting-independent-deployments.md) in the site's trusted release pipeline. It uses GitHub deployment permissions and requires no Vercel credential. The pipeline must confirm production completion before reporting success; the action does not deploy or probe the host itself.

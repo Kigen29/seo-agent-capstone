@@ -6,6 +6,8 @@ The reporting action is an attestation from your pipeline. It does not deploy th
 
 ## Add reports to your existing deployment job
 
+First enable repository **Deployments: Read** in the Rankwright GitHub App settings and approve the permission update for the connected installation. This is the reader permission, distinct from the pipeline's **Deployments: Write** permission below. A repository commit cannot grant the App access. See [ADR-0027](adr/0027-read-deployment-evidence.md).
+
 Use `.github/actions/report-deployment` from this repository, pinned to a reviewed full commit SHA. The example below is a template: replace `REVIEWED_COMMIT_SHA` and the deployment script with your actual release process. Run trusted production code only, with your normal environment approvals and branch protection. Do not grant this write token to untrusted pull-request code.
 
 ```yaml
