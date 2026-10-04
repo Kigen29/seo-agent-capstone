@@ -14,7 +14,7 @@ on:
       queue:
         description: 'Which queue to drain'
         type: choice
-        options: [all, audit, fix, verify-fix, verify, confirm-verify, poll-ai]
+        options: [all, crawl, audit, fix, verify-fix, verify, confirm-verify, poll-ai]
         required: false
         default: 'all'
 
