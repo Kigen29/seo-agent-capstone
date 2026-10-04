@@ -38,6 +38,7 @@ export const E2E = {
   blockedFindingId: '00000000-0000-4000-8000-000000000005',
   canonicalFindingId: '00000000-0000-4000-8000-000000000006',
   siteUrl: 'https://seeded.example.com',
+  secondSiteId: '00000000-0000-4000-8000-000000000007',
 } as const
 
 const hash = (token: string) => createHash('sha256').update(token, 'utf8').digest('hex')
@@ -145,7 +146,10 @@ export async function seedE2E(): Promise<void> {
     })
 
     await withTenant(db, E2E.tenantId, async (tx) => {
-      await tx.insert(sites).values({ id: E2E.siteId, tenantId: E2E.tenantId, url: E2E.siteUrl })
+      await tx.insert(sites).values([
+        { id: E2E.siteId, tenantId: E2E.tenantId, url: E2E.siteUrl },
+        { id: E2E.secondSiteId, tenantId: E2E.tenantId, url: 'https://z-second.example.com' },
+      ])
 
       await tx.insert(audits).values({
         id: E2E.auditId,

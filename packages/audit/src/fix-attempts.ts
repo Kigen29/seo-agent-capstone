@@ -10,8 +10,8 @@ import { desc, eq } from 'drizzle-orm'
 
 export interface FixAttempt {
   startedAt: string
-  finishedAt: string
-  outcome: 'pr_opened' | 'pr_adopted' | 'failed'
+  finishedAt: string | null
+  outcome: 'running' | 'pr_opened' | 'pr_adopted' | 'failed'
   prUrl: string | null
   error: string | null
   /** What became of the PR this attempt opened. Null while open, or when it opened none. */
@@ -50,12 +50,12 @@ export async function listFixAttempts(
       })
       .from(fixAttempts)
       .where(eq(fixAttempts.findingId, findingRowId))
-      .orderBy(desc(fixAttempts.finishedAt))
+      .orderBy(desc(fixAttempts.startedAt))
       .limit(ATTEMPT_LIMIT)
 
     return rows.map((row) => ({
       startedAt: row.startedAt.toISOString(),
-      finishedAt: row.finishedAt.toISOString(),
+      finishedAt: row.finishedAt?.toISOString() ?? null,
       outcome: row.outcome,
       prUrl: row.prUrl ?? null,
       error: row.error ?? null,

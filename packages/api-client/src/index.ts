@@ -366,8 +366,8 @@ export interface KeywordGapResult {
 /** One attempt the agent made to fix a finding. */
 export interface FixAttempt {
   startedAt: string
-  finishedAt: string
-  outcome: 'pr_opened' | 'pr_adopted' | 'failed'
+  finishedAt: string | null
+  outcome: 'running' | 'pr_opened' | 'pr_adopted' | 'failed'
   prUrl: string | null
   error: string | null
   /** What became of the PR this attempt opened. Null while open, or when it opened none. */

@@ -8,7 +8,7 @@ import {
 } from '@seo/audit'
 import { googleOAuthConfigFromEnv, type OAuthConfig } from '@seo/connectors'
 import { asOwner, findings, sites, withTenant, type Database } from '@seo/db'
-import { and, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 
 export interface TrafficSweepOptions {
   now?: Date
@@ -64,8 +64,13 @@ export async function recordTrafficOutcomes(
       .from(findings)
       .innerJoin(sites, eq(sites.id, findings.siteId))
       .where(
-        and(inArray(findings.status, ['verified', 'rejected']), isNotNull(findings.verification)),
-      ),
+        and(
+          inArray(findings.status, ['verified', 'rejected']),
+          isNotNull(findings.verification),
+          isNotNull(findings.baseline),
+        ),
+      )
+      .orderBy(sql`${findings.trafficCheckedAt} asc nulls first`, findings.id),
   )
 
   const ready = decided
@@ -77,6 +82,11 @@ export async function recordTrafficOutcomes(
     )
     .slice(0, limit)
 
+  for (const row of ready) {
+    await withTenant(db, row.tenantId, (tx) =>
+      tx.update(findings).set({ trafficCheckedAt: now }).where(eq(findings.id, row.id)),
+    )
+  }
   let recorded = 0
   const bySite = new Map<string, typeof ready>()
   for (const row of ready) bySite.set(row.siteId, [...(bySite.get(row.siteId) ?? []), row])

@@ -24,10 +24,11 @@ import type { APIResponse, BrowserContext } from 'playwright'
  *   4. **Root-file fetches follow redirects by hand**, re-checking every hop, because Playwright's
  *      request context is not routed.
  *
- * What this cannot do: Chromium resolves the name again when it connects, so a hostile DNS server
- * can answer publicly to our check and privately to Chromium (rebinding). Caching the verdict per
- * host narrows that window but does not close it. The complete defence is network-level egress
- * filtering on the worker host; this guard is the layer we can ship and test in code.
+ * Chromium and request-context traffic additionally pass through proxy.ts, which resolves each
+ * destination and connects to the inspected IP. DNS verdict caching here is only an early filter;
+ * the proxy independently validates every connection, preventing check/use DNS rebinding.
+ * Worker network isolation remains useful defense in depth against a browser compromise.
+
  */
 
 export type Resolve = (hostname: string) => Promise<{ address: string; family: number }[]>

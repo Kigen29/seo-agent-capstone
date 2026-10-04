@@ -119,88 +119,122 @@ export default async function FindingsPage({
         </EmptyState>
       ) : (
         <>
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  {SORTS.filter((column) => column.key !== 'priority').map((column) => (
-                    <th key={column.key} aria-sort={sort === column.key ? 'descending' : 'none'}>
-                      {/*
+          <div className="grid gap-3 md:hidden">
+            {result.findings.map((finding) => (
+              <article key={finding.rowId} className="card elev-sm">
+                <div className="flex flex-wrap gap-2">
+                  <SeverityBadge severity={finding.severity} />
+                  <span className={STATUS_LABEL[finding.status].className}>
+                    {STATUS_LABEL[finding.status].label}
+                  </span>
+                </div>
+                <h2 className="m-0 text-lg break-words">
+                  <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
+                    {finding.title}
+                  </Link>
+                </h2>
+                <p className="text-muted m-0 text-sm break-words">
+                  {hostOf(finding.siteUrl)} / {AXIS_LABEL[finding.axis]} /{' '}
+                  {finding.affectedUrlCount} pages
+                </p>
+                <p className="m-0 text-sm">
+                  {finding.fixFailed
+                    ? 'Last attempt failed. Open for details.'
+                    : finding.fixable
+                      ? 'Automatic fix available; repository compatibility checked before opening a PR.'
+                      : 'Needs your input'}
+                </p>
+              </article>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    {SORTS.filter((column) => column.key !== 'priority').map((column) => (
+                      <th key={column.key} aria-sort={sort === column.key ? 'descending' : 'none'}>
+                        {/*
                           Sortable headers, which this table did not have: the order was fixed by
                           priority score with no way to ask for anything else.
                         */}
+                        <SortLink
+                          href={urlWith({ sort: column.key, page: undefined })}
+                          active={sort === column.key}
+                          label={column.label}
+                        />
+                      </th>
+                    ))}
+                    <th>Site</th>
+                    <th>Status</th>
+                    <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
                       <SortLink
-                        href={urlWith({ sort: column.key, page: undefined })}
-                        active={sort === column.key}
-                        label={column.label}
+                        href={urlWith({ sort: 'priority', page: undefined })}
+                        active={sort === 'priority'}
+                        label="Priority"
                       />
                     </th>
-                  ))}
-                  <th>Site</th>
-                  <th>Status</th>
-                  <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
-                    <SortLink
-                      href={urlWith({ sort: 'priority', page: undefined })}
-                      active={sort === 'priority'}
-                      label="Priority"
-                    />
-                  </th>
-                  <th>Pages</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {result.findings.map((finding) => {
-                  const status = STATUS_LABEL[finding.status]
-                  return (
-                    <tr key={finding.rowId}>
-                      <td>
-                        {/* Plain status chips: the outline style read as a button nobody could press. */}
-                        <span className={finding.fixable ? 'tag tag-success' : 'tag tag-neutral'}>
-                          {finding.fixable ? 'Agent can fix' : 'Needs you'}
-                        </span>
-                      </td>
-                      <td>
-                        <SeverityBadge severity={finding.severity} />
-                      </td>
-                      <td>
-                        <Link href={`/findings/${finding.rowId}`}>{finding.title}</Link>
-                      </td>
-                      <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
-                      <td className="text-muted">{hostOf(finding.siteUrl)}</td>
-                      <td className="whitespace-nowrap">
-                        {/*
+                    <th>Pages</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.findings.map((finding) => {
+                    const status = STATUS_LABEL[finding.status]
+                    return (
+                      <tr key={finding.rowId}>
+                        <td>
+                          {/* Plain status chips: the outline style read as a button nobody could press. */}
+                          <span className={finding.fixable ? 'tag tag-success' : 'tag tag-neutral'}>
+                            {finding.fixable ? 'Automatic fix available' : 'Needs you'}
+                          </span>
+                        </td>
+                        <td>
+                          <SeverityBadge severity={finding.severity} />
+                        </td>
+                        <td>
+                          <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
+                            {finding.title}
+                          </Link>
+                        </td>
+                        <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
+                        <td className="text-muted">{hostOf(finding.siteUrl)}</td>
+                        <td className="whitespace-nowrap">
+                          {/*
                             Status was fetched and never rendered, so a finding with a pull request
                             already open looked exactly like one nobody had touched. In a triage
                             list that is the difference between work to do and work in flight.
                           */}
-                        <span className={status.className}>{status.label}</span>
-                        {/*
+                          <span className={status.className}>{status.label}</span>
+                          {/*
                             A failed fix attempt leaves the finding open, which is correct: it
                             still needs doing. But "open" alone made a finding whose fix had been
                             tried and failed identical to one nobody had touched, which is the
                             same mistake as not rendering status at all, one level down.
                           */}
-                        {finding.fixFailed && (
-                          <span
-                            className="tag tag-critical ml-1"
-                            title="The last fix attempt failed. Open the finding for the reason."
-                          >
-                            Fix failed
-                          </span>
-                        )}
-                      </td>
-                      <td className="tnum text-muted">{finding.estimatedImpact}</td>
-                      <td className="tnum text-muted">{finding.affectedUrlCount}</td>
-                      <td className="whitespace-nowrap">
-                        <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                          {finding.fixFailed && (
+                            <span
+                              className="tag tag-critical ml-1"
+                              title="The last fix attempt failed. Open the finding for the reason."
+                            >
+                              Fix failed
+                            </span>
+                          )}
+                        </td>
+                        <td className="tnum text-muted">{finding.estimatedImpact}</td>
+                        <td className="tnum text-muted">{finding.affectedUrlCount}</td>
+                        <td className="whitespace-nowrap">
+                          <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
+                            View &rarr;
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <Pagination

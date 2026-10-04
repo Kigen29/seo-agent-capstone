@@ -6,12 +6,21 @@ import {
   verificationFor,
   type MergedFindingRef,
 } from '@seo/audit'
-import { findings, sites, withTenant, type Database } from '@seo/db'
-import type { VerifyFixJob } from '@seo/queue'
-import { and, eq, inArray } from 'drizzle-orm'
+import { asOwner, findings, sites, withTenant, type Database } from '@seo/db'
+import { enqueueVerifyFix, type Queue, type VerifyFixJob } from '@seo/queue'
+import { and, eq, lt, or, isNull } from 'drizzle-orm'
 
 /** Verification fails closed until coverage and deployment evidence are available. */
-export async function runVerifyFix(db: Database, job: VerifyFixJob): Promise<void> {
+export interface VerifyFixDeps {
+  isDeployed?: (number: number, siteUrl: string) => Promise<boolean>
+  audit?: typeof runAudit
+}
+
+export async function runVerifyFix(
+  db: Database,
+  job: VerifyFixJob,
+  deps: VerifyFixDeps = {},
+): Promise<void> {
   const site = await withTenant(db, job.tenantId, async (tx) => {
     const [row] = await tx
       .select({
@@ -43,11 +52,22 @@ export async function runVerifyFix(db: Database, job: VerifyFixJob): Promise<voi
       .where(and(eq(findings.siteId, site.id), eq(findings.status, 'merged'))),
   )
   if (merged.length === 0) return
+  await withTenant(db, job.tenantId, (tx) =>
+    tx
+      .update(findings)
+      .set({ verificationCheckedAt: new Date() })
+      .where(and(eq(findings.siteId, site.id), eq(findings.status, 'merged'))),
+  )
 
   // Confirm deployment before crawling, so a deployment finishing during the crawl cannot
   // validate observations collected from the previous version.
   const deployed = new Set<string>()
-  if (
+  if (deps.isDeployed) {
+    for (const finding of merged) {
+      const number = pullRequestNumberFrom(finding.prUrl ?? '')
+      if (number && (await deps.isDeployed(number, site.url))) deployed.add(finding.id)
+    }
+  } else if (
     site.repoFullName &&
     site.installationId &&
     process.env.GH_APP_ID &&
@@ -68,7 +88,12 @@ export async function runVerifyFix(db: Database, job: VerifyFixJob): Promise<voi
   }
   const result =
     deployed.size > 0
-      ? await runAudit(db, { tenantId: job.tenantId, siteId: site.id, seed: site.url })
+      ? await (deps.audit ?? runAudit)(db, {
+          tenantId: job.tenantId,
+          siteId: site.id,
+          seed: site.url,
+          verificationFindings: merged,
+        })
       : undefined
   const verdicts = new Map(
     merged.flatMap((finding) => [
@@ -97,25 +122,53 @@ export async function runVerifyFix(db: Database, job: VerifyFixJob): Promise<voi
     for (const id of verified) {
       await tx
         .update(findings)
-        .set({ status: 'verified', verification: recordOf(id, 'verified') })
+        .set({ status: 'verified', fixError: null, verification: recordOf(id, 'verified') })
         .where(eq(findings.id, id))
     }
-    if (inconclusive.length > 0) {
+    for (const id of inconclusive) {
       await tx
         .update(findings)
         .set({
-          fixError:
-            'Verification inconclusive: successful affected-page coverage and confirmed deployment evidence are required.',
+          fixError: deployed.has(id)
+            ? 'Deployment confirmed, but the required pages or root files could not be checked completely. The worker will check again; no success is inferred from missing evidence.'
+            : 'Waiting for deployment evidence: GitHub must report a successful production deployment containing this pull request merge commit, with an environment URL matching this site. The worker checks again hourly when available.',
         })
-        .where(and(inArray(findings.id, inconclusive), eq(findings.status, 'merged')))
+        .where(and(eq(findings.id, id), eq(findings.status, 'merged')))
     }
     for (const id of rejected) {
       await tx
         .update(findings)
-        .set({ status: 'rejected', verification: recordOf(id, 'rejected') })
+        .set({ status: 'rejected', fixError: null, verification: recordOf(id, 'rejected') })
         .where(eq(findings.id, id))
     }
   })
   if (inconclusive.length > 0)
     throw new Error('Verification inconclusive; retry after deployment evidence is available.')
+}
+
+/** Rebuild checks from durable state after finite queue retries are exhausted. */
+export async function enqueuePendingFixVerifications(db: Database, queue: Queue): Promise<number> {
+  const due = await asOwner(db, (tx) =>
+    tx
+      .selectDistinct({ siteId: findings.siteId, tenantId: findings.tenantId })
+      .from(findings)
+      .where(
+        and(
+          eq(findings.status, 'merged'),
+          or(
+            isNull(findings.verificationCheckedAt),
+            lt(findings.verificationCheckedAt, new Date(Date.now() - 60 * 60 * 1000)),
+          ),
+        ),
+      ),
+  )
+  let count = 0
+  for (const site of due) {
+    try {
+      if (await enqueueVerifyFix(queue, site)) count++
+    } catch (error) {
+      console.warn('Could not schedule pending fix verification', site.siteId, error)
+    }
+  }
+  return count
 }

@@ -1744,6 +1744,78 @@ describe.skipIf(!shouldRun)('the API', () => {
       }
     })
 
+    it('persists intent before side effects and adopts a PR that already merged', async () => {
+      const { runFix } = await import('../../worker/src/fix.js')
+      await withTenant(db, tenantId, (tx) =>
+        tx
+          .update(findings)
+          .set({ status: 'open', prUrl: null })
+          .where(eq(findings.id, retryFindingId)),
+      )
+      await withTenant(db, tenantId, (tx) =>
+        tx.insert(fixAttempts).values({
+          tenantId,
+          findingId: retryFindingId,
+          requestId: 'original-request',
+          startedAt: new Date(),
+          finishedAt: null,
+          outcome: 'running',
+        }),
+      )
+      const provider = {
+        findOpenPullRequest: async () => null,
+        findPullRequest: async (_ctx: unknown, findingId: string) => {
+          expect(findingId).toBe(`${retryFindingId}-original-request`)
+          const rows = await withTenant(db, tenantId, (tx) =>
+            tx.select().from(fixAttempts).where(eq(fixAttempts.findingId, retryFindingId)),
+          )
+          expect(rows.some((row) => row.outcome === 'running' && row.finishedAt === null)).toBe(
+            true,
+          )
+          return {
+            url: 'https://github.com/octo/site/pull/42',
+            number: 42,
+            branch: 'seo-agent/recovered',
+            resolution: 'merged' as const,
+          }
+        },
+        getFile: async () => {
+          throw new Error('must adopt without reading code')
+        },
+        openPullRequest: async () => {
+          throw new Error('must not create duplicate')
+        },
+      }
+      try {
+        await runFix(
+          db,
+          {
+            tenantId,
+            siteId: repoSiteId,
+            findingRowId: retryFindingId,
+            requestId: 'recovery-test',
+          },
+          { provider },
+        )
+        const [row] = await withTenant(db, tenantId, (tx) =>
+          tx.select().from(findings).where(eq(findings.id, retryFindingId)),
+        )
+        expect(row?.status).toBe('merged')
+        const response = await get(`/findings/${retryFindingId}/attempts`, token)
+        expect(response.json().attempts[0]).toMatchObject({
+          outcome: 'pr_adopted',
+          prResolution: 'merged',
+        })
+      } finally {
+        await withTenant(db, tenantId, (tx) =>
+          tx
+            .update(findings)
+            .set({ status: 'open', prUrl: null })
+            .where(eq(findings.id, retryFindingId)),
+        )
+      }
+    })
+
     it('keeps a failed attempt in the history, with its reason', async () => {
       const { runFix } = await import('../../worker/src/fix.js')
       await expect(

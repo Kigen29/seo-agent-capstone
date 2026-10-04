@@ -1,5 +1,6 @@
 import { priorityScore } from '@seo/core'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
@@ -26,8 +27,15 @@ export const dynamic = 'force-dynamic'
  * cold-start case is covered by `<ApiAsleep />` instead.
  */
 
-export default async function AuditPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AuditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ siteId?: string }>
+}) {
   const { id } = await params
+  const { siteId } = await searchParams
   const api = await getClient()
   if (!api) return null
 
@@ -39,23 +47,35 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
     return <ApiAsleep />
   }
 
+  if (siteId !== audit.siteId) redirect(`/audits/${id}?siteId=${audit.siteId}`)
+
   const findings = [...audit.findings].sort((a, b) => priorityScore(b) - priorityScore(a))
 
   return (
     <main id="main" className="wrap">
-      <Breadcrumbs trail={[{ label: 'Audits', href: '/audits' }, { label: audit.siteUrl }]} />
+      <Breadcrumbs
+        trail={[
+          { label: 'Audits', href: `/audits?siteId=${audit.siteId}` },
+          { label: audit.siteUrl },
+        ]}
+      />
       <PageHeader
         kicker="Audit"
         title={audit.siteUrl}
         description={`${audit.pagesCrawled} pages crawled · ${new Date(audit.startedAt).toLocaleString()}`}
         actions={
-          <Link href="/findings" className="btn btn-secondary btn-sm">
+          <Link href={`/findings?siteId=${audit.siteId}`} className="btn btn-secondary btn-sm">
             All findings
           </Link>
         }
       />
 
-      <LiveProgress auditId={audit.id} status={audit.status} pagesCrawled={audit.pagesCrawled} />
+      <LiveProgress
+        auditId={audit.id}
+        startedAt={audit.startedAt}
+        status={audit.status}
+        pagesCrawled={audit.pagesCrawled}
+      />
 
       {audit.status === 'failed' && (
         <div className="note note-error mt-6">

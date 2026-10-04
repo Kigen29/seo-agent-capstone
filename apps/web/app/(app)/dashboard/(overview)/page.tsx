@@ -131,8 +131,6 @@ export default async function Dashboard({
         </Note>
       )}
 
-      {activeSite && <SetupChecklist site={activeSite} google={connections.google} />}
-
       {activeSite && (
         <Overview
           site={activeSite}
@@ -140,6 +138,8 @@ export default async function Dashboard({
           {...(visibility ? { visibility } : {})}
         />
       )}
+
+      {activeSite && <SetupChecklist site={activeSite} google={connections.google} />}
 
       <h2 className="h-section mb-3">Your sites</h2>
 
@@ -151,7 +151,7 @@ export default async function Dashboard({
         </EmptyState>
       ) : (
         <div className="table-scroll mt-6">
-          <table className="table">
+          <table className="table site-table">
             <thead>
               <tr>
                 <th>Site</th>
@@ -168,7 +168,7 @@ export default async function Dashboard({
                 const isActive = site.id === activeSite?.id
                 return (
                   <tr key={site.id}>
-                    <td className="break-all">
+                    <td className="break-words">
                       {hostOf(site.url)}
                       {isActive && (
                         <span className="text-muted ml-2 text-[12px]">(shown above)</span>
@@ -186,7 +186,7 @@ export default async function Dashboard({
                       <div className="flex flex-wrap items-center justify-end gap-3">
                         {!isActive && <Link href={`/dashboard?siteId=${site.id}`}>Set up</Link>}
                         {site.latestAudit && (
-                          <Link href={`/audits/${site.latestAudit.id}`}>
+                          <Link href={`/audits/${site.latestAudit.id}?siteId=${site.id}`}>
                             {running ? 'View progress' : 'View audit'}
                           </Link>
                         )}

@@ -281,6 +281,8 @@ export const findings = pgTable(
      * screen and a failure in a log is worse than never offering the button.
      */
     fixError: text('fix_error'),
+    verificationCheckedAt: timestamp('verification_checked_at', { withTimezone: true }),
+    trafficCheckedAt: timestamp('traffic_checked_at', { withTimezone: true }),
 
     /** Captured before the fix, so the verifier has something to compare against. */
     baseline: jsonb('baseline').$type<MetricSnapshot>(),
@@ -321,8 +323,8 @@ export const fixAttempts = pgTable(
       .references(() => findings.id, { onDelete: 'cascade' }),
     requestId: text('request_id'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
-    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull().defaultNow(),
-    outcome: text('outcome').$type<'pr_opened' | 'pr_adopted' | 'failed'>().notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).defaultNow(),
+    outcome: text('outcome').$type<'running' | 'pr_opened' | 'pr_adopted' | 'failed'>().notNull(),
     prUrl: text('pr_url'),
     error: text('error'),
     /** What became of the PR: merged, or closed without merging. Null while it is open. */

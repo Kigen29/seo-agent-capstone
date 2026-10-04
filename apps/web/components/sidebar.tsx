@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SignedInIdentity } from '@seo/api-client'
 import { AccountMenu } from '@/components/account-menu'
 
@@ -83,12 +83,26 @@ export function Sidebar({
   const pathname = usePathname() ?? ''
   const params = useSearchParams()
   const [open, setOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        menuButton.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
 
-  const activeSite = params.get('siteId')
+  const isSiteView = ['/dashboard', '/keywords', '/authority', '/visibility', '/outcomes'].includes(
+    pathname,
+  )
+  const activeSite = params.get('siteId') ?? (isSiteView ? sites[0]?.id : undefined)
 
   /** Keeps the chosen site when moving between sections, so context survives navigation. */
-  const withSite = (href: string): string =>
-    activeSite && href !== '/dashboard' ? `${href}?siteId=${activeSite}` : href
+  const withSite = (href: string): string => (activeSite ? `${href}?siteId=${activeSite}` : href)
 
   return (
     <>
@@ -110,12 +124,13 @@ export function Sidebar({
         className="flex items-center justify-between gap-4 border-b px-4 py-3 md:hidden"
         style={{ borderColor: 'var(--color-divider)' }}
       >
-        <Link href="/dashboard" className="nav-brand" style={{ color: 'inherit' }}>
+        <Link href={withSite('/dashboard')} className="nav-brand" style={{ color: 'inherit' }}>
           RankWright
         </Link>
         <button
           type="button"
           className="btn btn-secondary btn-sm"
+          ref={menuButton}
           aria-expanded={open}
           aria-controls="app-sidebar"
           onClick={() => setOpen((wasOpen) => !wasOpen)}
@@ -129,7 +144,11 @@ export function Sidebar({
         className={`${open ? 'flex' : 'hidden'} w-full shrink-0 flex-col gap-6 border-b p-4 md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:self-start md:overflow-y-auto md:border-r md:border-b-0`}
         style={{ borderColor: 'var(--color-divider)' }}
       >
-        <Link href="/dashboard" className="nav-brand hidden md:block" style={{ color: 'inherit' }}>
+        <Link
+          href={withSite('/dashboard')}
+          className="nav-brand hidden md:block"
+          style={{ color: 'inherit' }}
+        >
           RankWright
         </Link>
 
@@ -142,11 +161,15 @@ export function Sidebar({
               value={activeSite ?? ''}
               onChange={(event) => {
                 const value = event.target.value
-                const target = pathname === '/dashboard' ? '/findings' : pathname
+                const target = pathname.startsWith('/findings/')
+                  ? '/findings'
+                  : pathname.startsWith('/audits/')
+                    ? '/audits'
+                    : pathname
                 window.location.href = value ? `${target}?siteId=${value}` : target
               }}
             >
-              <option value="">All sites</option>
+              {!isSiteView && <option value="">All sites</option>}
               {sites.map((site) => (
                 <option key={site.id} value={site.id}>
                   {hostOf(site.url)}
@@ -170,6 +193,7 @@ export function Sidebar({
                   <Link
                     key={link.href}
                     href={withSite(link.href)}
+                    onClick={() => setOpen(false)}
                     aria-current={active ? 'page' : undefined}
                     className="rounded px-2 py-1.5 text-sm"
                     style={{

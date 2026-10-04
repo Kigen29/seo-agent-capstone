@@ -13,3 +13,6 @@ pnpm-lock.yaml
 # with a stray colonless line, an HTML page with a trailing comma in its JSON-LD. Prettier
 # cheerfully repairs them, which silently deletes the case the fixture exists to prove.
 **/test/fixtures/**
+
+# Local review scripts and generated evidence.
+/artifacts/

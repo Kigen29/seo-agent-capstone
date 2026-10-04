@@ -9,3 +9,5 @@ export type { FindingDraft, Rule, RuleContext } from './types.js'
 
 export { hammingDistance, shingles, simhash } from './simhash.js'
 export { indexableHtmlPages } from './evidence.js'
+
+export { flattenNodes, isLocalBusiness, linksToProfile } from './rules/local.js'

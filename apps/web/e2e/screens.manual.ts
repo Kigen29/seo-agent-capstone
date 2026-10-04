@@ -7,7 +7,7 @@ import { expect, test, type Page } from '@playwright/test'
  * not collect it and CI does not spend a minute writing PNGs nobody will look at. Run it by hand
  * when a change needs to be *seen* rather than asserted:
  *
- *     pnpm --filter @seo/web exec playwright test e2e/screens.manual.ts
+ *     pnpm --filter @seo/web exec playwright test --config playwright.screens.config.ts
  *
  * It is here because it earned its place. The faults it found had all passed the type checker, the
  * linter, and eleven end-to-end assertions: a mobile bar rendering on desktop and eating a third of
@@ -39,10 +39,17 @@ async function capture(page: Page, path: string, file: string) {
 }
 
 async function signIn(page: Page) {
-  await page.goto('/login')
-  await page.getByLabel('API token').fill(TOKEN)
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/dashboard/)
+  await page.context().addCookies([
+    {
+      name: 'seo_token',
+      value: TOKEN,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
+  await page.goto('/dashboard')
 }
 
 test('capture', async ({ page }) => {
@@ -52,7 +59,7 @@ test('capture', async ({ page }) => {
 
   await signIn(page)
   // Wait for real content, or the capture races the skeleton and photographs the loading state.
-  await expect(page.getByRole('heading', { name: 'Your sites' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   await page.screenshot({ path: `${OUT}/02-dashboard.png`, fullPage: true })
 
   await page.goto('/findings')
@@ -77,6 +84,7 @@ test('capture', async ({ page }) => {
   // Mobile, and dark.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/findings')
+  await expect(page.locator('article').first()).toBeVisible()
   await page.screenshot({ path: `${OUT}/07-findings-mobile.png`, fullPage: true })
   // The dashboard is a two-column grid from md and one column below it, and the sidebar is now
   // three groups rather than three links, so the mobile disclosure is taller than it was.

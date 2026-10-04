@@ -54,7 +54,8 @@ export default defineConfig({
   webServer: [
     {
       command: 'node ../api/dist/server.js',
-      port: API_PORT,
+      url: `http://127.0.0.1:${API_PORT}/health`,
+      timeout: 180_000,
       reuseExistingServer: false,
       env: { PORT: String(API_PORT), DATABASE_URL },
       stdout: 'pipe',
@@ -62,7 +63,8 @@ export default defineConfig({
     },
     {
       command: `npx next start -p ${WEB_PORT}`,
-      port: WEB_PORT,
+      url: `http://127.0.0.1:${WEB_PORT}`,
+      timeout: 180_000,
       reuseExistingServer: false,
       env: { API_URL: `http://127.0.0.1:${API_PORT}` },
       stdout: 'pipe',
