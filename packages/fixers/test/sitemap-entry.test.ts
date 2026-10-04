@@ -53,6 +53,50 @@ const generate = (files: Record<string, string>, finding = redirects()) =>
   fixer.generate({ finding, framework: 'next', read: reader(files) })
 
 describe('SitemapEntryFixer', () => {
+  it('changes only the homepage entry when its URL prefixes every child entry', async () => {
+    const finding = redirects({ affectedUrls: ['https://ex.com/'] })
+    const result = await generate(
+      { 'public/sitemap.xml': sitemapXml('https://ex.com/', 'https://ex.com/about') },
+      finding,
+    )
+    expect(result?.files[0]?.content).toBe(sitemapXml('https://ex.com/new', 'https://ex.com/about'))
+  })
+
+  it('does not rewrite longer paths, comments, CDATA, or other element text', async () => {
+    const untouched =
+      '<!-- <loc>https://ex.com/old</loc> --><![CDATA[<loc>https://ex.com/old</loc>]]><note>https://ex.com/old</note>'
+    const content = sitemapXml('https://ex.com/old', 'https://ex.com/old-child') + untouched
+    const result = await generate({ 'public/sitemap.xml': content })
+    expect(result?.files[0]?.content).toBe(
+      sitemapXml('https://ex.com/new', 'https://ex.com/old-child') + untouched,
+    )
+    expect(await generate({ 'public/sitemap.xml': untouched })).toBeNull()
+  })
+
+  it('preserves loc whitespace and XML-escapes query parameters', async () => {
+    const finding = redirects({
+      affectedUrls: ['https://ex.com/?a=1&b=2'],
+      evidence: {
+        kind: 'http',
+        url: 'https://ex.com/?a=2&b=3',
+        status: 200,
+        redirectChain: ['https://ex.com/?a=1&b=2'],
+        observedAt: '2026-10-04T00:00:00Z',
+        source: 'crawler',
+      },
+    })
+    const result = await generate(
+      {
+        'public/sitemap.xml':
+          '<urlset><url><loc>\n  https://ex.com/?a=1&amp;b=2  \n</loc></url></urlset>',
+      },
+      finding,
+    )
+    expect(result?.files[0]?.content).toBe(
+      '<urlset><url><loc>\n  https://ex.com/?a=2&amp;b=3  \n</loc></url></urlset>',
+    )
+  })
+
   it('rewrites the listed URL to the address it redirects to', async () => {
     const result = await generate({
       'public/sitemap.xml': sitemapXml('https://ex.com/', 'https://ex.com/old'),
