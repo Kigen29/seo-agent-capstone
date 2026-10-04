@@ -105,6 +105,31 @@ it('audits, proposes a real generated patch, waits for deployment, recovers, the
     )[0]!
   const realAudit: typeof runAudit = (database, options) =>
     runAudit(database, { ...options, maxPages: 1, egress: { allowPrivateNetwork: true } })
+  for (const [status, expected] of [
+    [403, 'Deployments read permission'],
+    [401, 'authentication failed'],
+    [503, 'could not be read'],
+  ] as const) {
+    await expect(
+      runVerifyFix(
+        db,
+        { tenantId, siteId },
+        {
+          isDeployed: async () => {
+            throw Object.assign(new Error('sensitive upstream response'), { status })
+          },
+          audit: async () => {
+            throw new Error('Must not crawl without deployment evidence')
+          },
+        },
+      ),
+    ).rejects.toThrow(expected)
+    const denied = await read()
+    expect(denied.status).toBe('merged')
+    expect(denied.verification).toBeNull()
+    expect(denied.fixError).toContain(expected)
+    expect(denied.fixError).not.toContain('sensitive upstream response')
+  }
   await expect(
     runVerifyFix(db, { tenantId, siteId }, { isDeployed: async () => false, audit: realAudit }),
   ).rejects.toThrow('inconclusive')

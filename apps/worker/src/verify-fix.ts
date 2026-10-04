@@ -62,39 +62,58 @@ export async function runVerifyFix(
   // Confirm deployment before crawling, so a deployment finishing during the crawl cannot
   // validate observations collected from the previous version.
   const deployed = new Set<string>()
-  if (deps.isDeployed) {
-    for (const finding of merged) {
-      const number = pullRequestNumberFrom(finding.prUrl ?? '')
-      if (number && (await deps.isDeployed(number, site.url))) deployed.add(finding.id)
-    }
-  } else if (
-    site.repoFullName &&
-    site.installationId &&
-    process.env.GH_APP_ID &&
-    process.env.GH_APP_PRIVATE_KEY
-  ) {
-    const [owner, name] = site.repoFullName.split('/')
-    if (owner && name) {
-      const api = await createGitHubApp({
-        ...githubAppConfigFromEnv(),
-        ...(process.env.VERCEL_TOKEN
-          ? {
-              deploymentLookup: createVercelDeploymentLookup({
-                token: process.env.VERCEL_TOKEN,
-                ...(process.env.VERCEL_TEAM_ID ? { teamId: process.env.VERCEL_TEAM_ID } : {}),
-              }),
-            }
-          : {}),
-      }).apiFor({
-        repo: { owner, name },
-        installationId: site.installationId,
-      })
+  try {
+    if (deps.isDeployed) {
       for (const finding of merged) {
         const number = pullRequestNumberFrom(finding.prUrl ?? '')
-        if (number && (await api.isPullRequestDeployed?.(number, site.url)))
-          deployed.add(finding.id)
+        if (number && (await deps.isDeployed(number, site.url))) deployed.add(finding.id)
+      }
+    } else if (
+      site.repoFullName &&
+      site.installationId &&
+      process.env.GH_APP_ID &&
+      process.env.GH_APP_PRIVATE_KEY
+    ) {
+      const [owner, name] = site.repoFullName.split('/')
+      if (owner && name) {
+        const api = await createGitHubApp({
+          ...githubAppConfigFromEnv(),
+          ...(process.env.VERCEL_TOKEN
+            ? {
+                deploymentLookup: createVercelDeploymentLookup({
+                  token: process.env.VERCEL_TOKEN,
+                  ...(process.env.VERCEL_TEAM_ID ? { teamId: process.env.VERCEL_TEAM_ID } : {}),
+                }),
+              }
+            : {}),
+        }).apiFor({
+          repo: { owner, name },
+          installationId: site.installationId,
+        })
+        for (const finding of merged) {
+          const number = pullRequestNumberFrom(finding.prUrl ?? '')
+          if (number && (await api.isPullRequestDeployed?.(number, site.url)))
+            deployed.add(finding.id)
+        }
       }
     }
+  } catch (error) {
+    const status =
+      typeof error === 'object' && error !== null && 'status' in error ? error.status : undefined
+    const reason =
+      status === 403
+        ? 'GitHub denied deployment evidence access. Check the GitHub App installation, its repository Deployments read permission, and GitHub rate limits.'
+        : status === 401
+          ? 'GitHub authentication failed while reading deployment evidence. Check the GitHub App credentials and installation access.'
+          : 'Deployment evidence could not be read. Check GitHub or hosting availability and integration access.'
+    const message = `${reason} The fix remains unverified; the worker will retry.`
+    await withTenant(db, job.tenantId, (tx) =>
+      tx
+        .update(findings)
+        .set({ fixError: message })
+        .where(and(eq(findings.siteId, site.id), eq(findings.status, 'merged'))),
+    )
+    throw new Error(message)
   }
   const result =
     deployed.size > 0
