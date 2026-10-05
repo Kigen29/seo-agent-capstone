@@ -138,12 +138,50 @@ test('never shows a single overall score', async ({ page }) => {
 
 test('leads the backlog with the critical finding, not the cheap one', async ({ page }) => {
   await signIn(page)
-  await page.goto(`/audits/${AUDIT}`)
+  // The inbox, not the audit page: the audit no longer carries its own copy of the list.
+  await page.goto('/findings')
 
-  const first = page.locator('table tbody tr').filter({ hasText: 'TECH-' }).first()
+  const first = page.locator('table tbody tr').first()
 
   await expect(first).toContainText('Critical')
   await expect(first).toContainText('OAI-SearchBot')
+})
+
+test('an audit says how many findings there are and how many the agent can fix, and lists none', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto(`/audits/${AUDIT}`)
+
+  const next = page.locator('section', { hasText: 'What to do next' })
+  await expect(next).toContainText(/This audit raised \d+ findings?/)
+  await expect(next).toContainText(/The agent can open a pull\s+request for \d+ of them/)
+  await expect(next.getByRole('link', { name: 'Review what the agent can fix' })).toHaveAttribute(
+    'href',
+    /fixable=true/,
+  )
+  // No findings table here any more; the scorecard is the only thing this page tabulates.
+  await expect(page.locator('main table')).toHaveCount(0)
+})
+
+test('every finding says who fixes it: the agent, or a named reason it is left to a person', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/findings')
+
+  const tags = page.locator('table tbody tr td:first-child .tag')
+  await expect(tags.first()).toBeVisible()
+  const allowed = [
+    'Agent can fix',
+    'Outside your code',
+    'Your decision',
+    'Needs your content',
+    'Bigger than a patch',
+  ]
+  for (const text of await tags.allTextContents()) expect(allowed).toContain(text.trim())
+  // The old label said a person was needed and did not say why.
+  await expect(page.locator('main')).not.toContainText('Needs you')
 })
 
 test('opens a finding and shows how we would know we were wrong', async ({ page }) => {

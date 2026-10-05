@@ -1,11 +1,12 @@
 export type {
-  VersionControlProvider,
-  RepoRef,
-  RepoContext,
   FileChange,
-  RepoFile,
   FixPullRequest,
   PullRequest,
+  RepoContext,
+  RepoFile,
+  RepoRef,
+  RepoTreeEntry,
+  VersionControlProvider,
 } from './provider.js'
 
 export { BRANCH_NAMESPACE, slugify, branchPrefixFor, branchNameFor } from './branch.js'

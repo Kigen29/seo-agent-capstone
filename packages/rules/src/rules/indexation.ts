@@ -57,7 +57,11 @@ export const TECH_005: Rule = {
 /**
  * TECH-006: an indexable page with no canonical tag.
  *
- * **Not fixable in code, and that is a finding about canonicals rather than a gap in the fixers.**
+ * **No static tag can fix this, which is why there is no deterministic fixer for it.** The
+ * repository-reading agent (ADR-0030) can: it derives the canonical from the current route in
+ * whatever shared head component the site has, which is a change to logic, not the insertion of
+ * a tag. The reasoning below is why the simple version is refused and what a reviewer should check.
+ *
  * A canonical has to be self-referencing per page, and every file the fixers can write a head tag
  * into is a *shared layout*: `app/layout.tsx`, `header.php`, `baseof.html`, a SPA's single
  * `index.html`. A static `<link rel="canonical">` in any of those gives every route the same
@@ -81,7 +85,7 @@ export const TECH_006: Rule = {
   axis: 'crawl_health',
   severity: 'low',
   estimatedEffort: 'trivial',
-  fixable: false,
+  fixable: true,
   description: 'An indexable page declares no canonical URL.',
 
   evaluate: (context) =>
@@ -99,9 +103,9 @@ export const TECH_006: Rule = {
           `Re-fetch ${page.url} and look for link[rel="canonical"] in the head. If one is ` +
           'present, this was wrong. Note that adding a self-referencing canonical will not ' +
           'move rankings on its own; it only matters once duplicate URLs exist. ' +
-          'Fix this by hand, per page: the canonical must point at this URL, and a single tag ' +
-          'added to a shared layout would point every page at the same address, which is worse ' +
-          'than the missing tag.',
+          'The agent can propose this in a pull request. When you review it, check that each ' +
+          'page ends up naming its own URL: a single static tag in a shared layout would point ' +
+          'every page at the same address, which is worse than the missing tag.',
       })),
 }
 
@@ -182,9 +186,9 @@ export const TECH_023: Rule = {
   axis: 'crawl_health',
   severity: 'critical',
   estimatedEffort: 'small',
-  // Not fixable by the agent, for TECH-006's reason: the fix is a per-page canonical, and a
-  // shared head file is the one place a fixer can write.
-  fixable: false,
+  // Fixable only by the repository-reading agent (ADR-0030): the fix is a canonical derived from
+  // the current route, which no static edit to a shared head file can express.
+  fixable: true,
   description: 'Many different pages declare the same canonical, pointing at another page.',
 
   evaluate: (context) => {

@@ -30,3 +30,19 @@ export type { ClusterToName, TopicNamingLlm } from './topic-names.js'
 
 export { MAX_SUGGESTIONS, suggestVisibilityPrompts } from './suggest-prompts.js'
 export type { PromptSuggestionLlm, SiteContext, SuggestedPrompt } from './suggest-prompts.js'
+
+export {
+  AGENT_FIXABLE_RULE_IDS,
+  buildRepoFixPrompt,
+  generateRepoFix,
+  proposalSchema,
+  validateProposal,
+} from './repo-fix.js'
+export type { Proposal, RepoFixDeps, RepoFixInput, RepoFixLlm, RepoFixOutcome } from './repo-fix.js'
+export {
+  isReadable,
+  looksLikeItHoldsACredential,
+  selectContext,
+  shortlist,
+} from './repo-context.js'
+export type { ContextFile, SelectedContext, TreeEntry } from './repo-context.js'

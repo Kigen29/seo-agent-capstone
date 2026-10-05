@@ -53,6 +53,11 @@ class FakeGitHubApi implements GitHubApi {
     this.calls.push(`getPullRequest:${number}`)
     return this.prOutcomes.get(number) ?? null
   }
+  tree: { path: string; size: number }[] = []
+  async listTree(branch: string) {
+    this.calls.push(`listTree:${branch}`)
+    return this.tree
+  }
   reverts = new Map<number, string>()
   async findMergedRevert(number: number) {
     this.calls.push(`findMergedRevert:${number}`)
@@ -211,5 +216,18 @@ describe('findMergedRevert', () => {
 
     expect(await providerWith(api).findMergedRevert(ctx, 24)).toBe('https://github.com/o/r/pull/30')
     expect(await providerWith(api).findMergedRevert(ctx, 25)).toBeNull()
+  })
+})
+
+describe('listFiles', () => {
+  it('lists the default branch, so the agent can see what is in a repository', async () => {
+    const api = new FakeGitHubApi()
+    api.tree = [
+      { path: 'index.html', size: 1178 },
+      { path: 'src/App.tsx', size: 9163 },
+    ]
+
+    expect(await providerWith(api).listFiles(ctx)).toEqual(api.tree)
+    expect(api.calls).toContain('listTree:main')
   })
 })

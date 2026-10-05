@@ -2,7 +2,9 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last reviewed: 2026-10-04.
+Last reviewed: 2026-10-05.
+
+**The agent now reads the repository (ADR-0030, migration 0031).** Until this change a pull request was possible for 11 of the 44 rules, because every fix had to be a hand-written fixer, and everything else was labelled "Needs you". Thirteen more rules are now fixed by an agent in `packages/agent`: a deterministic selector lists the repository, picks at most 14 files that bear on the finding, refuses environment files, workflows, keys and anything holding a credential, and the `smart` model returns find-and-replace edits that are validated before a pull request opens. It is tried last, after the registry and the meta-description writer. A proposal that edits a file it was not shown, matches ambiguously, deletes half a file or adds an unknown hostname opens nothing, and the reason is stored on the finding. **No test calls a real model, so the model half is unproven until a Fix click in production; watch the merge and revert rate of agent pull requests.** Findings the agent cannot take say why in one of four ways (outside your code, your decision, needs your content, bigger than a patch) from `apps/web/lib/manual-reason.ts`. The audit page no longer lists findings; it links to the inbox. A merged pull request whose webhook was lost is now noticed when its finding is read (#286).
 
 PR #268 added host-independent deployment reports and passed production release checks. A subsequent worker inspection found GitHub denying deployment lookup access before origin evidence could be evaluated. Issue #269 tracks App Deployments read permission and safe, actionable finding errors. Do not treat a successful worker workflow as a successful finding verification; the demo finding remains merged and unverified.
 

@@ -1,6 +1,7 @@
 import type { EarlierWork } from '@seo/api-client'
 import type { FindingPage } from '@seo/api-client'
 import Link from 'next/link'
+import { manualReasonFor } from '@/lib/manual-reason'
 import { ApiAsleep } from '@/components/api-asleep'
 import { SeverityBadge } from '@/components/severity'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -142,8 +143,8 @@ export default async function FindingsPage({
                   {finding.fixFailed
                     ? 'Last attempt failed. Open for details.'
                     : finding.fixable
-                      ? 'Automatic fix available; repository compatibility checked before opening a PR.'
-                      : 'Needs your input'}
+                      ? 'The agent can open a pull request for this.'
+                      : manualReasonFor(finding).label}
                 </p>
               </article>
             ))}
@@ -187,9 +188,14 @@ export default async function FindingsPage({
                       <tr key={finding.rowId}>
                         <td>
                           {/* Plain status chips: the outline style read as a button nobody could press. */}
-                          <span className={finding.fixable ? 'tag tag-success' : 'tag tag-neutral'}>
-                            {finding.fixable ? 'Automatic fix available' : 'Needs you'}
-                          </span>
+                          {finding.fixable ? (
+                            <span className="tag tag-success">Agent can fix</span>
+                          ) : (
+                            // Says why there is no pull request, instead of only that there is none.
+                            <span className="tag tag-neutral" title={manualReasonFor(finding).why}>
+                              {manualReasonFor(finding).label}
+                            </span>
+                          )}
                         </td>
                         <td>
                           <SeverityBadge severity={finding.severity} />

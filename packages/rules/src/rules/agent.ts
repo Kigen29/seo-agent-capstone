@@ -98,7 +98,7 @@ export const AGENT_002: Rule = {
   // Body structure in whichever component renders the route, which the repo reader cannot locate,
   // and the only file it could write to is a shared layout. Wrapping a layout's children in
   // `<main>` is often right and sometimes very wrong, and an agent cannot tell which.
-  fixable: false,
+  fixable: true,
   description: 'A page declares no main landmark, so an agent cannot tell where the content is.',
 
   evaluate: (context) =>
@@ -123,8 +123,8 @@ export const AGENT_002: Rule = {
             'exactly one matches, this was wrong. After the fix, an agent or screen reader can ' +
             'jump straight to the content instead of inferring it. ' +
             NOT_A_RANKING_FACTOR +
-            ' Fix this by hand: which region is the main content is a judgement about the page, ' +
-            'and wrapping a shared layout blindly would put the navigation inside the content.',
+            ' The agent can propose this in a pull request. When you review it, check that the ' +
+            'main element wraps the page content only, and not the navigation or the footer.',
         }
       }),
 }
@@ -145,7 +145,7 @@ export const AGENT_003: Rule = {
   // The one place a shared layout is the *right* file: `<html lang>` is genuinely site-wide, so
   // this is fixable in principle. It is not built yet, and the honest state is false rather than
   // a button that fails (ADR-0022).
-  fixable: false,
+  fixable: true,
   description: 'The html element declares no lang, so nothing says what language the page is in.',
 
   evaluate: (context) =>
@@ -162,8 +162,8 @@ export const AGENT_003: Rule = {
           'carries one, this was wrong. After the fix, a screen reader picks the right ' +
           'pronunciation and an agent stops having to guess the language. ' +
           NOT_A_RANKING_FACTOR +
-          ' Fix this by hand for now: it is one attribute on the html element in your root ' +
-          'layout, and the value has to be the language the page is actually written in.',
+          ' The agent can propose this in a pull request. When you review it, check that the ' +
+          'value is the language the pages are actually written in.',
       })),
 }
 

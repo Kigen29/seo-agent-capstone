@@ -9,6 +9,7 @@ import { Note, type NoteTone } from '@/components/ui/note'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { manualReasonFor } from '@/lib/manual-reason'
 import { FixButton } from './fix-button'
 import { FixProgress } from './fix-progress'
 
@@ -94,7 +95,11 @@ export default async function FindingPage({
       <div className="mt-4 mb-3 flex flex-wrap gap-2">
         <SeverityBadge severity={finding.severity} />
         <span className="tag tag-neutral">{finding.ruleId}</span>
-        {finding.fixable && <span className="tag tag-success">Automatic fix available</span>}
+        {finding.fixable ? (
+          <span className="tag tag-success">Agent can fix</span>
+        ) : (
+          <span className="tag tag-neutral">{manualReasonFor(finding).label}</span>
+        )}
       </div>
 
       <h1 className="mb-2">{finding.title}</h1>
@@ -210,9 +215,8 @@ export default async function FindingPage({
               missing feature. Some findings are advice; the falsification condition below says
               what to do about this one.
             */
-            <p className="text-muted m-0 text-[13px]">
-              This one needs a human: it cannot be fixed safely by editing a file in the repository.
-              See what would prove it wrong, below.
+            <p className="text-muted m-0 max-w-[68ch] text-[13px]">
+              <strong>{manualReasonFor(finding).label}.</strong> {manualReasonFor(finding).why}
             </p>
           )}
         </div>
@@ -227,7 +231,10 @@ export default async function FindingPage({
         />
         <Stat label="Impact" value={`${finding.estimatedImpact}/100`} />
         <Stat label="Confidence" value={`${Math.round(finding.confidence * 100)}%`} />
-        <Stat label="Fixable" value={finding.fixable ? 'Check repository' : 'Needs a human'} />
+        <Stat
+          label="Who fixes it"
+          value={finding.fixable ? 'The agent, in a pull request' : manualReasonFor(finding).label}
+        />
       </StatRow>
 
       {/*

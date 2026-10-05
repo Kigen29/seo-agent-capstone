@@ -79,7 +79,22 @@ export interface PullRequest {
   resolution?: 'merged' | 'closed'
 }
 
+/** One file in the repository, by path. Enough to decide what is worth reading. */
+export interface RepoTreeEntry {
+  path: string
+  /** Bytes. Lets a caller skip a video or a lockfile without fetching it. */
+  size: number
+}
+
 export interface VersionControlProvider {
+  /**
+   * Every file on the default branch, by path and size. Reading only: it grants nothing
+   * `getFile` does not already grant, and exists so the agent can see what is in a repository
+   * before deciding which files to read (ADR-0030). Optional, so a provider that cannot list is
+   * still a provider; the agent then says it could not look, rather than guessing.
+   */
+  listFiles?(ctx: RepoContext): Promise<RepoTreeEntry[]>
+
   /** Recover a side effect even if the PR closed before its URL was stored. */
   findPullRequest?(ctx: RepoContext, findingId: string): Promise<PullRequest | null>
 

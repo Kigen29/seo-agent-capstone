@@ -1,11 +1,9 @@
-import { priorityScore } from '@seo/core'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
 import { TopicMapFigure } from '@/components/topic-map'
-import { SeverityBadge } from '@/components/severity'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
@@ -49,7 +47,7 @@ export default async function AuditPage({
 
   if (siteId !== audit.siteId) redirect(`/audits/${id}?siteId=${audit.siteId}`)
 
-  const findings = [...audit.findings].sort((a, b) => priorityScore(b) - priorityScore(a))
+  const fixableCount = audit.findings.filter((finding) => finding.fixable).length
 
   return (
     <main id="main" className="wrap">
@@ -131,64 +129,32 @@ export default async function AuditPage({
             </section>
           )}
 
+          {/*
+            The findings themselves live in the inbox, where they can be filtered, sorted and
+            acted on. Listing them here as well made this page a second, worse copy of that one.
+            What belongs on an audit is how many there are and how many the agent can take.
+          */}
           <section style={{ marginTop: 'var(--space-8)' }}>
             <h2 className="h-section" style={{ marginBottom: 'var(--space-2)' }}>
-              Findings
+              What to do next
             </h2>
-            <p
-              style={{
-                marginBottom: 'var(--space-4)',
-                fontSize: 14,
-                opacity: 0.75,
-                maxWidth: '64ch',
-              }}
-            >
-              Most important first: the problems that matter most and cost least to fix are at the
-              top.
-            </p>
-
-            {findings.length === 0 ? (
+            {audit.findings.length === 0 ? (
               <p className="note note-ok">Nothing to report. Every check we ran passed.</p>
             ) : (
-              <div className="table-scroll">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Finding</th>
-                      <th>Severity</th>
-                      <th>Effort</th>
-                      <th>Impact</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {findings.map((finding) => (
-                      <tr key={finding.rowId}>
-                        <td>
-                          <div>{finding.title}</div>
-                          <div style={{ fontSize: 12, opacity: 0.55 }}>
-                            {finding.ruleId} &middot; {finding.affectedUrls.length}{' '}
-                            {finding.affectedUrls.length === 1 ? 'page' : 'pages'}
-                            {finding.fixable && (
-                              <span style={{ color: 'var(--color-accent-700)' }}>
-                                {' '}
-                                &middot; we can write the fix
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <SeverityBadge severity={finding.severity} />
-                        </td>
-                        <td style={{ textTransform: 'capitalize' }}>{finding.estimatedEffort}</td>
-                        <td className="tnum">{finding.estimatedImpact}/100</td>
-                        <td className="whitespace-nowrap">
-                          <Link href={`/findings/${finding.rowId}`}>View &rarr;</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
+                <p className="m-0">
+                  This audit raised <strong>{audit.findings.length}</strong>{' '}
+                  {audit.findings.length === 1 ? 'finding' : 'findings'}. The agent can open a pull
+                  request for <strong>{fixableCount}</strong> of them.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/findings?siteId=${audit.siteId}&fixable=true`}
+                    className="btn btn-primary btn-sm"
+                  >
+                    Review what the agent can fix
+                  </Link>
+                </div>
               </div>
             )}
           </section>
