@@ -113,6 +113,30 @@ describe('model spending reservations', () => {
       expect.objectContaining({ reservationId: 'second' }),
     )
   })
+  it('tries the next target when one says the request is too large for it', async () => {
+    mock.chain.mockReturnValue({
+      targets: [
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+      ],
+    })
+    mock.object
+      .mockRejectedValueOnce(
+        new Error('Request too large for model on tokens per minute (TPM): Limit 8000'),
+      )
+      .mockResolvedValueOnce({ object: { ok: true }, usage: { inputTokens: 10, outputTokens: 5 } })
+    const check = vi.fn().mockResolvedValue({ allowed: true, reservationId: 'r' })
+
+    const result = await new LlmClient(vi.fn(), check).object({
+      role: 'smart',
+      tenantId: 'tenant',
+      prompt: 'test',
+      schema: z.object({ ok: z.boolean() }),
+    })
+
+    expect(result.output).toEqual({ ok: true })
+    expect(mock.object).toHaveBeenCalledTimes(2)
+  })
   it('refuses the vendor call when reservation capacity is unavailable', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
     await expect(

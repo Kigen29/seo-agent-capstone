@@ -39,6 +39,20 @@ react, react-helmet-async
 
 FILE>>>
 
+### src/components/SEO.tsx
+<<<FILE
+import { Helmet } from 'react-helmet-async'
+
+export function SEO({ title }: { title: string }) {
+  return (
+    <Helmet>
+      <title>{title}</title>
+    </Helmet>
+  )
+}
+
+FILE>>>
+
 ### src/App.tsx
 <<<FILE
 export default function App() {
@@ -66,20 +80,6 @@ FILE>>>
 <<<FILE
 export default function Contact() {
   return <h1>Contact</h1>
-}
-
-FILE>>>
-
-### src/components/SEO.tsx
-<<<FILE
-import { Helmet } from 'react-helmet-async'
-
-export function SEO({ title }: { title: string }) {
-  return (
-    <Helmet>
-      <title>{title}</title>
-    </Helmet>
-  )
 }
 
 FILE>>>

@@ -1,9 +1,13 @@
 import type { Finding } from '@seo/core'
 import { describe, expect, it } from 'vitest'
 import {
+  CONTEXT_SIZES,
   evidenceNeedles,
+  fitContext,
   isReadable,
   looksLikeItHoldsACredential,
+  pathScore,
+  rankCandidates,
   selectContext,
   shortlist,
   urlTokens,
@@ -304,7 +308,213 @@ describe('selectContext', () => {
     const context = await selectContext(big, finding(), async () => 'x'.repeat(20_000))
 
     const total = context.files.reduce((sum, f) => sum + f.content.length, 0)
-    expect(total).toBeLessThanOrEqual(70_000)
-    expect(context.files.length).toBeLessThanOrEqual(14)
+    expect(total).toBeLessThanOrEqual(CONTEXT_SIZES[0]!.chars)
+    expect(context.files.length).toBeLessThanOrEqual(CONTEXT_SIZES[0]!.files)
+  })
+})
+
+/**
+ * Found by running the selector against the real repository of a real site, with no model
+ * involved. Each of these is something it got wrong there.
+ */
+describe('ranking, as corrected against a real repository', () => {
+  const SAFARI: TreeEntry[] = [
+    file('index.html'),
+    file('src/App.tsx'),
+    file('src/main.tsx'),
+    file('src/components/SEO.tsx'),
+    file('src/components/admin/AdminLayout.tsx'),
+    file('src/components/Layout.tsx'),
+    file('src/pages/About.tsx'),
+    file('src/pages/Contact.tsx'),
+    file('src/pages/Destinations.tsx'),
+    file('src/pages/destinations/Amboseli.tsx'),
+    file('src/pages/destinations/Samburu.tsx'),
+    file('src/pages/destinations/LakeNakuru.tsx'),
+    file('app/destinations/page.tsx'),
+  ]
+  const about = (ruleId: string) =>
+    finding({
+      ruleId,
+      affectedUrls: ['https://www.example.com/destinations', 'https://www.example.com/about'],
+    })
+
+  it('reads /destinations as the destinations page, not every file in a destinations folder', () => {
+    const list = shortlist(SAFARI, about('TECH-026'))
+
+    expect(list.indexOf('src/pages/Destinations.tsx')).toBeLessThan(
+      list.indexOf('src/pages/destinations/Amboseli.tsx'),
+    )
+    expect(pathScore('src/pages/destinations/Samburu.tsx', about('TECH-026'))).toBeLessThan(
+      pathScore('src/pages/About.tsx', about('TECH-026')),
+    )
+  })
+
+  it('still treats a folder as the page when the framework names every route file the same', () => {
+    expect(pathScore('app/destinations/page.tsx', about('TECH-026'))).toBeGreaterThan(
+      pathScore('src/pages/destinations/Samburu.tsx', about('TECH-026')),
+    )
+  })
+
+  it('puts the head component and the document above any page for a rule fixed in the head', () => {
+    expect(shortlist(SAFARI, about('TECH-026')).slice(0, 2).sort()).toEqual([
+      'index.html',
+      'src/components/SEO.tsx',
+    ])
+    // A heading is fixed in the page, so there the page wins.
+    expect(pathScore('src/pages/About.tsx', about('TECH-019'))).toBeGreaterThan(
+      pathScore('src/components/SEO.tsx', about('TECH-019')),
+    )
+  })
+
+  it('does not offer the admin layout as the place to add a main landmark', () => {
+    const list = shortlist(SAFARI, about('AGENT-002'))
+
+    expect(list.indexOf('src/components/Layout.tsx')).toBeLessThan(
+      list.indexOf('src/components/admin/AdminLayout.tsx'),
+    )
+    expect(list.indexOf('src/components/admin/AdminLayout.tsx')).toBeGreaterThan(5)
+  })
+
+  it('does not let one long page crowd out the small file the fix belongs in', async () => {
+    const sizes: Record<string, number> = {
+      'src/pages/Destinations.tsx': 26_000,
+      'src/pages/Contact.tsx': 22_000,
+      'src/pages/About.tsx': 13_000,
+    }
+    const read = async (path: string) =>
+      `// ${path}\nconst description = 1\n` + 'x'.repeat(sizes[path] ?? 2_000)
+
+    const context = await selectContext(SAFARI, about('TECH-026'), read)
+    const paths = context.files.map((f) => f.path)
+
+    expect(paths.slice(0, 2).sort()).toEqual(['index.html', 'src/components/SEO.tsx'])
+    expect(paths).toContain('index.html')
+    expect(paths).toContain('src/App.tsx')
+    // Over two fifths of the budget and not known to contain the evidence: left for a request.
+    expect(paths).not.toContain('src/pages/Destinations.tsx')
+    expect(context.otherPaths).toContain('src/pages/Destinations.tsx')
+  })
+})
+
+describe('fitContext: one ranking, cut to more than one size', () => {
+  const tree: TreeEntry[] = Array.from({ length: 40 }, (_, i) => file(`src/pages/Page${i}.tsx`))
+  const read = async (path: string) => `// ${path}\n` + 'x'.repeat(1_500)
+
+  it('shrinks the files, their total size and the list of other paths together', async () => {
+    const ranked = await rankCandidates(tree, finding(), read)
+
+    const sizes = CONTEXT_SIZES.map((limits) => fitContext(ranked, limits))
+    const chars = sizes.map((c) => c.files.reduce((sum, f) => sum + f.content.length, 0))
+
+    sizes.forEach((context, i) => {
+      expect(context.files.length).toBeLessThanOrEqual(CONTEXT_SIZES[i]!.files)
+      expect(chars[i]).toBeLessThanOrEqual(CONTEXT_SIZES[i]!.chars)
+      expect(context.otherPaths.length).toBeLessThanOrEqual(CONTEXT_SIZES[i]!.otherPaths)
+    })
+    expect(chars[2]).toBeLessThan(chars[1]!)
+    expect(chars[1]).toBeLessThan(chars[0]!)
+    expect(sizes[2]!.files.length).toBeGreaterThan(0)
+  })
+
+  it('keeps the best files when it shrinks, in the same order', async () => {
+    const ranked = await rankCandidates(tree, finding(), read)
+    const large = fitContext(ranked, CONTEXT_SIZES[0]).files.map((f) => f.path)
+    const small = fitContext(ranked, CONTEXT_SIZES[2]).files.map((f) => f.path)
+
+    expect(large.slice(0, small.length)).toEqual(small)
+  })
+
+  it('reads nothing when it is cut again', async () => {
+    let reads = 0
+    const ranked = await rankCandidates(tree, finding(), async (path) => {
+      reads += 1
+      return read(path)
+    })
+    const before = reads
+
+    fitContext(ranked, CONTEXT_SIZES[1])
+    fitContext(ranked, CONTEXT_SIZES[2])
+
+    expect(reads).toBe(before)
+  })
+})
+
+describe('evidence that is everywhere points nowhere', () => {
+  const tree: TreeEntry[] = [
+    file('index.html'),
+    file('src/components/StructuredData.tsx'),
+    file('src/pages/About.tsx'),
+    file('src/pages/Services.tsx'),
+    file('src/pages/Tours.tsx'),
+    file('src/pages/Contact.tsx'),
+  ]
+  const site = 'https://www.example.com/'
+
+  it('does not let the site address outrank the file that holds the tag', async () => {
+    // The address is in every page; only the shell has the canonical tag the audit observed.
+    const read = async (path: string) =>
+      path === 'index.html'
+        ? `<html><head><link rel="canonical" href="${site}" /></head></html>`
+        : `export const url = "${site}"\n// ${path}`
+
+    const ranked = await rankCandidates(tree, finding({ affectedUrls: [`${site}tours`] }), read)
+
+    expect(ranked.loaded[0]!.path).toBe('index.html')
+    expect(ranked.loaded.filter((f) => f.pinned)).toEqual([])
+  })
+
+  it('still pins a file when the evidence is found in only a few', async () => {
+    const read = async (path: string) =>
+      path === 'src/pages/Services.tsx' ? `<link rel="canonical" href="${site}" />` : `// ${path}`
+
+    const ranked = await rankCandidates(tree, finding(), read)
+
+    expect(ranked.loaded[0]).toMatchObject({ path: 'src/pages/Services.tsx', pinned: true })
+  })
+})
+
+describe('the document shell survives the smallest cut for a rule fixed in the head', () => {
+  it('ranks index.html above a helper that only has SEO in its name', () => {
+    const tree: TreeEntry[] = [
+      file('src/utils/seoHelpers.ts'),
+      file('src/data/seoContent.ts'),
+      file('index.html'),
+      file('src/components/SEO.tsx'),
+    ]
+
+    const list = shortlist(tree, finding({ ruleId: 'TECH-023' }))
+
+    expect(list.slice(0, 2).sort()).toEqual(['index.html', 'src/components/SEO.tsx'])
+    // A heading is not fixed in the shell, so there it gets no such lift.
+    expect(pathScore('index.html', finding({ ruleId: 'TECH-019' }))).toBeLessThan(
+      pathScore('index.html', finding({ ruleId: 'TECH-023' })),
+    )
+  })
+})
+
+describe('the share cap protects the best files, it does not exclude them', () => {
+  it('keeps the two best files at the smallest size even when one is over the cap', async () => {
+    const tree: TreeEntry[] = [
+      file('src/components/SEO.tsx'),
+      file('index.html'),
+      file('src/pages/About.tsx'),
+    ]
+    const sizes: Record<string, number> = { 'src/components/SEO.tsx': 4_300, 'index.html': 2_800 }
+    const read = async (path: string) => 'x'.repeat(sizes[path] ?? 6_000)
+    const small = CONTEXT_SIZES[2]!
+
+    const ranked = await rankCandidates(
+      tree,
+      finding({ ruleId: 'TECH-026', evidence: { ...finding().evidence, snippet: '' } as never }),
+      read,
+    )
+    const context = fitContext(ranked, small)
+
+    expect(4_300).toBeGreaterThan(small.chars * 0.4)
+    expect(context.files.map((f) => f.path).sort()).toEqual([
+      'index.html',
+      'src/components/SEO.tsx',
+    ])
   })
 })

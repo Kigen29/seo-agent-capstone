@@ -220,6 +220,8 @@ What makes this defensible is that everything around the model call is code. A s
 
 Thirteen rules are on the agent's list and three near neighbours are deliberately off it, because their fix is a choice (which of robots and the sitemap is right, where a redirect should go) or needs something the agent cannot see (what an image shows). The findings that remain manual no longer say "Needs you". Each names one of four reasons, because each implies a different next step for the reader. The cost stays inside ADR-0005: one `smart` call per finding, and a second only when the model asks for more files.
 
+The first test of that design against reality needed no model (ADR-0031). Because selection is deterministic, it was run against the repositories of the two real sites, and what it chose was read by a person. It found that the prompt was more than twice what the configured free-plan models accept in a minute, that a refusal for size would not have fallen through the model chain, that the error shown would have been a header with no cause, and four ranking mistakes a hand-made file tree had not shown. The context now has three sizes and steps down on a size refusal, and each ranking mistake has a test named for what went wrong. The method is the lesson: a deterministic stage can be rehearsed against production inputs for free, and the rehearsal found more than the unit tests did.
+
 The limit is stated plainly in the ADR and here: the deterministic half is tested exhaustively and the whole path is tested against a real database with a fake model, but no test calls a real model. The measures of the model half are the merge rate and revert rate of its pull requests in production.
 
 ### 1.17 Proof of deployment, and whose credentials provide it (ADR-0027, ADR-0028)
@@ -508,5 +510,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0028 | Hosting credentials belong to the site, not to the operator | Accepted; narrows 0027 |
 | 0029 | A finding is the same finding on the next audit | Accepted |
 | 0030 | The agent reads the repository and proposes the fix | Accepted; supersedes part of 0011 |
+| 0031 | The agent's context shrinks to fit the model | Accepted; amends 0030 |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

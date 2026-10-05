@@ -31,7 +31,12 @@ function isRetriable(err: unknown): boolean {
     msg.includes('overloaded') ||
     msg.includes('timeout') ||
     msg.includes('503') ||
-    msg.includes('502')
+    msg.includes('502') ||
+    // A request one target calls too large may fit the next: limits differ by model and by plan.
+    msg.includes('too large') ||
+    msg.includes('413') ||
+    msg.includes('context length') ||
+    msg.includes('context window')
   )
 }
 
