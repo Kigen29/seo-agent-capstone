@@ -25,8 +25,8 @@ const TOUR_COPY =
   'that we can swap the one stepped alley for the ramp beside the old customs house instead.'
 
 describe('the rule registry', () => {
-  it('ships the forty rules the registry declares', () => {
-    expect(ALL_RULES).toHaveLength(40)
+  it('ships the forty-one rules the registry declares', () => {
+    expect(ALL_RULES).toHaveLength(41)
   })
 
   it('has no duplicate rule ids', () => {

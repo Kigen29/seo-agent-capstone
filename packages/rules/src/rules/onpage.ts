@@ -334,3 +334,48 @@ export const TECH_030: Rule = {
     })
   },
 }
+
+/**
+ * TECH-031: links to other sites that no longer go anywhere.
+ *
+ * Only links the crawl established are gone: the server answered 404 or 410, or the domain no
+ * longer resolves. A site that refused the crawler, errored, or timed out is not reported, because
+ * most of those links work in a browser and "fix" would mean deleting a good citation.
+ */
+export const TECH_031: Rule = {
+  id: 'TECH-031',
+  axis: 'structure',
+  severity: 'low',
+  estimatedEffort: 'small',
+  fixable: false,
+  description: 'Links to other websites point at pages that no longer exist.',
+
+  evaluate: (context) => {
+    const broken = (context.outbound ?? []).filter((link) => link.outcome === 'broken')
+    if (broken.length === 0) return []
+
+    const carriers = new Set(broken.flatMap((link) => link.linkedFrom))
+    const pages = indexableHtmlPages(context.pages).filter((page) => carriers.has(page.finalUrl))
+    const first = pages[0] ?? context.pages[0]
+    if (!first) return []
+
+    const describe = (link: (typeof broken)[number]): string =>
+      `${link.url} (${link.status ?? 'domain does not resolve'})`
+
+    return [
+      {
+        title: `${plural(broken.length, 'link to another site is', 'links to other sites are')} dead`,
+        subject: 'broken-outbound-links',
+        evidence: markupEvidence(first, 'a[href]', broken.slice(0, 5).map(describe).join(' | ')),
+        affectedUrls: pages.length > 0 ? pages.map((page) => page.finalUrl) : [first.finalUrl],
+        // A 404 from a crawler is occasionally a refusal in disguise, so not quite certain.
+        confidence: 0.9,
+        estimatedImpact: 15,
+        falsification:
+          `Open ${broken[0]!.url} in a browser. If the page loads, this was wrong for that link: ` +
+          'some servers answer a crawler with 404 while serving people. After the fix, each ' +
+          'listed link either points at a page that loads or has been removed.',
+      },
+    ]
+  },
+}

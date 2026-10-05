@@ -1820,3 +1820,52 @@ describe('TECH-030: awkward page addresses', () => {
     ])
   })
 })
+
+describe('TECH-031: dead links to other sites', () => {
+  const linking = page({ path: '/guide', html: html.doc(body(150)) })
+  const outbound = (
+    outcome: 'ok' | 'broken' | 'inconclusive',
+    url: string,
+    status: number | null,
+  ) => ({ url, outcome, status, linkedFrom: [u('/guide')] })
+
+  it('raises one finding for the links that are gone, on the pages that carry them', () => {
+    const findings = fire(
+      'TECH-031',
+      context({
+        pages: [linking, page({ path: '/other', html: html.doc(body(150)) })],
+        outbound: [
+          outbound('broken', 'https://old.example/report', 404),
+          outbound('broken', 'https://dead-domain.example/', null),
+          outbound('ok', 'https://fine.example/', 200),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe('2 links to other sites are dead')
+    expect(findings[0]?.affectedUrls).toEqual([u('/guide')])
+    expect(JSON.stringify(findings[0]?.evidence)).toContain('https://old.example/report (404)')
+    expect(JSON.stringify(findings[0]?.evidence)).toContain('domain does not resolve')
+  })
+
+  it('says nothing about a site that refused the crawler or did not answer', () => {
+    // Most of these links work in a browser. Reporting them would have people delete good citations.
+    expect(
+      fire(
+        'TECH-031',
+        context({
+          pages: [linking],
+          outbound: [
+            outbound('inconclusive', 'https://blocks-bots.example/', 403),
+            outbound('inconclusive', 'https://slow.example/', null),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent when the crawl did not check outbound links at all', () => {
+    expect(fire('TECH-031', context({ pages: [linking] }))).toEqual([])
+  })
+})

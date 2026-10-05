@@ -40,6 +40,8 @@ export type { CrawlHooks, CrawlOptions } from './crawl/crawler.js'
 export { createEgressGuard } from './crawl/egress.js'
 export type { BlockedRequest, EgressGuard, EgressPolicy } from './crawl/egress.js'
 export { Pacer } from './crawl/pacer.js'
+export { checkOutboundLinks, DEFAULT_OUTBOUND_LIMIT, outboundCandidates } from './crawl/outbound.js'
+export type { OutboundLink, OutboundOutcome } from './crawl/outbound.js'
 export type { CrawledPage, CrawlResult, SkippedUrl } from './crawl/types.js'
 
 export { expandSitemaps } from './sitemap/expand.js'

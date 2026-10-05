@@ -302,6 +302,9 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         maxPages: options.maxPages ?? 50,
         concurrency: options.concurrency ?? 2,
         egress: options.egress,
+        // A verification re-crawl exists to re-check specific findings; outbound links are not
+        // among the things it can verify, so it does not spend requests on them.
+        ...(options.verificationFindings ? { outboundLinkLimit: 0 } : {}),
       },
       { onPage },
     )
@@ -341,6 +344,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       sitemapUrls: result.sitemapUrls,
       graph: buildLinkGraph(toGraphPages(result.pages), { seed }),
       skipped: result.skipped,
+      ...(result.outbound ? { outbound: result.outbound } : {}),
     })
 
     /**

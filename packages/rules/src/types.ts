@@ -1,5 +1,12 @@
 import type { Axis, Effort, Evidence, Finding, Severity } from '@seo/core'
-import type { AiCrawlerPosture, CrawledPage, LinkGraph, RobotsTxt, SkippedUrl } from '@seo/crawler'
+import type {
+  AiCrawlerPosture,
+  CrawledPage,
+  LinkGraph,
+  OutboundLink,
+  RobotsTxt,
+  SkippedUrl,
+} from '@seo/crawler'
 
 /**
  * Everything a rule is allowed to look at. Note what is NOT here: no network, no LLM, no
@@ -21,6 +28,12 @@ export interface RuleContext {
   sitemapUrls: string[]
   graph: LinkGraph
   skipped: SkippedUrl[]
+  /**
+   * What became of the external links the pages carry, when the crawl checked them. An
+   * observation from the crawl like everything else here; absent when the check did not run, in
+   * which case the rule that reads it stays silent rather than assuming every link is fine.
+   */
+  outbound?: readonly OutboundLink[]
   /**
    * The Google Business Profile the client connected, when they have connected one.
    *

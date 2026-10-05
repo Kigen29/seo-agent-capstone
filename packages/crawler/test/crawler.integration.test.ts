@@ -115,6 +115,63 @@ describe('crawl: against a live server', () => {
     expect(home?.extract.links.some((l) => l.internal === false)).toBe(true)
   })
 
+  describe('links that leave the site', () => {
+    const outcomeOf = (path: string) =>
+      result.outbound?.find((link) => link.url === `${site.external}${path}`)
+
+    it('checks each external link once, however often it appears', () => {
+      // `/alive` and `/alive#section` are one page; a mailto: is not a page at all.
+      expect(result.outbound).toHaveLength(8)
+      expect(result.outbound?.filter((link) => link.url.endsWith('/alive'))).toHaveLength(1)
+    })
+
+    it('calls a link broken only when the page is gone', () => {
+      expect(outcomeOf('/gone')).toMatchObject({ outcome: 'broken', status: 404 })
+      expect(outcomeOf('/removed')).toMatchObject({ outcome: 'broken', status: 410 })
+      // Followed to where it lands: a redirect to a deleted page is a deleted page.
+      expect(outcomeOf('/moved-to-nowhere')).toMatchObject({ outcome: 'broken', status: 404 })
+      expect(outcomeOf('/gone')?.linkedFrom).toEqual([`${site.origin}/`])
+    })
+
+    it('does not call a link broken because the site refused a crawler or had a bad moment', () => {
+      // Sending a person to "fix" a link that works is how an audit gets ignored.
+      expect(outcomeOf('/blocks-bots')).toMatchObject({ outcome: 'inconclusive', status: 403 })
+      expect(outcomeOf('/flaky')).toMatchObject({ outcome: 'inconclusive', status: 503 })
+    })
+
+    it('does not trust HEAD on its own, because many servers answer it wrongly', () => {
+      expect(outcomeOf('/head-lies')).toMatchObject({ outcome: 'ok', status: 200 })
+      const methods = site.externalRequests
+        .filter((request) => request.url === '/head-lies')
+        .map((request) => request.method)
+      expect(methods).toEqual(['HEAD', 'GET'])
+    })
+
+    it('reports a working link and a moved one as fine, with one cheap request each', () => {
+      expect(outcomeOf('/alive')).toMatchObject({ outcome: 'ok', status: 200 })
+      expect(outcomeOf('/moved')).toMatchObject({ outcome: 'ok', status: 200 })
+      expect(
+        site.externalRequests.filter(
+          (request) => request.url === '/alive' && request.method === 'GET',
+        ),
+      ).toHaveLength(0)
+    })
+
+    it('never crawls the outside site: it asks about the linked pages and nothing else', () => {
+      const asked = new Set(site.externalRequests.map((request) => request.url))
+      expect([...asked].sort()).toEqual([
+        '/alive',
+        '/blocks-bots',
+        '/flaky',
+        '/gone',
+        '/head-lies',
+        '/moved',
+        '/moved-to-nowhere',
+        '/removed',
+      ])
+    })
+  })
+
   it('does not follow a rel=nofollow link', () => {
     expect(site.requests.map((r) => r.url)).not.toContain('/nofollowed')
   })

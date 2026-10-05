@@ -22,7 +22,7 @@ It is a coverage map, not a source of truth. Where a course and a primary source
 | Video | Not checked | |
 | Keyword density | Not checked, deliberately | Does not separate pages that rank from pages that do not, and writing to a density target makes pages worse. |
 | Internal links | TECH-010 (broken), TECH-013 (orphans), TECH-014 (click depth) | |
-| External links | **Gap** | Broken outbound links are not checked: the crawler stays on the site's own host. |
+| External links | TECH-031 (dead links to other sites) | Up to 100 distinct links are checked after the crawl, through the egress guard. Only a 404, a 410 or a domain that no longer resolves counts as dead; a site that refuses crawlers or times out is not reported. |
 
 ## Off-page
 
@@ -45,7 +45,7 @@ It is a coverage map, not a source of truth. Where a course and a primary source
 | Robots.txt | TECH-001, TECH-002 | |
 | Crawl depth | TECH-014 | The same three-click threshold the course teaches. |
 | Duplicate tags | TECH-011, TECH-027, TECH-019 | |
-| Broken links | TECH-010 | Internal only; see External links above. |
+| Broken links | TECH-010 (internal), TECH-031 (to other sites) | |
 | Orphaned pages | TECH-013 | |
 
 ## Not in the course, checked here
@@ -54,6 +54,5 @@ Canonicals (TECH-006, TECH-007, TECH-023), redirects (TECH-008, TECH-009), soft 
 
 ## Gaps worth closing next
 
-1. Broken outbound links, which needs a bounded off-host link checker behind the egress guard.
-2. Mobile responsiveness, from the viewport meta tag and a narrow-viewport render.
-3. Image weight and format.
+1. Mobile responsiveness, from the viewport meta tag and a narrow-viewport render.
+2. Image weight and format.
