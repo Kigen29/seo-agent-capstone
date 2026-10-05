@@ -40,6 +40,7 @@ import { measureTopics, type NameClusters, type TopicsLlm } from './topics.js'
 import { measureSearch } from './search.js'
 import { measureVisibility } from './visibility.js'
 import { measureAuthority } from './authority.js'
+import { earlierFindings, fingerprintAll } from './fingerprint.js'
 
 /** The env OAuth config, or undefined when Google is not configured. Never throws. */
 function googleOAuthConfig(): OAuthConfig | undefined {
@@ -510,44 +511,65 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       ...(topics.map ? { topics: topics.map } : {}),
     }
 
+    const fingerprints = fingerprintAll(found)
+
     await withTenant(db, tenantId, async (tx) => {
       if (found.length > 0) {
+        /**
+         * The same issue as last time is recognised here, once, as the audit is written
+         * (ADR-0029). Two things are carried onto the new row. When it was first seen, so an issue
+         * open since August does not look new every Monday. And a won't-fix decision, which is a
+         * person's answer about the issue rather than about one audit's copy of it, and used to be
+         * forgotten on every run.
+         *
+         * A pull request or a verification is deliberately NOT copied: those belong to the row the
+         * pull request was opened for, which the webhook and the verifier find by its URL. The new
+         * row is linked to that work when it is read, instead of owning a second copy of it.
+         */
+        const earlier = await earlierFindings(tx, siteId, [...fingerprints.values()], auditId)
+
         await tx.insert(findingsTable).values(
-          found.map((finding) => ({
-            tenantId,
-            siteId,
-            auditId,
-            key: finding.id,
-            ruleId: finding.ruleId,
-            axis: finding.axis,
-            severity: finding.severity,
-            confidence: finding.confidence,
-            title: finding.title,
-            evidence: finding.evidence,
-            affectedUrls: finding.affectedUrls,
-            estimatedEffort: finding.estimatedEffort,
-            estimatedImpact: finding.estimatedImpact,
-            /**
-             * Computed here, with the same exported function the UI sorts by, so the column and
-             * the formula cannot disagree. Storing it is what lets the API order and paginate the
-             * inbox in SQL instead of loading every finding to discover the first twenty.
-             */
-            priorityScore: priorityScore(finding),
-            falsification: finding.falsification,
-            /**
-             * Asked of the fixers, not copied from the rule, for the same reason `priorityScore`
-             * above is computed rather than stored twice: a column and the code that must honour
-             * it cannot be allowed to disagree.
-             *
-             * A rule declaring `fixable: true` is a statement of intent. Whether a pull request
-             * can actually be written is a fact about which fixers exist, and only the registry
-             * knows it. Copying the rule's claim meant TECH-013 rows were persisted promising a
-             * fix that nothing could write; the button was offered, the job queued, and the user
-             * waited for a failure that was certain before they clicked.
-             */
-            fixable: canFixFinding(finding),
-            status: finding.status,
-          })),
+          found.map((finding) => {
+            const fingerprint = fingerprints.get(finding)!
+            const before = earlier.get(fingerprint)
+            return {
+              tenantId,
+              siteId,
+              auditId,
+              key: finding.id,
+              fingerprint,
+              ...(before ? { firstSeenAt: before.firstSeenAt } : {}),
+              ruleId: finding.ruleId,
+              axis: finding.axis,
+              severity: finding.severity,
+              confidence: finding.confidence,
+              title: finding.title,
+              evidence: finding.evidence,
+              affectedUrls: finding.affectedUrls,
+              estimatedEffort: finding.estimatedEffort,
+              estimatedImpact: finding.estimatedImpact,
+              /**
+               * Computed here, with the same exported function the UI sorts by, so the column and
+               * the formula cannot disagree. Storing it is what lets the API order and paginate the
+               * inbox in SQL instead of loading every finding to discover the first twenty.
+               */
+              priorityScore: priorityScore(finding),
+              falsification: finding.falsification,
+              /**
+               * Asked of the fixers, not copied from the rule, for the same reason `priorityScore`
+               * above is computed rather than stored twice: a column and the code that must honour
+               * it cannot be allowed to disagree.
+               *
+               * A rule declaring `fixable: true` is a statement of intent. Whether a pull request
+               * can actually be written is a fact about which fixers exist, and only the registry
+               * knows it. Copying the rule's claim meant TECH-013 rows were persisted promising a
+               * fix that nothing could write; the button was offered, the job queued, and the user
+               * waited for a failure that was certain before they clicked.
+               */
+              fixable: canFixFinding(finding),
+              status: before?.status === 'wontfix' ? ('wontfix' as const) : finding.status,
+            }
+          }),
         )
       }
 

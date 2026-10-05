@@ -97,7 +97,10 @@ export default async function FindingPage({
         {finding.fixable && <span className="tag tag-success">Automatic fix available</span>}
       </div>
 
-      <h1 className="mb-4">{finding.title}</h1>
+      <h1 className="mb-2">{finding.title}</h1>
+      <p className="text-muted mt-0 mb-4 text-[13px]">
+        First seen {firstSeen.format(new Date(finding.firstSeenAt))}
+      </p>
 
       {/* The action that closes the loop: turn this finding into a pull request. */}
       {finding.status === 'pr_open' && finding.prUrl ? (
@@ -121,8 +124,39 @@ export default async function FindingPage({
         <Note tone="error" className="mb-6">
           The fix was merged, but a re-audit still finds this. It did not work; the finding stands.
         </Note>
+      ) : finding.earlier?.work === 'in_progress' ? (
+        /*
+          The same issue, raised again by a newer audit while a fix from an earlier one is still
+          in flight. Offering the button here would open a second pull request for it.
+        */
+        <Note tone="ok" className="mb-6">
+          A fix for this is already in progress from an earlier audit.{' '}
+          {finding.earlier.prUrl && (
+            <>
+              <a href={finding.earlier.prUrl} target="_blank" rel="noreferrer">
+                Open the pull request
+              </a>
+              {' or '}
+            </>
+          )}
+          <Link href={`/findings/${finding.earlier.rowId}?siteId=${finding.siteId}`}>
+            see its progress
+          </Link>
+          .
+        </Note>
       ) : (
         <div className="mb-6">
+          {finding.earlier && (
+            <Note tone={finding.earlier.work === 'regressed' ? 'warn' : 'info'} className="mb-3">
+              {finding.earlier.work === 'regressed'
+                ? 'This was fixed and verified before, and it is back. '
+                : 'An earlier fix for this was merged and did not work. '}
+              <Link href={`/findings/${finding.earlier.rowId}?siteId=${finding.siteId}`}>
+                See what was tried
+              </Link>
+              .
+            </Note>
+          )}
           {/*
             A queued fix is watched, not announced.
 
@@ -324,3 +358,5 @@ function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
     </section>
   )
 }
+
+const firstSeen = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })

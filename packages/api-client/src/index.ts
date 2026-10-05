@@ -80,6 +80,23 @@ export interface FindingListItem {
   affectedUrlCount: number
   /** Whether the last attempt to fix this failed. The reason is on the finding itself. */
   fixFailed: boolean
+  /** When this issue was first raised on the site, across audits. ISO 8601. */
+  firstSeenAt: string
+  earlier: EarlierWork | null
+}
+
+/**
+ * Earlier work on the same issue, found through a previous audit's record of it.
+ *
+ *   in_progress: a pull request is open, or merged and not yet checked
+ *   regressed:   it was fixed and verified, and it is back
+ *   fix_failed:  a merged fix was checked and did not work
+ */
+export interface EarlierWork {
+  work: 'in_progress' | 'regressed' | 'fix_failed'
+  /** The earlier finding, which carries the pull request and its outcome. */
+  rowId: string
+  prUrl: string | null
 }
 
 /** What the inbox can be narrowed and ordered by. All optional; the API validates and bounds them. */
@@ -744,8 +761,16 @@ export function createApiClient(options: ApiClientOptions) {
       (await request<{ attempts: FixAttempt[] }>(`/findings/${id}/attempts`)).attempts,
 
     getFinding: async (id: string) =>
-      (await request<{ finding: Finding & { rowId: string; auditId: string } }>(`/findings/${id}`))
-        .finding,
+      (
+        await request<{
+          finding: Finding & {
+            rowId: string
+            auditId: string
+            firstSeenAt: string
+            earlier: EarlierWork | null
+          }
+        }>(`/findings/${id}`)
+      ).finding,
 
     /**
      * Ask the agent to open a pull request that fixes a finding. Returns the queue status; the

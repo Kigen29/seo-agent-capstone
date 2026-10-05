@@ -10,6 +10,12 @@ import {
 } from '@seo/core'
 import { audits, findings, sites, visibilityPrompts, withTenant, type Database } from '@seo/db'
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import {
+  earlierFindings,
+  earlierWorkOf,
+  type EarlierFinding,
+  type EarlierWork,
+} from './fingerprint.js'
 
 /**
  * The read side. Everything the dashboard needs, and nothing that writes.
@@ -142,6 +148,10 @@ export interface FindingListItem {
    * `affectedUrls` from this shape applies to a paragraph of error text on every row.
    */
   fixFailed: boolean
+  /** When this issue was first raised on the site, across audits. ISO 8601. */
+  firstSeenAt: string
+  /** Earlier work on the same issue, from a previous audit's record of it. Null when none. */
+  earlier: { work: EarlierWork; rowId: string; prUrl: string | null } | null
 }
 
 /** What the caller may narrow the inbox by. Every field is optional and independent. */
@@ -253,6 +263,9 @@ export async function listFindings(
         // Reduced to a boolean in SQL, so a paragraph of error text is not serialised onto every
         // row of every page to render one badge.
         fixFailed: sql<boolean>`${findings.fixError} is not null`,
+        firstSeenAt: findings.firstSeenAt,
+        fingerprint: findings.fingerprint,
+        auditId: findings.auditId,
       })
       .from(findings)
       .innerJoin(sites, eq(findings.siteId, sites.id))
@@ -267,7 +280,35 @@ export async function listFindings(
       .limit(pageSize)
       .offset((page - 1) * pageSize)
 
-    return { findings: rows, total: counted?.total ?? 0, page, pageSize }
+    /**
+     * Earlier work on each issue, looked up for this page of rows only, one query per site on the
+     * page. Usually that is one site and one query; it never grows with the size of the inbox.
+     */
+    const bySite = new Map<string, typeof rows>()
+    for (const row of rows) bySite.set(row.siteId, [...(bySite.get(row.siteId) ?? []), row])
+    const earlierByRow = new Map<string, FindingListItem['earlier']>()
+    for (const [siteId, siteRows] of bySite) {
+      const earlier = await earlierFindings(
+        tx,
+        siteId,
+        siteRows.flatMap((row) => (row.fingerprint ? [row.fingerprint] : [])),
+        siteRows[0]!.auditId,
+      )
+      for (const row of siteRows) {
+        earlierByRow.set(row.rowId, earlierOf(row.status, earlier.get(row.fingerprint ?? '')))
+      }
+    }
+
+    return {
+      findings: rows.map(({ fingerprint: _fingerprint, auditId: _auditId, ...row }) => ({
+        ...row,
+        firstSeenAt: row.firstSeenAt.toISOString(),
+        earlier: earlierByRow.get(row.rowId) ?? null,
+      })),
+      total: counted?.total ?? 0,
+      page,
+      pageSize,
+    }
   })
 }
 
@@ -332,13 +373,45 @@ export async function getFinding(
   db: Database,
   tenantId: string,
   rowId: string,
-): Promise<(Finding & { rowId: string; auditId: string }) | undefined> {
+): Promise<
+  | (Finding & {
+      rowId: string
+      auditId: string
+      firstSeenAt: string
+      earlier: FindingListItem['earlier']
+    })
+  | undefined
+> {
   return withTenant(db, tenantId, async (tx) => {
     const [row] = await tx.select().from(findings).where(eq(findings.id, rowId)).limit(1)
     if (!row) return undefined
 
-    return { ...toFinding(row), auditId: row.auditId }
+    const earlier = row.fingerprint
+      ? await earlierFindings(tx, row.siteId, [row.fingerprint], row.auditId)
+      : new Map()
+
+    return {
+      ...toFinding(row),
+      auditId: row.auditId,
+      firstSeenAt: row.firstSeenAt.toISOString(),
+      earlier: earlierOf(row.status, earlier.get(row.fingerprint ?? '')),
+    }
   })
+}
+
+/**
+ * What an earlier record of the same issue means for this one, or null.
+ *
+ * Only an open finding is described by earlier work. One that has moved on has its own pull
+ * request and its own outcome, and those are what its page should show.
+ */
+function earlierOf(
+  status: FindingStatus,
+  earlier: EarlierFinding | undefined,
+): FindingListItem['earlier'] {
+  if (status !== 'open' || !earlier) return null
+  const work = earlierWorkOf(earlier.status)
+  return work ? { work, rowId: earlier.rowId, prUrl: earlier.prUrl } : null
 }
 
 /**

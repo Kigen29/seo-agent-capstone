@@ -129,6 +129,16 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
           message: 'A pull request for this finding has already been opened.',
         })
       }
+      // The same issue, raised again by a newer audit while a fix from an earlier one is still in
+      // flight. A second pull request for it would conflict with the first (ADR-0029).
+      if (finding.earlier?.work === 'in_progress') {
+        return reply.status(409).send({
+          error: 'Conflict',
+          message:
+            'A fix for this issue is already in progress from an earlier audit' +
+            (finding.earlier.prUrl ? `: ${finding.earlier.prUrl}` : '.'),
+        })
+      }
 
       const [site] = await withTenant(db, request.tenantId, (tx) =>
         tx

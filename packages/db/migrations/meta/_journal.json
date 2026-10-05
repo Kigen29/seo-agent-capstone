@@ -211,6 +211,13 @@
       "when": 1791158400000,
       "tag": "0029_hosting_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791244800000,
+      "tag": "0030_finding_fingerprint",
+      "breakpoints": true
     }
   ]
 }

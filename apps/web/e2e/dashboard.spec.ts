@@ -167,6 +167,9 @@ test('opens a finding and shows how we would know we were wrong', async ({ page 
   await expect(page.getByText('Affected pages (1)')).toBeVisible()
   await expect(page.getByText('Trivial')).toBeVisible()
   await expect(page.getByText('95/100')).toBeVisible()
+
+  // How long the issue has been open, carried across audits rather than reset by each one.
+  await expect(page.getByText(/^First seen \d{1,2} \w{3} \d{4}$/)).toBeVisible()
 })
 
 test('gives another tenant a 404, not a permission error', async ({ page }) => {

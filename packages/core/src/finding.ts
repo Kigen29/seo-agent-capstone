@@ -46,6 +46,15 @@ export const findingSchema = z.object({
   evidence: evidenceSchema,
   affectedUrls: z.array(z.string().url()),
 
+  /**
+   * What the finding is about, when the first affected URL is not a stable answer.
+   *
+   * A duplicate title is about the title, whichever pages share it this week. Used only to
+   * recognise the same issue on the next audit (ADR-0029), and optional because for most rules
+   * the first affected URL already is the subject.
+   */
+  subject: z.string().min(1).optional(),
+
   estimatedEffort: effortSchema,
 
   /** 0 to 100. Relative, not a promise of traffic. */

@@ -10,10 +10,11 @@ import {
   withTenant,
   type Database,
 } from '@seo/db'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { priorityScore } from '@seo/core'
-import { getAudit, listSites } from '../src/queries.js'
+import { fingerprintOf } from '../src/fingerprint.js'
+import { getAudit, getFinding, listFindings, listSites } from '../src/queries.js'
 import { runAudit } from '../src/run.js'
 
 /**
@@ -344,5 +345,116 @@ describe.skipIf(!shouldRun)('runAudit: crawl, rules, scorecard, persisted', () =
 
     const keys = rows.map((r) => r.key)
     expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  describe('the same issue on the next audit (ADR-0029)', () => {
+    let secondAuditId: string
+    let wontfixFingerprint: string
+    let prFingerprint: string
+    const PR_URL = 'https://github.com/octo/site/pull/7'
+
+    const rowsOf = (id: string) =>
+      withTenant(db, tenantId, (tx) => tx.select().from(findings).where(eq(findings.auditId, id)))
+
+    beforeAll(async () => {
+      const first = await rowsOf(auditId)
+      // A person decides one issue is not worth fixing, and a pull request is opened for another.
+      const [wontfix, withPr] = [first[0]!, first[1]!]
+      wontfixFingerprint = wontfix.fingerprint!
+      prFingerprint = withPr.fingerprint!
+      await withTenant(db, tenantId, async (tx) => {
+        await tx.update(findings).set({ status: 'wontfix' }).where(eq(findings.id, wontfix.id))
+        await tx
+          .update(findings)
+          .set({ status: 'pr_open', prUrl: PR_URL })
+          .where(eq(findings.id, withPr.id))
+      })
+
+      secondAuditId = (
+        await runAudit(db, { egress: LOCAL, tenantId, siteId, seed: site.origin, maxPages: 5 })
+      ).auditId
+    }, 180_000)
+
+    it('gives every finding a fingerprint, unique within the audit', async () => {
+      const rows = await rowsOf(secondAuditId)
+
+      expect(rows.length).toBeGreaterThan(1)
+      expect(rows.every((row) => /^[a-f0-9]{64}$/.test(row.fingerprint ?? ''))).toBe(true)
+      expect(new Set(rows.map((row) => row.fingerprint)).size).toBe(rows.length)
+    })
+
+    it('recognises an unchanged site as the same issues, first seen when they first were', async () => {
+      const first = await rowsOf(auditId)
+      const second = await rowsOf(secondAuditId)
+
+      expect(second.map((row) => row.fingerprint).sort()).toEqual(
+        first.map((row) => row.fingerprint).sort(),
+      )
+      const firstSeen = new Map(first.map((row) => [row.fingerprint, row.firstSeenAt.getTime()]))
+      for (const row of second) {
+        expect(row.firstSeenAt.getTime()).toBe(firstSeen.get(row.fingerprint))
+        // Carried, not re-stamped: the new row was created later than the issue was first seen.
+        expect(row.createdAt.getTime()).toBeGreaterThan(row.firstSeenAt.getTime())
+      }
+    })
+
+    it("carries a won't-fix decision onto the new audit instead of forgetting it", async () => {
+      const second = await rowsOf(secondAuditId)
+
+      expect(second.find((row) => row.fingerprint === wontfixFingerprint)?.status).toBe('wontfix')
+    })
+
+    it('does not copy a pull request onto the new row, and links to it instead', async () => {
+      const second = await rowsOf(secondAuditId)
+      const again = second.find((row) => row.fingerprint === prFingerprint)!
+
+      // One pull request, one owner: the webhook and the verifier find it by URL on the old row.
+      expect(again.status).toBe('open')
+      expect(again.prUrl).toBeNull()
+
+      const detail = await getFinding(db, tenantId, again.id)
+      expect(detail?.earlier).toMatchObject({ work: 'in_progress', prUrl: PR_URL })
+
+      const inbox = await listFindings(db, tenantId, { siteId, pageSize: 100 })
+      expect(inbox.findings.find((row) => row.rowId === again.id)?.earlier).toMatchObject({
+        work: 'in_progress',
+        prUrl: PR_URL,
+      })
+      // An issue with nothing done about it before has nothing to point at.
+      expect(inbox.findings.filter((row) => row.earlier !== null)).toHaveLength(1)
+    })
+
+    it('says an issue came back when its earlier fix had been verified', async () => {
+      const first = await rowsOf(auditId)
+      const earlier = first.find((row) => row.fingerprint === prFingerprint)!
+      const second = await rowsOf(secondAuditId)
+      const again = second.find((row) => row.fingerprint === prFingerprint)!
+      const setEarlier = (status: 'verified' | 'rejected' | 'pr_open') =>
+        withTenant(db, tenantId, (tx) =>
+          tx.update(findings).set({ status }).where(eq(findings.id, earlier.id)),
+        )
+
+      try {
+        await setEarlier('verified')
+        expect((await getFinding(db, tenantId, again.id))?.earlier?.work).toBe('regressed')
+        await setEarlier('rejected')
+        expect((await getFinding(db, tenantId, again.id))?.earlier?.work).toBe('fix_failed')
+      } finally {
+        await setEarlier('pr_open')
+      }
+    })
+
+    it('computes the same fingerprint the migration backfill does', async () => {
+      // Migration 0030 fills old rows in SQL. If the two ever disagree, every finding written
+      // before it stops being recognised, silently.
+      const rows = await rowsOf(secondAuditId)
+      const row = rows.find((r) => r.affectedUrls.length > 0 && r.ruleId !== 'TECH-011')!
+      const result = await withTenant(db, tenantId, (tx) =>
+        tx.execute(
+          sql`select encode(sha256(convert_to(${row.ruleId} || '|' || ${row.affectedUrls[0]!}, 'UTF8')), 'hex') as fp`,
+        ),
+      )
+      expect(result.rows[0]?.fp).toBe(fingerprintOf(row))
+    })
   })
 })
