@@ -3,7 +3,9 @@ import type { FixResult } from '@seo/fixers'
 import { z } from 'zod'
 import {
   isReadable,
-  selectContext,
+  CONTEXT_SIZES,
+  fitContext,
+  rankCandidates,
   type ContextFile,
   type SelectedContext,
   type TreeEntry,
@@ -31,7 +33,8 @@ import {
  *     the diff before anything reaches the site, and the merged fix is re-crawled and verified.
  *
  * At most two model calls per finding: one to propose, and one more only if the model says it
- * needs files it was not given. Both go through the tenant's budget guard.
+ * needs files it was not given. Both go through the tenant's budget guard. A request a provider
+ * refuses as too large is retried with fewer files, down two sizes, before the agent gives up.
  */
 
 /** The smallest slice of the LLM client this needs. `@seo/llm`'s LlmClient satisfies it. */
@@ -42,6 +45,7 @@ export interface RepoFixLlm {
     schema: z.ZodType<T>
     system?: string
     prompt: string
+    maxTokens?: number
   }): Promise<{ output: T }>
 }
 
@@ -372,8 +376,26 @@ async function dependencyNames(read: RepoFixInput['read']): Promise<string[]> {
   }
 }
 
-const firstLine = (error: unknown): string =>
-  (error instanceof Error ? error.message : String(error)).split(/\r?\n/)[0] ?? 'unknown error'
+/**
+ * The line of an error worth showing. When every model in a chain failed, the first line only
+ * says that they did and the reasons follow one per line, so the last of those is the useful one.
+ */
+function errorLine(error: unknown): string {
+  const lines = (error instanceof Error ? error.message : String(error)).split(/\r?\n/)
+  const attempts = lines.filter((line) => /^\s*-\s.+->/.test(line))
+  const chosen = attempts[attempts.length - 1] ?? lines[0] ?? 'unknown error'
+  return chosen
+    .replace(/^\s*-\s*/, '')
+    .trim()
+    .slice(0, 300)
+}
+
+/** A provider refusing the request for its size, as opposed to failing for any other reason. */
+const TOO_LARGE =
+  /too large|\b413\b|context.?length|context window|maximum context|tokens per minute|reduce (your|the) (message|prompt|input)/i
+
+/** The smallest size leaves less room for the answer too: both count against the same limit. */
+const outputTokensFor = (size: number): number => (size === CONTEXT_SIZES.length - 1 ? 3000 : 4096)
 
 /**
  * Read the repository and propose a fix for one finding.
@@ -396,8 +418,21 @@ export async function generateRepoFix(
     }
   }
 
-  const dependencies = await dependencyNames(input.read)
-  let context = await selectContext(input.tree, finding, input.read)
+  // Each file is fetched once however many times the context is rebuilt.
+  const cache = new Map<string, Promise<string | null>>()
+  const read = (path: string): Promise<string | null> => {
+    let hit = cache.get(path)
+    if (!hit) {
+      hit = input.read(path).catch(() => null)
+      cache.set(path, hit)
+    }
+    return hit
+  }
+
+  const dependencies = await dependencyNames(read)
+  let ranked = await rankCandidates(input.tree, finding, read)
+  let size = 0
+  let context = fitContext(ranked, CONTEXT_SIZES[size])
   if (context.files.length === 0) {
     return {
       kind: 'declined',
@@ -407,32 +442,46 @@ export async function generateRepoFix(
   }
 
   let proposal: Proposal | undefined
-  // Two rounds at most: propose, and once more if the model asked to see other files.
-  for (let round = 0; round < 2; round += 1) {
+  // Two answers at most: a proposal, and one more if the model asked to see other files. A request
+  // a provider refused for its size was never answered, so trying again smaller is not a third.
+  for (let round = 0; round < 2;) {
     try {
       const result = await deps.llm.object({
         role: 'smart',
         tenantId: deps.tenantId,
         schema: proposalSchema,
         system: SYSTEM_PROMPT,
+        maxTokens: outputTokensFor(size),
         prompt: buildRepoFixPrompt({
           finding,
           framework: input.framework,
           siteUrl: input.siteUrl,
-          dependencies,
+          // The dependency list is the first thing to give way when room is short.
+          dependencies: size === 0 ? dependencies : dependencies.slice(0, 40),
           context,
         }),
       })
       proposal = result.output
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const smaller =
+        size + 1 < CONTEXT_SIZES.length ? fitContext(ranked, CONTEXT_SIZES[size + 1]) : null
+      if (TOO_LARGE.test(message) && smaller && smaller.files.length > 0) {
+        size += 1
+        context = smaller
+        continue
+      }
       return {
         kind: 'declined',
-        reason: `The agent's model could not be reached or did not answer usefully (${firstLine(error)}).`,
+        reason: TOO_LARGE.test(message)
+          ? `The files behind this finding are larger than the configured model accepts in one request, even at the smallest size the agent can work with (${errorLine(error)}).`
+          : `The agent's model could not be reached or did not answer usefully (${errorLine(error)}).`,
         filesRead: context.files.length,
       }
     }
 
-    if (proposal.decision !== 'need_files' || round === 1) break
+    round += 1
+    if (proposal.decision !== 'need_files' || round === 2) break
 
     const wanted = proposal.requestFiles.slice(0, 6)
     const known = new Set(context.otherPaths)
@@ -446,24 +495,31 @@ export async function generateRepoFix(
         filesRead: context.files.length,
       }
     }
-    context = await selectContext(input.tree, finding, input.read, { also: allowed })
+    ranked = await rankCandidates(input.tree, finding, read, { also: allowed })
+    context = fitContext(ranked, CONTEXT_SIZES[size])
   }
 
   const filesRead = context.files.length
   if (!proposal) return { kind: 'declined', reason: 'The agent produced no answer.', filesRead }
 
   const summary = withoutEmDashes(proposal.summary).trim()
+  // When the provider's limit cut what could be shown, that is the reason, and it is one the
+  // operator can act on. Saying only "could not locate it" would blame the repository.
+  const cramped =
+    size > 0
+      ? ` The configured model accepts only small requests, so the agent could show it ${filesRead} short files and not the longer ones. A model with a larger request limit could attempt this.`
+      : ''
   if (proposal.decision === 'need_files') {
     return {
       kind: 'declined',
-      reason: `After reading ${filesRead} files the agent still could not locate where this issue comes from.`,
+      reason: `After reading ${filesRead} files the agent still could not locate where this issue comes from.${cramped}`,
       filesRead,
     }
   }
   if (proposal.decision === 'cannot_fix') {
     return {
       kind: 'declined',
-      reason: `The agent read ${filesRead} files and decided not to change anything: ${summary || 'it gave no reason.'}`,
+      reason: `The agent read ${filesRead} files and decided not to change anything: ${summary || 'it gave no reason.'}${cramped}`,
       filesRead,
     }
   }

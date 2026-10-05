@@ -31,11 +31,39 @@ export const MAX_FILE_BYTES = 80_000
 
 /** How many files are read to be ranked, and how much of them the model is finally shown. */
 export const SHORTLIST_SIZE = 60
-export const CONTEXT_FILE_LIMIT = 14
-export const CONTEXT_CHAR_BUDGET = 70_000
 
-/** How many paths of the tree the model is shown, so it can ask for a file it was not given. */
-export const TREE_PATH_LIMIT = 400
+/** How much the model is shown: files in full, their total size, and the paths it may ask for. */
+export interface ContextLimits {
+  files: number
+  chars: number
+  otherPaths: number
+}
+
+/**
+ * Three sizes, largest first. A model's request limit depends on the provider and on the plan the
+ * operator pays for, and neither is knowable here, so the caller starts with the first and steps
+ * down when a provider says the request was too large. The smallest fits a limit of roughly eight
+ * thousand tokens a minute, which is what a free plan commonly allows.
+ */
+export const CONTEXT_SIZES: readonly ContextLimits[] = [
+  { files: 14, chars: 60_000, otherPaths: 400 },
+  { files: 8, chars: 22_000, otherPaths: 120 },
+  { files: 5, chars: 8_000, otherPaths: 40 },
+]
+
+/**
+ * No single file may take more than this share of the budget unless it contains what the finding
+ * observed. Without it one long page file crowds out the small shared component that sets every
+ * page's head, which is the file the fix usually belongs in.
+ */
+const MAX_SHARE_OF_BUDGET = 0.4
+
+/**
+ * Evidence found in more files than this is not evidence about any one of them. A site's own
+ * address is the usual case: the audit observed it in a canonical tag, and it is also in the
+ * structured data, the sitemap and half the pages.
+ */
+const NEEDLE_IS_COMMON_ABOVE = 3
 
 const READABLE_EXTENSIONS = new Set([
   'tsx',
@@ -162,7 +190,30 @@ const RULE_HINTS: Record<string, string[]> = {
 const SHARED_FILE =
   /(^|\/)(index\.html?|app\.(tsx|jsx|vue|svelte)|_app\.(tsx|jsx)|_document\.(tsx|jsx)|layout\.(tsx|jsx|astro|svelte)|root\.(tsx|jsx)|main\.(tsx|jsx|ts|js)|router?\.(tsx|ts|jsx|js)|routes?\.(tsx|ts|jsx|js)|\+layout\.svelte|app\.html)$/i
 
-const SEO_NAME = /(seo|head|meta|helmet|schema|structured|layout|header|footer|nav)/i
+/** A file named for the document head: where titles, descriptions and canonicals are set. */
+const HEAD_NAME = /(seo|meta|helmet|^head\.|^head[^e]|^_?document\.)/i
+/** A file named for the frame around every page. */
+const FRAME_NAME = /(layout|schema|structured|header|footer|nav)/i
+
+/** Rules fixed in the document head, where a head component matters most. */
+const HEAD_RULES = new Set([
+  'TECH-006',
+  'TECH-011',
+  'TECH-021',
+  'TECH-023',
+  'TECH-024',
+  'TECH-025',
+  'TECH-026',
+  'TECH-027',
+  'TECH-032',
+  'AGENT-003',
+])
+
+/** The HTML document a site is served from. */
+const DOCUMENT_SHELL = /(^|\/)(index\.html?|app\.html|_document\.(tsx|jsx))$/i
+
+/** File names a framework gives every route, so the directory is what names the page. */
+const GENERIC_BASENAME = /^(\+?page|index|route|\+?layout|default)$/
 
 /** Rules that are about the crawl files themselves. Only then are those files worth reading first. */
 const CRAWL_FILE_RULES = new Set(['TECH-001', 'TECH-003', 'TECH-004', 'TECH-005', 'TECH-016'])
@@ -199,8 +250,13 @@ export function pathScore(path: string, finding: Pick<Finding, 'ruleId' | 'affec
   const squashed = lower.replace(/[^a-z0-9/]/g, '')
   let score = 0
 
+  const base = baseOf(path)
   if (SHARED_FILE.test(path)) score += 60
-  if (SEO_NAME.test(baseOf(path))) score += 45
+  // The document itself is where a static head tag lives, and it is short. For a rule fixed in
+  // the head it has to survive the smallest cut, ahead of helpers that only mention SEO.
+  if (HEAD_RULES.has(finding.ruleId) && DOCUMENT_SHELL.test(path)) score += 70
+  if (HEAD_NAME.test(base)) score += HEAD_RULES.has(finding.ruleId) ? 110 : 20
+  else if (FRAME_NAME.test(base)) score += 35
   if (/(^|\/)(pages?|routes?|views?|app)\//.test(lower)) score += 15
 
   const crawlFile =
@@ -218,8 +274,16 @@ export function pathScore(path: string, finding: Pick<Finding, 'ruleId' | 'affec
   })
   if (aboutHome && HOME_FILE.test(path)) score += 45
 
+  // `/destinations` is `Destinations.tsx` or `destinations/page.tsx`. It is not every file under
+  // a `destinations/` folder, which on a real site was a dozen stubs that buried the page itself.
+  const stem = base.replace(/\.[^.]+$/, '').toLowerCase()
+  const segments = squashed.split('/')
+  const pageName = GENERIC_BASENAME.test(stem)
+    ? (segments[segments.length - 2] ?? '')
+    : stem.replace(/[^a-z0-9]/g, '')
   for (const token of urlTokens(finding.affectedUrls.slice(0, 12))) {
-    if (squashed.includes(token)) score += 40
+    if (pageName.includes(token)) score += 40
+    else if (squashed.includes(token)) score += 8
   }
   for (const hint of RULE_HINTS[finding.ruleId] ?? []) {
     const word = hint.replace(/[^a-z]/gi, '').toLowerCase()
@@ -228,7 +292,8 @@ export function pathScore(path: string, finding: Pick<Finding, 'ruleId' | 'affec
 
   // Generated component libraries: real code, almost never where an SEO issue lives.
   if (/(^|\/)components\/ui\//.test(lower)) score -= 50
-  if (/(^|\/)(admin|dashboard)\//.test(lower)) score -= 25
+  // The signed-in side of an application is not what a search engine crawls.
+  if (/(^|\/)(admin|dashboard)\//.test(lower) || /^(admin|dashboard)/i.test(base)) score -= 60
   if (/(^|\/)(hooks|utils|lib|types|integrations|contexts?|store|services)\//.test(lower))
     score -= 15
   if (lower.endsWith('.md') && !lower.endsWith('.mdx')) score -= 20
@@ -285,28 +350,34 @@ export interface SelectedContext {
   withheld: string[]
 }
 
+/** Every candidate read and scored once, so the context can be cut to more than one size. */
+export interface RankedCandidates {
+  /** Best first. */
+  loaded: { path: string; content: string; score: number; pinned: boolean }[]
+  withheld: string[]
+  readable: string[]
+}
+
 /**
- * Read the shortlist, rank by content, and fill the budget.
+ * Read the shortlist and rank it by content.
  *
- * Shared head and router files are always first, because nearly every fix needs to know how pages
- * are assembled. After them, files that contain what the finding observed outrank files that only
- * have a promising name.
+ * Files that contain what the finding observed outrank files that only have a promising name. A
+ * file the model asked for by name is read first, and only if it passes the same checks.
  */
-export async function selectContext(
+export async function rankCandidates(
   tree: readonly TreeEntry[],
   finding: Finding,
   read: (path: string) => Promise<string | null>,
   options: { also?: readonly string[] } = {},
-): Promise<SelectedContext> {
+): Promise<RankedCandidates> {
   const readable = new Set(tree.filter(isReadable).map((entry) => entry.path))
-  // Files the model asked for by name are read first, and only if they pass the same checks.
   const requested = (options.also ?? []).filter((path) => readable.has(path))
   const candidates = [...new Set([...requested, ...shortlist(tree, finding)])]
 
   const needles = evidenceNeedles(finding).map((needle) => needle.toLowerCase())
   const hints = (RULE_HINTS[finding.ruleId] ?? []).map((hint) => hint.toLowerCase())
 
-  const loaded: { path: string; content: string; score: number }[] = []
+  const opened: { path: string; content: string; lower: string }[] = []
   const withheld: string[] = []
 
   // In small batches: enough to be quick, few enough not to burst the host's API.
@@ -320,32 +391,73 @@ export async function selectContext(
         withheld.push(path)
         return
       }
-      const lower = content.toLowerCase()
-      let score = pathScore(path, finding)
-      if (requested.includes(path)) score += 500
-      for (const needle of needles) if (lower.includes(needle)) score += 120
-      for (const hint of hints) if (lower.includes(hint)) score += 20
-      loaded.push({ path, content, score })
+      opened.push({ path, content, lower: content.toLowerCase() })
     })
   }
 
-  loaded.sort((a, b) => b.score - a.score || (a.path < b.path ? -1 : 1))
+  // Counted across everything opened, so a string that is everywhere stops pointing anywhere.
+  const rare = needles.filter(
+    (needle) =>
+      opened.filter((file) => file.lower.includes(needle)).length <= NEEDLE_IS_COMMON_ABOVE,
+  )
 
+  const loaded: RankedCandidates['loaded'] = opened.map(({ path, content, lower }) => {
+    let score = pathScore(path, finding)
+    let pinned = false
+    if (requested.includes(path)) {
+      score += 500
+      pinned = true
+    }
+    for (const needle of needles) {
+      if (!lower.includes(needle)) continue
+      if (rare.includes(needle)) {
+        score += 120
+        pinned = true
+      } else {
+        score += 15
+      }
+    }
+    for (const hint of hints) if (lower.includes(hint)) score += 20
+    return { path, content, score, pinned }
+  })
+
+  loaded.sort((a, b) => b.score - a.score || (a.path < b.path ? -1 : 1))
+  return { loaded, withheld, readable: [...readable] }
+}
+
+/** Cut ranked candidates to one size. Pure, so stepping down to a smaller size reads nothing. */
+export function fitContext(
+  ranked: RankedCandidates,
+  limits: ContextLimits = CONTEXT_SIZES[0]!,
+): SelectedContext {
   const files: ContextFile[] = []
   let used = 0
-  for (const file of loaded) {
-    if (files.length >= CONTEXT_FILE_LIMIT) break
-    if (used + file.content.length > CONTEXT_CHAR_BUDGET) continue
+  for (const file of ranked.loaded) {
+    if (files.length >= limits.files) break
+    if (used + file.content.length > limits.chars) continue
+    // The two best files are exempt: the cap exists to protect them, not to exclude them.
+    const large = file.content.length > limits.chars * MAX_SHARE_OF_BUDGET
+    if (large && !file.pinned && files.length >= 2) continue
     files.push({ path: file.path, content: file.content })
     used += file.content.length
   }
 
   const shown = new Set(files.map((file) => file.path))
-  const hidden = new Set(withheld)
-  const otherPaths = [...readable]
+  const hidden = new Set(ranked.withheld)
+  const otherPaths = ranked.readable
     .filter((path) => !shown.has(path) && !hidden.has(path))
     .sort()
-    .slice(0, TREE_PATH_LIMIT)
+    .slice(0, limits.otherPaths)
 
-  return { files, otherPaths, withheld }
+  return { files, otherPaths, withheld: ranked.withheld }
+}
+
+/** Read, rank and cut in one step, at the largest size unless told otherwise. */
+export async function selectContext(
+  tree: readonly TreeEntry[],
+  finding: Finding,
+  read: (path: string) => Promise<string | null>,
+  options: { also?: readonly string[]; limits?: ContextLimits } = {},
+): Promise<SelectedContext> {
+  return fitContext(await rankCandidates(tree, finding, read, options), options.limits)
 }

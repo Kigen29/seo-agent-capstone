@@ -42,7 +42,16 @@ export type { Proposal, RepoFixDeps, RepoFixInput, RepoFixLlm, RepoFixOutcome } 
 export {
   isReadable,
   looksLikeItHoldsACredential,
+  CONTEXT_SIZES,
+  fitContext,
+  rankCandidates,
   selectContext,
   shortlist,
 } from './repo-context.js'
-export type { ContextFile, SelectedContext, TreeEntry } from './repo-context.js'
+export type {
+  ContextFile,
+  ContextLimits,
+  RankedCandidates,
+  SelectedContext,
+  TreeEntry,
+} from './repo-context.js'

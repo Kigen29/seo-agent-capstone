@@ -526,3 +526,155 @@ describe('validateProposal: what a model-written change must pass before it is a
     }
   })
 })
+
+/**
+ * A model's request limit depends on the provider and the plan, and a free plan can be a quarter
+ * of what the full context needs. A refusal for size is not an answer, so the agent tries again
+ * with less instead of reporting a failure the person cannot act on.
+ */
+describe('generateRepoFix: when the provider says the request is too large', () => {
+  const TOO_LARGE = new Error(
+    'Every target in the chain for role "smart" failed:\n' +
+      '  - groq:big -> Request too large for model `big` on tokens per minute (TPM): Limit 8000, Requested 19211\n' +
+      '  - groq:small -> Request too large for model `small` on tokens per minute (TPM): Limit 8000, Requested 19211',
+  )
+  const WIDE: Record<string, string> = {
+    ...REPO,
+    ...Object.fromEntries(
+      Array.from({ length: 30 }, (_, i) => [
+        `src/pages/Page${i}.tsx`,
+        `export default function Page${i}() {\n  return <h1>Page ${i}</h1>\n}\n` +
+          '// pad\n'.repeat(400),
+      ]),
+    ),
+  }
+  const wideTree: TreeEntry[] = Object.entries(WIDE).map(([path, content]) => ({
+    path,
+    size: content.length,
+  }))
+  let fetched: string[] = []
+  const runWide = (llm: RepoFixLlm) => {
+    fetched = []
+    return generateRepoFix(
+      {
+        finding: finding(),
+        framework: 'react_spa',
+        siteUrl: 'https://www.example.com/',
+        tree: wideTree,
+        read: async (path) => {
+          fetched.push(path)
+          return WIDE[path] ?? null
+        },
+      },
+      { llm, tenantId: 'tenant-1' },
+    )
+  }
+
+  it('asks again with fewer files, and the fix still opens', async () => {
+    const llm = fakeLlm(TOO_LARGE, proposal({ edits: [REMOVE_STATIC_CANONICAL] }))
+
+    const outcome = await runWide(llm)
+
+    expect(outcome.kind).toBe('fix')
+    expect(llm.prompts).toHaveLength(2)
+    expect(llm.prompts[1]!.length).toBeLessThan(llm.prompts[0]!.length / 2)
+    // The file that holds the evidence survives the cut.
+    expect(llm.prompts[1]).toContain('### index.html')
+  })
+
+  it('steps down twice before giving up, and never fetches a file a second time', async () => {
+    const llm = fakeLlm(TOO_LARGE, TOO_LARGE, proposal({ edits: [REMOVE_STATIC_CANONICAL] }))
+
+    const outcome = await runWide(llm)
+
+    expect(outcome.kind).toBe('fix')
+    expect(llm.prompts).toHaveLength(3)
+    expect(llm.prompts[2]!.length).toBeLessThan(15_000)
+    expect(new Set(fetched).size).toBe(fetched.length)
+  })
+
+  it('says the files are too large for the model when even the smallest request is refused', async () => {
+    const llm = fakeLlm(TOO_LARGE, TOO_LARGE, TOO_LARGE)
+
+    const outcome = await runWide(llm)
+
+    expect(outcome.kind).toBe('declined')
+    if (outcome.kind === 'declined') {
+      expect(outcome.reason).toContain('larger than the configured model accepts')
+      expect(outcome.reason).toContain('Limit 8000')
+    }
+    expect(llm.prompts).toHaveLength(3)
+  })
+
+  it('still allows one request for more files after stepping down', async () => {
+    const llm = fakeLlm(
+      TOO_LARGE,
+      proposal({ decision: 'need_files', requestFiles: ['src/pages/Page29.tsx'] }),
+      proposal({ edits: [REMOVE_STATIC_CANONICAL] }),
+    )
+
+    const outcome = await runWide(llm)
+
+    expect(outcome.kind).toBe('fix')
+    expect(llm.prompts[2]).toContain('### src/pages/Page29.tsx')
+  })
+
+  it('does not retry an error that has nothing to do with size', async () => {
+    const llm = fakeLlm(new Error('Invalid API Key'))
+
+    const outcome = await runWide(llm)
+
+    expect(outcome.kind).toBe('declined')
+    expect(llm.prompts).toHaveLength(1)
+  })
+})
+
+describe('generateRepoFix: the reason shown when every model in the chain failed', () => {
+  it("is the provider's own words, not the header that says the chain failed", async () => {
+    const outcome = await run(
+      fakeLlm(
+        new Error(
+          'Every target in the chain for role "smart" failed:\n' +
+            '  - groq:a -> 429 rate limit\n' +
+            '  - groq:b -> The model is decommissioned.\n    at stack',
+        ),
+      ),
+    )
+
+    expect(outcome.kind).toBe('declined')
+    if (outcome.kind === 'declined') {
+      expect(outcome.reason).toContain('groq:b -> The model is decommissioned.')
+      expect(outcome.reason).not.toContain('Every target')
+      expect(outcome.reason).not.toContain('at stack')
+    }
+  })
+})
+
+describe('generateRepoFix: an honest reason when the model limit is what stopped it', () => {
+  const TOO_LARGE = new Error('Request too large: Limit 8000, Requested 19211')
+
+  it('says the limit cut what it could show, and what would change that', async () => {
+    const outcome = await run(
+      fakeLlm(
+        TOO_LARGE,
+        proposal({ decision: 'cannot_fix', summary: 'The page file is not shown.' }),
+      ),
+    )
+
+    expect(outcome.kind).toBe('declined')
+    if (outcome.kind === 'declined') {
+      expect(outcome.reason).toContain('The page file is not shown.')
+      expect(outcome.reason).toContain('accepts only small requests')
+      expect(outcome.reason).toContain('larger request limit')
+    }
+  })
+
+  it('does not mention a limit when none was hit', async () => {
+    const outcome = await run(
+      fakeLlm(proposal({ decision: 'cannot_fix', summary: 'Not in code.' })),
+    )
+
+    expect(outcome.kind).toBe('declined')
+    if (outcome.kind === 'declined') expect(outcome.reason).not.toContain('small requests')
+  })
+})
