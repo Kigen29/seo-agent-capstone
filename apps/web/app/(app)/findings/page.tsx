@@ -1,3 +1,4 @@
+import type { EarlierWork } from '@seo/api-client'
 import type { FindingPage } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
@@ -221,6 +222,19 @@ export default async function FindingsPage({
                               Fix failed
                             </span>
                           )}
+                          {/*
+                            The same issue from an earlier audit. Without this, a finding whose
+                            fix is already open as a pull request reads as untouched after the
+                            next audit, and one that was fixed and came back reads as brand new.
+                          */}
+                          {finding.earlier && (
+                            <span
+                              className={`${EARLIER_TAG[finding.earlier.work].className} ml-1`}
+                              title={EARLIER_TAG[finding.earlier.work].title}
+                            >
+                              {EARLIER_TAG[finding.earlier.work].label}
+                            </span>
+                          )}
                         </td>
                         <td className="tnum text-muted">{finding.estimatedImpact}</td>
                         <td className="tnum text-muted">{finding.affectedUrlCount}</td>
@@ -261,4 +275,26 @@ function SortLink({ href, active, label }: { href: string; active: boolean; labe
       {active ? ' ↓' : ''}
     </Link>
   )
+}
+
+/** How earlier work on the same issue is named on an inbox row. */
+const EARLIER_TAG: Record<
+  EarlierWork['work'],
+  { label: string; className: string; title: string }
+> = {
+  in_progress: {
+    label: 'Fix in progress',
+    className: 'tag tag-success',
+    title: 'A pull request for this issue was opened from an earlier audit.',
+  },
+  regressed: {
+    label: 'Back after a fix',
+    className: 'tag tag-critical',
+    title: 'This was fixed and verified before, and has returned.',
+  },
+  fix_failed: {
+    label: 'Earlier fix did not work',
+    className: 'tag tag-neutral',
+    title: 'A merged fix for this issue was checked and did not resolve it.',
+  },
 }

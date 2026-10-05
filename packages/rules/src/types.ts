@@ -45,6 +45,8 @@ export interface FindingDraft {
   title: string
   evidence: Evidence
   affectedUrls: string[]
+  /** What this is about across audits, when `affectedUrls[0]` is not stable. See ADR-0029. */
+  subject?: string
   confidence: number
   estimatedImpact: number
   falsification: string

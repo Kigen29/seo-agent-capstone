@@ -225,6 +225,8 @@ export const TECH_023: Rule = {
             `<link rel="canonical" href="${canonical}">`,
           ),
           affectedUrls: group.map((page) => page.finalUrl),
+          // About the page they all point at, not the first of the pages pointing.
+          subject: canonical,
           confidence: 0.95,
           estimatedImpact: 95,
           falsification:

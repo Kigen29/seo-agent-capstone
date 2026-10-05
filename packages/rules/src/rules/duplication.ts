@@ -37,6 +37,8 @@ export const TECH_011: Rule = {
             ? markupEvidence(first, 'title', title)
             : metricEvidence(context.pages[0] as never, 'duplicate_titles', urls.length, 'count'),
           affectedUrls: urls,
+          // About the title, not whichever page happens to be listed first this crawl.
+          subject: title,
           confidence: 1,
           estimatedImpact: 40,
           falsification:

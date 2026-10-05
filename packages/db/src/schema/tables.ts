@@ -221,6 +221,15 @@ export const findings = pgTable(
      */
     key: text('key').notNull(),
 
+    /**
+     * The same issue on the next audit carries the same value: the rule plus what the finding is
+     * about (ADR-0029). `key` cannot do this, because it is a position that moves when a page is
+     * added. Nullable only so rows written by older code stay valid; every audit writes it.
+     */
+    fingerprint: text('fingerprint'),
+    /** When this issue was first raised on the site, carried forward from audit to audit. */
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+
     axis: axisEnum('axis').notNull(),
     severity: severityEnum('severity').notNull(),
     confidence: real('confidence').notNull(),
@@ -293,6 +302,8 @@ export const findings = pgTable(
   (table) => [
     index('findings_audit_idx').on(table.auditId),
     index('findings_site_status_idx').on(table.siteId, table.status),
+    /** "The newest earlier record of this issue on this site", once per audit and per page view. */
+    index('findings_site_fingerprint_idx').on(table.siteId, table.fingerprint, table.createdAt),
     /** Re-running an audit must not silently duplicate its findings. */
     uniqueIndex('findings_audit_key_idx').on(table.auditId, table.key),
     /** The inbox's default order, so the first page is an index scan rather than a sort. */
