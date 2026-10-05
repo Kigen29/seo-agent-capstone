@@ -1605,3 +1605,218 @@ describe('AGENT-004: images with no alt attribute', () => {
     expect(finding?.falsification).toContain('do not "fix" those by inventing text')
   })
 })
+
+/**
+ * The page-level basics (onpage.ts). Each raises one finding for the site and lists the pages,
+ * so the assertions are about the grouping as much as about the detection.
+ */
+const head = (title: string | null, description: string | null, extra = '') =>
+  `${title === null ? '' : `<title>${title}</title>`}${
+    description === null ? '' : `<meta name="description" content="${description}">`
+  }${extra}`
+
+const body = (words: number, links = '') =>
+  `<h1>Heading</h1><p>${'word '.repeat(words)}</p>${links}`
+
+describe('TECH-024: no title tag', () => {
+  it('raises one finding listing every page without a title', () => {
+    const findings = fire(
+      'TECH-024',
+      context({
+        pages: [
+          page({ path: '/a', html: html.doc(body(150), head(null, 'd')) }),
+          page({ path: '/b', html: html.doc(body(150), head('  ', 'd')) }),
+          page({ path: '/c', html: html.doc(body(150), head('A real title', 'd')) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe('2 pages have no title tag')
+    expect(findings[0]?.affectedUrls).toEqual([u('/a'), u('/b')])
+  })
+
+  it('stays silent when every page has one', () => {
+    expect(
+      fire('TECH-024', context({ pages: [page({ path: '/', html: html.withTitle('Home') })] })),
+    ).toEqual([])
+  })
+})
+
+describe('TECH-025: titles too long to show in full', () => {
+  it('fires above sixty characters and reports the longest as evidence', () => {
+    const findings = fire(
+      'TECH-025',
+      context({
+        pages: [
+          page({ path: '/a', html: html.withTitle('x'.repeat(61)) }),
+          page({ path: '/b', html: html.withTitle('y'.repeat(90)) }),
+          page({ path: '/c', html: html.withTitle('z'.repeat(60)) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/a'), u('/b')])
+    expect(findings[0]?.evidence).toMatchObject({ metric: 'title_length', value: 90 })
+    // An estimate, and said to be one: Google cuts by width.
+    expect(findings[0]?.falsification).toMatch(/estimate/)
+  })
+})
+
+describe('TECH-026 and TECH-027: meta descriptions', () => {
+  it('TECH-026 lists pages with no description, and leaves the homepage to TECH-021', () => {
+    const findings = fire(
+      'TECH-026',
+      context({
+        pages: [
+          page({ path: '/', html: html.doc(body(150), head('Home', null)) }),
+          page({ path: '/a', html: html.doc(body(150), head('A', null)) }),
+          page({ path: '/b', html: html.doc(body(150), head('B', '')) }),
+          page({ path: '/c', html: html.doc(body(150), head('C', 'Described.')) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/a'), u('/b')])
+  })
+
+  it('TECH-027 raises one finding per shared description, not per page', () => {
+    const findings = fire(
+      'TECH-027',
+      context({
+        pages: [
+          page({ path: '/a', html: html.doc(body(150), head('A', 'Same words.')) }),
+          page({ path: '/b', html: html.doc(body(150), head('B', 'Same words.')) }),
+          page({ path: '/c', html: html.doc(body(150), head('C', 'Its own words.')) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/a'), u('/b')])
+    expect(findings[0]?.subject).toBe('Same words.')
+  })
+
+  it('TECH-027 does not treat two missing descriptions as one shared description', () => {
+    expect(
+      fire(
+        'TECH-027',
+        context({
+          pages: [
+            page({ path: '/a', html: html.doc(body(150), head('A', null)) }),
+            page({ path: '/b', html: html.doc(body(150), head('B', null)) }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('TECH-028: link text that says nothing', () => {
+  it('counts generic internal link text, whatever its case or trailing arrow', () => {
+    const findings = fire(
+      'TECH-028',
+      context({
+        pages: [
+          page({
+            path: '/',
+            html: html.doc(
+              body(
+                150,
+                '<a href="/a">Click here</a><a href="/b">Read more »</a><a href="/c">Our walking tours</a>',
+              ),
+            ),
+          }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe('2 internal links use text like "Click here"')
+  })
+
+  it('ignores external links, descriptive text, and a linked logo with no text', () => {
+    expect(
+      fire(
+        'TECH-028',
+        context({
+          pages: [
+            page({
+              path: '/',
+              html: html.doc(
+                body(
+                  150,
+                  '<a href="https://other.example/x">here</a><a href="/a">Prices and dates</a><a href="/"><img src="/logo.png" alt="Home"></a>',
+                ),
+              ),
+            }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('TECH-029: thin pages', () => {
+  it('lists pages under a hundred words, thinnest first as evidence', () => {
+    const findings = fire(
+      'TECH-029',
+      context({
+        pages: [
+          page({ path: '/a', html: html.doc(body(40)) }),
+          page({ path: '/b', html: html.doc(body(12)) }),
+          page({ path: '/c', html: html.doc(body(300)) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/a'), u('/b')])
+    expect(findings[0]?.evidence).toMatchObject({ metric: 'word_count' })
+    // Never a word target: Google says word count is not a ranking factor.
+    expect(findings[0]?.falsification).toMatch(/not a ranking factor/)
+  })
+
+  it('leaves contact and login pages, soft 404s and unrendered shells to their own rules', () => {
+    expect(
+      fire(
+        'TECH-029',
+        context({
+          pages: [
+            page({ path: '/contact', html: html.doc(body(20)) }),
+            page({ path: '/login', html: html.doc(body(5)) }),
+            page({ path: '/gone', html: html.doc('<h1>404</h1><p>Page not found.</p>') }),
+            page({ path: '/shell', html: html.doc('<div id="root"></div>') }),
+            page({ path: '/hidden', html: html.noindex() }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('TECH-030: awkward page addresses', () => {
+  it('lists paths with spaces, underscores or capitals, as information', () => {
+    const findings = fire(
+      'TECH-030',
+      context({
+        pages: [
+          page({ path: '/our_tours', html: html.doc(body(150)) }),
+          page({ path: '/About-Us', html: html.doc(body(150)) }),
+          page({ path: '/lodges/mara%20game%20camp', html: html.doc(body(150)) }),
+          page({ path: '/prices-and-dates', html: html.doc(body(150)) }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.severity).toBe('info')
+    expect(findings[0]?.affectedUrls).toEqual([
+      u('/our_tours'),
+      u('/About-Us'),
+      u('/lodges/mara%20game%20camp'),
+    ])
+  })
+})
