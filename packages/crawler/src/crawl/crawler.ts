@@ -1,3 +1,4 @@
+import { checkOutboundLinks, DEFAULT_OUTBOUND_LIMIT } from './outbound.js'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { extractPage } from '../page/extract.js'
 import { compareRenders } from '../page/render.js'
@@ -61,6 +62,11 @@ export interface CrawlOptions {
    * explicitly allows them; production audits leave this unset. See egress.ts.
    */
   egress?: EgressPolicy
+  /**
+   * How many distinct external links to check once the crawl is done. Defaults to
+   * DEFAULT_OUTBOUND_LIMIT; 0 skips the check (a verification re-crawl has no use for it).
+   */
+  outboundLinkLimit?: number
 }
 
 /**
@@ -409,8 +415,17 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
      */
     const seedUrl = normaliseUrl(options.seed)
 
+    // After the site itself, and never before: outbound checks are a courtesy to the audit, and
+    // must not spend the crawl's time or delay a page of the site being read.
+    const outboundLimit = options.outboundLinkLimit ?? DEFAULT_OUTBOUND_LIMIT
+    const outbound =
+      outboundLimit > 0
+        ? await checkOutboundLinks(context, guard, pages, { limit: outboundLimit, onBlocked })
+        : undefined
+
     return {
       pages,
+      ...(outbound ? { outbound } : {}),
       resources,
       skipped,
       robots,

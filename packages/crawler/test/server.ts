@@ -10,6 +10,9 @@ export interface RequestLog {
 export interface TestSite {
   origin: string
   requests: RequestLog[]
+  /** A second server standing in for the rest of the web, which the site links out to. */
+  external: string
+  externalRequests: { url: string; method: string }[]
   close: () => Promise<void>
 }
 
@@ -27,6 +30,44 @@ const page = (title: string, body: string) =>
  */
 export async function startTestSite(): Promise<TestSite> {
   const requests: RequestLog[] = []
+
+  /**
+   * "Somebody else's site": a different origin the test site links to. Local, so no test reaches
+   * the real internet, and it answers the ways real sites answer a link checker.
+   */
+  const externalRequests: { url: string; method: string }[] = []
+  const outside: Server = createServer((req, res) => {
+    const path = req.url ?? '/'
+    externalRequests.push({ url: path, method: req.method ?? 'GET' })
+    const answer = (status: number, headers: Record<string, string> = {}) => {
+      res.writeHead(status, { 'content-type': 'text/html', ...headers })
+      res.end(req.method === 'HEAD' ? undefined : '<html><body>outside</body></html>')
+    }
+    switch (path) {
+      case '/alive':
+        return answer(200)
+      case '/gone':
+        return answer(404)
+      case '/removed':
+        return answer(410)
+      // Serves browsers, refuses crawlers: the commonest reason a working link looks dead.
+      case '/blocks-bots':
+        return answer(403)
+      // Answers HEAD wrongly, as many servers do, and serves the page to GET.
+      case '/head-lies':
+        return answer(req.method === 'HEAD' ? 404 : 200)
+      case '/moved':
+        return answer(301, { location: '/alive' })
+      case '/moved-to-nowhere':
+        return answer(302, { location: '/gone' })
+      case '/flaky':
+        return answer(503)
+      default:
+        return answer(404)
+    }
+  })
+  await new Promise<void>((resolve) => outside.listen(0, '127.0.0.1', resolve))
+  const external = `http://127.0.0.1:${(outside.address() as AddressInfo).port}`
 
   const server: Server = createServer((req, res) => {
     const path = req.url ?? '/'
@@ -77,7 +118,16 @@ export async function startTestSite(): Promise<TestSite> {
              <a href="/csr">Client rendered</a>
              <a href="/csr-late">Client rendered from an API</a>
              <a href="/nofollowed" rel="nofollow">Nofollowed</a>
-             <a href="https://example.com/external">External</a>`,
+             <a href="${external}/alive">External</a>
+             <a href="${external}/gone">A page that was deleted</a>
+             <a href="${external}/removed">A page that was removed on purpose</a>
+             <a href="${external}/blocks-bots">A site that refuses crawlers</a>
+             <a href="${external}/head-lies">A server that answers HEAD wrongly</a>
+             <a href="${external}/moved">A page that moved</a>
+             <a href="${external}/moved-to-nowhere">A redirect to a deleted page</a>
+             <a href="${external}/flaky">A server having a bad day</a>
+             <a href="${external}/alive#section">The same page, with a fragment</a>
+             <a href="mailto:hello@example.com">Email</a>`,
           ),
         )
         return
@@ -164,6 +214,11 @@ export async function startTestSite(): Promise<TestSite> {
   return {
     origin: `http://127.0.0.1:${port}`,
     requests,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    external,
+    externalRequests,
+    close: async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await new Promise<void>((resolve) => outside.close(() => resolve()))
+    },
   }
 }

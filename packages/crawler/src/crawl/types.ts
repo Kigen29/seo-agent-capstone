@@ -1,3 +1,4 @@
+import type { OutboundLink } from './outbound.js'
 import type { PageExtract } from '../page/types.js'
 import type { RenderComparison } from '../page/render.js'
 import type { RobotsTxt } from '../robots/parse.js'
@@ -79,6 +80,12 @@ export interface CrawlResult {
    * file redirecting to one. Optional so results built elsewhere (the quick check) stay valid.
    */
   blocked?: BlockedRequest[]
+
+  /**
+   * What became of the external links the pages carry: still there, gone, or could not be told.
+   * Absent when the check was skipped. See outbound.ts for why "could not load" is not "broken".
+   */
+  outbound?: OutboundLink[]
 
   /** Resumable snapshot. Persist this after every page. */
   state: FrontierState

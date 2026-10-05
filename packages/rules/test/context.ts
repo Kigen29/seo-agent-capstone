@@ -68,6 +68,8 @@ export interface ContextSpec {
   seed?: string
   /** The site's llms.txt, or null (the default) when it has none. */
   llmsTxt?: string | null
+  /** Outbound link check results, when the crawl ran one. */
+  outbound?: RuleContext['outbound']
 }
 
 /**
@@ -89,6 +91,7 @@ export const context = (spec: ContextSpec): RuleContext => {
     sitemapUrls: spec.sitemapUrls ?? [],
     graph: buildLinkGraph(toGraphPages(spec.pages), { seed }),
     skipped: [],
+    ...(spec.outbound ? { outbound: spec.outbound } : {}),
   }
 }
 
