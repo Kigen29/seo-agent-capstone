@@ -1944,3 +1944,65 @@ describe('TECH-033: wider than a phone screen', () => {
     expect(fire('TECH-033', context({ pages }))).toEqual([])
   })
 })
+
+describe('TECH-034: heavy images', () => {
+  const pages = ['/', '/gallery'].map((path) => page({ path, html: html.doc(body(150)) }))
+  const image = (name: string, bytes: number | null, contentType: string | null, on: string[]) => ({
+    url: u(`/img/${name}`),
+    bytes,
+    contentType,
+    usedOn: on.map((path) => u(path)),
+  })
+
+  it('reports images over 300 KB, the largest as evidence, on the pages that use them', () => {
+    const findings = fire(
+      'TECH-034',
+      context({
+        pages,
+        images: [
+          image('hero.jpg', 2_400_000, 'image/jpeg', ['/', '/gallery']),
+          image('team.png', 600_000, 'image/png', ['/gallery']),
+          image('logo.svg', 4_000, 'image/svg+xml', ['/', '/gallery']),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe(
+      '2 images are heavier than 300 KB (largest 2.3 MB, 2.9 MB in all)',
+    )
+    expect(findings[0]?.evidence).toMatchObject({ metric: 'largest_image_bytes', value: 2_400_000 })
+    expect(findings[0]?.affectedUrls).toEqual([u('/'), u('/gallery')])
+    // The cheapest fix is named when it applies, and the field data is deferred to.
+    expect(findings[0]?.falsification).toMatch(/WebP or AVIF/)
+    expect(findings[0]?.falsification).toMatch(/Core Web Vitals field data/)
+  })
+
+  it('is on the content axis, so it can never lower a performance score real users set', () => {
+    const findings = fire(
+      'TECH-034',
+      context({ pages, images: [image('hero.jpg', 900_000, 'image/jpeg', ['/'])] }),
+    )
+
+    expect(findings[0]?.axis).toBe('content')
+  })
+
+  it('does not guess at an image whose server did not declare a size', () => {
+    expect(
+      fire(
+        'TECH-034',
+        context({
+          pages,
+          images: [
+            image('unknown.jpg', null, null, ['/']),
+            image('small.webp', 80_000, 'image/webp', ['/']),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('stays silent when the crawl did not measure images', () => {
+    expect(fire('TECH-034', context({ pages }))).toEqual([])
+  })
+})

@@ -1,3 +1,4 @@
+import { DEFAULT_IMAGE_SAMPLE, measureImages } from './images.js'
 import { checkMobileRenders, DEFAULT_MOBILE_SAMPLE } from './mobile.js'
 import { checkOutboundLinks, DEFAULT_OUTBOUND_LIMIT } from './outbound.js'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
@@ -73,6 +74,8 @@ export interface CrawlOptions {
    * the check.
    */
   mobileSampleSize?: number
+  /** How many distinct images to ask the size of. Defaults to DEFAULT_IMAGE_SAMPLE; 0 skips it. */
+  imageSampleSize?: number
 }
 
 /**
@@ -435,8 +438,15 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
         ? await checkMobileRenders(context, pages, { limit: mobileSampleSize, timeoutMs })
         : undefined
 
+    const imageSampleSize = options.imageSampleSize ?? DEFAULT_IMAGE_SAMPLE
+    const images =
+      imageSampleSize > 0
+        ? await measureImages(context, guard, pages, { limit: imageSampleSize, onBlocked })
+        : undefined
+
     return {
       pages,
+      ...(images ? { images } : {}),
       ...(outbound ? { outbound } : {}),
       ...(mobile ? { mobile } : {}),
       resources,

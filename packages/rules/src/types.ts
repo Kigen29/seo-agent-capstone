@@ -2,6 +2,7 @@ import type { Axis, Effort, Evidence, Finding, Severity } from '@seo/core'
 import type {
   AiCrawlerPosture,
   CrawledPage,
+  ImageWeight,
   LinkGraph,
   MobileRender,
   OutboundLink,
@@ -37,6 +38,8 @@ export interface RuleContext {
   outbound?: readonly OutboundLink[]
   /** A sample of pages rendered at phone width, when the crawl did that. */
   mobile?: readonly MobileRender[]
+  /** The declared size and type of the images the pages use, when the crawl asked. */
+  images?: readonly ImageWeight[]
   /**
    * The Google Business Profile the client connected, when they have connected one.
    *

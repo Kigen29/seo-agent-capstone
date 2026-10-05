@@ -457,3 +457,74 @@ export const TECH_033: Rule = {
     ]
   },
 }
+
+/**
+ * An image heavier than this is nearly always larger than it needs to be for a web page.
+ *
+ * Not a standard: there is none. 300 KB is where a photograph at the size a page displays it,
+ * saved in a modern format, comfortably fits, so anything above it is worth a look.
+ */
+export const HEAVY_IMAGE_BYTES = 300 * 1024
+
+const megabytes = (bytes: number): string =>
+  bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.round(bytes / 1024)} KB`
+
+/** Formats that predate WebP and AVIF. A heavy image in one of these has the cheapest fix. */
+const LEGACY_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/bmp'])
+
+/**
+ * TECH-034: images much heavier than a web page needs.
+ *
+ * On the content axis, not performance, on purpose. Performance here is scored only from real
+ * visitors' Core Web Vitals, and a heavy image is not evidence that those are poor: this is a fact
+ * about the files, offered as a likely cause when the field data does say the site is slow, and
+ * never as a reason to change a site real users already find fast.
+ */
+export const TECH_034: Rule = {
+  id: 'TECH-034',
+  axis: 'content',
+  severity: 'low',
+  estimatedEffort: 'small',
+  fixable: false,
+  description: 'Images are much heavier than a web page needs, which slows the page for visitors.',
+
+  evaluate: (context) => {
+    const heavy = (context.images ?? [])
+      .filter((image) => image.bytes !== null && image.bytes >= HEAVY_IMAGE_BYTES)
+      .sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0))
+    if (heavy.length === 0) return []
+
+    const heaviest = heavy[0]!
+    const users = new Set(heavy.flatMap((image) => image.usedOn))
+    const pages = context.pages.filter((page) => users.has(page.finalUrl))
+    const first = pages.find((page) => heaviest.usedOn.includes(page.finalUrl)) ?? pages[0]
+    if (!first) return []
+
+    const total = heavy.reduce((sum, image) => sum + (image.bytes ?? 0), 0)
+    const legacy = heavy.filter((image) => LEGACY_IMAGE_TYPES.has(image.contentType ?? '')).length
+
+    return [
+      {
+        title:
+          `${plural(heavy.length, 'image is', 'images are')} heavier than ` +
+          `${megabytes(HEAVY_IMAGE_BYTES)} (largest ${megabytes(heaviest.bytes!)}, ${megabytes(total)} in all)`,
+        subject: 'heavy-images',
+        evidence: metricEvidence(first, 'largest_image_bytes', heaviest.bytes!, 'count'),
+        affectedUrls: pages.map((page) => page.finalUrl),
+        confidence: 0.9,
+        estimatedImpact: 30,
+        falsification:
+          `Request ${heaviest.url} and read its Content-Length. If it is under ` +
+          `${megabytes(HEAVY_IMAGE_BYTES)}, this was wrong for that image. ` +
+          (legacy > 0
+            ? `${legacy} of these ${legacy === 1 ? 'is a' : 'are'} JPEG, PNG or GIF, where ` +
+              'saving as WebP or AVIF at the size the page displays is usually most of the saving. '
+            : '') +
+          'Whether this makes the site slow for real visitors is answered by the Core Web ' +
+          'Vitals field data, not by file sizes: if that data is good, this is not urgent.',
+      },
+    ]
+  },
+}

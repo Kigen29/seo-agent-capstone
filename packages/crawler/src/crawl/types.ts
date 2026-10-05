@@ -1,3 +1,4 @@
+import type { ImageWeight } from './images.js'
 import type { MobileRender } from './mobile.js'
 import type { OutboundLink } from './outbound.js'
 import type { PageExtract } from '../page/types.js'
@@ -90,6 +91,9 @@ export interface CrawlResult {
 
   /** A sample of pages rendered again at phone width. Absent when the check was skipped. */
   mobile?: MobileRender[]
+
+  /** The declared size and type of the images the pages use. Absent when the check was skipped. */
+  images?: ImageWeight[]
 
   /** Resumable snapshot. Persist this after every page. */
   state: FrontierState

@@ -75,6 +75,8 @@ export interface ContextSpec {
   outbound?: RuleContext['outbound']
   /** Phone-width renders, when the crawl ran them. */
   mobile?: RuleContext['mobile']
+  /** Image sizes, when the crawl asked for them. */
+  images?: RuleContext['images']
 }
 
 /**
@@ -98,6 +100,7 @@ export const context = (spec: ContextSpec): RuleContext => {
     skipped: [],
     ...(spec.outbound ? { outbound: spec.outbound } : {}),
     ...(spec.mobile ? { mobile: spec.mobile } : {}),
+    ...(spec.images ? { images: spec.images } : {}),
   }
 }
 

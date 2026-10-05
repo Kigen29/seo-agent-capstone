@@ -49,6 +49,8 @@ export {
   mobileSample,
 } from './crawl/mobile.js'
 export type { MobileRender } from './crawl/mobile.js'
+export { DEFAULT_IMAGE_SAMPLE, imageCandidates, measureImages } from './crawl/images.js'
+export type { ImageWeight } from './crawl/images.js'
 export type { CrawledPage, CrawlResult, SkippedUrl } from './crawl/types.js'
 
 export { expandSitemaps } from './sitemap/expand.js'

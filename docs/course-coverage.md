@@ -17,7 +17,7 @@ It is a coverage map, not a source of truth. Where a course and a primary source
 | Heading tags | TECH-019 (no h1, or several), TECH-020 (skipped level) | |
 | Anchor text | TECH-028 ("click here", "read more") | Internal links only. A linked logo with no text is not counted. |
 | Bullets and lists | Not checked, deliberately | About 85% of page-one results already have them, so they do not separate winners from losers. |
-| Images | AGENT-004 (missing alt) | "One image per 200 words" and "avoid stock photos" are not checkable facts. Image format and weight are not checked yet. |
+| Images | AGENT-004 (missing alt), TECH-034 (heavier than 300 KB) | Sizes come from each image's declared Content-Length, asked for with a HEAD request after the crawl; nothing is downloaded. Reported on the content axis, never as a performance score: whether a site is slow is answered by real visitors' Core Web Vitals. "One image per 200 words" and "avoid stock photos" are not checkable facts. |
 | Image alt text | AGENT-004 | Missing only. Whether the text is descriptive is a judgement, not a parse. |
 | Video | Not checked | |
 | Keyword density | Not checked, deliberately | Does not separate pages that rank from pages that do not, and writing to a density target makes pages worse. |
@@ -52,6 +52,7 @@ It is a coverage map, not a source of truth. Where a course and a primary source
 
 Canonicals (TECH-006, TECH-007, TECH-023), redirects (TECH-008, TECH-009), soft 404s (TECH-017), pages that only exist after JavaScript runs (TECH-018, TECH-022), mixed content (TECH-015), hreflang (TECH-016), noindex contradictions (TECH-005), AI crawler access (TECH-002), and agent readiness (AGENT-001 to AGENT-003).
 
-## Gaps worth closing next
+## Gaps still open
 
-1. Image weight and format.
+1. Reviews. Not measured: it needs the Business Profile reviews data, which is a separate integration rather than a missing check.
+2. Video. Nothing in the course's advice about it is a checkable fact about a page.
