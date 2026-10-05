@@ -42,6 +42,13 @@ export type { BlockedRequest, EgressGuard, EgressPolicy } from './crawl/egress.j
 export { Pacer } from './crawl/pacer.js'
 export { checkOutboundLinks, DEFAULT_OUTBOUND_LIMIT, outboundCandidates } from './crawl/outbound.js'
 export type { OutboundLink, OutboundOutcome } from './crawl/outbound.js'
+export {
+  checkMobileRenders,
+  DEFAULT_MOBILE_SAMPLE,
+  MOBILE_VIEWPORT,
+  mobileSample,
+} from './crawl/mobile.js'
+export type { MobileRender } from './crawl/mobile.js'
 export type { CrawledPage, CrawlResult, SkippedUrl } from './crawl/types.js'
 
 export { expandSitemaps } from './sitemap/expand.js'

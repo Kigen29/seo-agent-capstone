@@ -1,3 +1,4 @@
+import { checkMobileRenders, DEFAULT_MOBILE_SAMPLE } from './mobile.js'
 import { checkOutboundLinks, DEFAULT_OUTBOUND_LIMIT } from './outbound.js'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { extractPage } from '../page/extract.js'
@@ -67,6 +68,11 @@ export interface CrawlOptions {
    * DEFAULT_OUTBOUND_LIMIT; 0 skips the check (a verification re-crawl has no use for it).
    */
   outboundLinkLimit?: number
+  /**
+   * How many pages to render again at phone width. Defaults to DEFAULT_MOBILE_SAMPLE; 0 skips
+   * the check.
+   */
+  mobileSampleSize?: number
 }
 
 /**
@@ -423,9 +429,16 @@ export async function crawl(options: CrawlOptions, hooks: CrawlHooks = {}): Prom
         ? await checkOutboundLinks(context, guard, pages, { limit: outboundLimit, onBlocked })
         : undefined
 
+    const mobileSampleSize = options.mobileSampleSize ?? DEFAULT_MOBILE_SAMPLE
+    const mobile =
+      mobileSampleSize > 0
+        ? await checkMobileRenders(context, pages, { limit: mobileSampleSize, timeoutMs })
+        : undefined
+
     return {
       pages,
       ...(outbound ? { outbound } : {}),
+      ...(mobile ? { mobile } : {}),
       resources,
       skipped,
       robots,

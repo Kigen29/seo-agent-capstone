@@ -39,7 +39,7 @@ It is a coverage map, not a source of truth. Where a course and a primary source
 | Taught | Checked by | Notes |
 |---|---|---|
 | Site speed, Core Web Vitals | Performance axis, from CrUX field data | Field data, not a Lighthouse score. A site with too little traffic is reported as unmeasured, not guessed. |
-| Responsiveness | **Gap** | Not checked. |
+| Responsiveness | TECH-032 (no responsive viewport tag), TECH-033 (wider than a phone screen) | The tag is read on every page. Sideways scrolling is measured by rendering a sample of five pages at 375 pixels wide, because a page with a correct tag still overflows if one element has a fixed width. |
 | Schema markup | LOCAL-001, PROD-001, PROD-002 | **Disagrees with the course**, which says structured data "will help you rank higher". It makes a page eligible for rich results; it is not a ranking factor. |
 | Sitemaps | TECH-003, TECH-004 | |
 | Robots.txt | TECH-001, TECH-002 | |
@@ -54,5 +54,4 @@ Canonicals (TECH-006, TECH-007, TECH-023), redirects (TECH-008, TECH-009), soft 
 
 ## Gaps worth closing next
 
-1. Mobile responsiveness, from the viewport meta tag and a narrow-viewport render.
-2. Image weight and format.
+1. Image weight and format.

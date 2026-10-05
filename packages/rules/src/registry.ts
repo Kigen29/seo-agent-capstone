@@ -22,6 +22,8 @@ import {
   TECH_029,
   TECH_030,
   TECH_031,
+  TECH_032,
+  TECH_033,
 } from './rules/onpage.js'
 import { TECH_008, TECH_009, TECH_010 } from './rules/redirects.js'
 import { TECH_001, TECH_002 } from './rules/robots.js'
@@ -70,6 +72,8 @@ export const ALL_RULES: readonly Rule[] = [
   TECH_029,
   TECH_030,
   TECH_031,
+  TECH_032,
+  TECH_033,
   AGENT_001,
   AGENT_002,
   AGENT_003,

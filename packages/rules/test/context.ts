@@ -11,6 +11,9 @@ import {
 import type { RuleContext } from '../src/types.js'
 
 export const ORIGIN = 'https://example.com'
+
+/** In every fixture page, for the reason `lang` and `main` are: a correct page has one. */
+const VIEWPORT = '<meta name="viewport" content="width=device-width, initial-scale=1">'
 export const u = (path = '/') => `${ORIGIN}${path}`
 
 export interface PageSpec {
@@ -36,7 +39,7 @@ export interface PageSpec {
  * wrong: a page with no declared language and no marked content region is a real finding now.
  */
 const doc = (body: string, head = '') =>
-  `<!doctype html><html lang="en"><head>${head}</head><body><main>${body}</main></body></html>`
+  `<!doctype html><html lang="en"><head>${VIEWPORT}${head}</head><body><main>${body}</main></body></html>`
 
 export const page = (spec: PageSpec): CrawledPage => {
   const url = u(spec.path)
@@ -70,6 +73,8 @@ export interface ContextSpec {
   llmsTxt?: string | null
   /** Outbound link check results, when the crawl ran one. */
   outbound?: RuleContext['outbound']
+  /** Phone-width renders, when the crawl ran them. */
+  mobile?: RuleContext['mobile']
 }
 
 /**
@@ -92,6 +97,7 @@ export const context = (spec: ContextSpec): RuleContext => {
     graph: buildLinkGraph(toGraphPages(spec.pages), { seed }),
     skipped: [],
     ...(spec.outbound ? { outbound: spec.outbound } : {}),
+    ...(spec.mobile ? { mobile: spec.mobile } : {}),
   }
 }
 
