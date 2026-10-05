@@ -161,6 +161,26 @@
         "https://rangautiles.com/contactus"
       ],
       "why": "No <main> element in the served HTML of any page. Confirmed by grepping the stored bytes for <main followed by a word boundary: zero matches on all four. Added on a second pass, after the first run raised it and sent me to look; the evidence is the bytes, not the engine saying so."
+    },
+    {
+      "ruleId": "TECH-025",
+      "urls": [
+        "https://rangautiles.com/",
+        "https://rangautiles.com/about",
+        "https://rangautiles.com/sanitaryware",
+        "https://rangautiles.com/contactus"
+      ],
+      "why": "Added when the rule was introduced, after reading the bytes: all four pages serve the same <title>, and it is 124 characters long, about twice what a search result shows."
+    },
+    {
+      "ruleId": "TECH-027",
+      "urls": [
+        "https://rangautiles.com/",
+        "https://rangautiles.com/about",
+        "https://rangautiles.com/sanitaryware",
+        "https://rangautiles.com/contactus"
+      ],
+      "why": "Added when the rule was introduced, after reading the bytes: all four pages carry the same meta description, beginning \"Rangau Tiles and Sanitaryware Limited supplies high-quality\"."
     }
   ]
 }

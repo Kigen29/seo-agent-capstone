@@ -166,14 +166,14 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
 
 ## What is left
 
-### 1. STORY-038, the eval harness, is two-fifths short (#129)
+### 1. STORY-038, the eval harness (#129): the criteria are met; the sample is narrow
 
 | Criterion | State |
 |---|---|
 | Runner, precision / recall / hallucination rate | done (#136) |
 | Judge on a different model family, asserted | done (#136) |
 | Prompt snapshot tests | done (#137) |
-| Golden dataset of ~50 pages | **4 pages, 1 case** |
+| Golden dataset of ~50 pages | done: 50 pages, 3 real sites, 232 claims; precision 100%, recall 97.9%, pinned in CI |
 | Production merge rate and revert rate | **built**; shown per site on Outcomes |
 
 The dataset is the real work and it is slow rather than hard: capture, read the raw HTML, label

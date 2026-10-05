@@ -23,6 +23,14 @@ export const goldenPageSchema = z.object({
   url: z.string().url(),
   /** The HTML as served. Stored verbatim so the case is reproducible without the network. */
   html: z.string(),
+  /**
+   * The DOM after JavaScript ran, when the case was captured with a browser.
+   *
+   * Without it a single-page app is the same empty shell on every URL, and everything that only
+   * exists after rendering (its headings, its links, a "404" a route shows while answering 200)
+   * cannot be labelled or graded. Optional: a server-rendered site loses nothing by omitting it.
+   */
+  renderedHtml: z.string().optional(),
   status: z.number().int().default(200),
   headers: z.record(z.string()).default({}),
 })

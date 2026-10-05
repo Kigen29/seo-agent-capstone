@@ -256,7 +256,7 @@ export const THIN_PAGE_WORDS = 100
  * flagging them teaches people to ignore the rule.
  */
 const UTILITY_PATH =
-  /\/(contact|contact-us|login|log-in|signin|sign-in|signup|sign-up|register|cart|basket|checkout|account|search|thank-you|thanks|privacy|terms|cookies?)(\/|$)/i
+  /\/(contact[-_]?us|contact|admin|wp-admin|dashboard|login|log-in|signin|sign-in|signup|sign-up|register|cart|basket|checkout|account|search|thank-you|thanks|privacy|terms|cookies?)(\/|$)/i
 
 const looksLikeNotFound = (page: CrawledPage): boolean =>
   /\b(404|not found)\b/i.test(`${page.extract.title ?? ''} ${page.extract.h1s[0] ?? ''}`)

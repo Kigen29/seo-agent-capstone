@@ -1,3 +1,4 @@
+import { normaliseUrl } from '@seo/crawler'
 import { indexableHtmlPages, markupEvidence, siteEvidence } from '../evidence.js'
 import type { Rule, RuleContext } from '../types.js'
 
@@ -49,7 +50,14 @@ export const AGENT_001: Rule = {
 
     // The homepage first, then the most-linked pages, for the fixer to list. Internal inbound
     // links are the site's own vote for what matters, and they come free from the graph.
+    // Only pages that loaded and may be indexed. This list becomes the body of the llms.txt the
+    // fixer writes, and it used to include any URL the graph knew of: on a real site whose deep
+    // links all answer 404 it proposed a file listing twenty dead pages.
+    const live = new Set(
+      indexableHtmlPages(context.pages).map((page) => normaliseUrl(page.finalUrl) ?? page.finalUrl),
+    )
     const top = [...context.graph.nodes.values()]
+      .filter((node) => live.has(normaliseUrl(node.url) ?? node.url))
       .sort((a, b) => b.inboundCount - a.inboundCount)
       .map((node) => node.url)
     const keyPages = [context.seed, ...top.filter((url) => url !== context.seed)].slice(0, 10)

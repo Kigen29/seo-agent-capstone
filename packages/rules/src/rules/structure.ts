@@ -26,6 +26,9 @@ export const TECH_013: Rule = {
       const node = context.graph.nodes.get(url)
       const page = pageFor(context, url)
       if (!node || !page) return []
+      // An orphan is a page that exists and cannot be reached. A sitemap URL that answers 404 is
+      // not that: it is TECH-004's finding, and "link to it" would be the wrong advice.
+      if (page.status !== 200) return []
 
       return [
         {

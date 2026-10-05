@@ -1786,7 +1786,12 @@ describe('TECH-029: thin pages', () => {
         context({
           pages: [
             page({ path: '/contact', html: html.doc(body(20)) }),
+            // Found by the golden dataset: a real site spells it without the hyphen.
+            page({ path: '/contactus', html: html.doc(body(20)) }),
+            page({ path: '/contact-us', html: html.doc(body(20)) }),
             page({ path: '/login', html: html.doc(body(5)) }),
+            // Found by the golden dataset: a 16-word admin login form reported as thin content.
+            page({ path: '/admin', html: html.doc(body(16)) }),
             page({ path: '/gone', html: html.doc('<h1>404</h1><p>Page not found.</p>') }),
             page({ path: '/shell', html: html.doc('<div id="root"></div>') }),
             page({ path: '/hidden', html: html.noindex() }),
@@ -2004,5 +2009,44 @@ describe('TECH-034: heavy images', () => {
 
   it('stays silent when the crawl did not measure images', () => {
     expect(fire('TECH-034', context({ pages }))).toEqual([])
+  })
+})
+
+describe('findings the golden dataset corrected', () => {
+  it('TECH-013 does not call a page that answers 404 an orphan', () => {
+    // A sitemap URL that does not exist is the sitemap rule's finding. "Link to it" is wrong advice.
+    const findings = fire(
+      'TECH-013',
+      context({
+        pages: [
+          page({ path: '/', html: html.linkingTo('/a') }),
+          page({ path: '/a' }),
+          page({ path: '/real-orphan' }),
+          page({ path: '/dead', status: 404 }),
+        ],
+        sitemapUrls: [u('/'), u('/a'), u('/real-orphan'), u('/dead')],
+      }),
+    )
+
+    expect(findings.map((finding) => finding.affectedUrls[0])).toEqual([u('/real-orphan')])
+  })
+
+  it('AGENT-001 proposes only pages that exist for the llms.txt it would write', () => {
+    // These URLs become the body of the generated file. Dead ones must never be in it.
+    const findings = fire(
+      'AGENT-001',
+      context({
+        pages: [
+          page({ path: '/', html: html.linkingTo('/dead-one', '/dead-two', '/alive') }),
+          page({ path: '/alive' }),
+          page({ path: '/dead-one', status: 404 }),
+          page({ path: '/dead-two', status: 404 }),
+          page({ path: '/hidden', html: html.noindex() }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/'), u('/alive')])
   })
 })

@@ -18,6 +18,11 @@ export async function capture(
   seed: string,
   paths: string[],
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+  /**
+   * Renders a URL in a browser and returns the DOM, for sites that are empty until JavaScript
+   * runs. Injected, so this module stays free of a browser dependency and of any labelling.
+   */
+  render?: (url: string) => Promise<string>,
 ): Promise<GoldenCase> {
   const origin = new URL(seed).origin
 
@@ -31,11 +36,13 @@ export async function capture(
   for (const path of paths) {
     const url = new URL(path, origin).toString()
     const response = await fetchImpl(url)
+    const html = await response.text()
     pages.push({
       url,
-      html: await response.text(),
+      html,
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
+      ...(render ? { renderedHtml: await render(url) } : {}),
     })
   }
 

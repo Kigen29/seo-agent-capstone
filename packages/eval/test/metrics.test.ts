@@ -152,3 +152,37 @@ describe('aggregate', () => {
     expect(rolled.truePositives).toBe(0)
   })
 })
+
+describe('site-level rules', () => {
+  const missingFile = {
+    ruleId: 'AGENT-001',
+    urls: ['https://example.com/', 'https://example.com/a'],
+    why: 'no llms.txt at the root, which is true of every page on the site',
+  }
+
+  it('counts a missing site-wide file once, however many pages either side lists', () => {
+    // The rule lists the pages it proposes for the file; the labeller lists every page. Same fact.
+    const result = scoreCase(caseWith({ expected: [missingFile] }), [
+      finding('AGENT-001', ['https://example.com/']),
+    ])
+
+    expect(result.truePositives).toBe(1)
+    expect(result.falsePositives).toBe(0)
+    expect(result.falseNegatives).toBe(0)
+  })
+
+  it('still counts it as missed when the engine says nothing', () => {
+    const result = scoreCase(caseWith({ expected: [missingFile] }), [])
+
+    expect(result.falseNegatives).toBe(1)
+    expect(result.recall).toBe(0)
+  })
+
+  it('still counts it as wrong when the file is there and the engine claims it is not', () => {
+    const result = scoreCase(caseWith(), [
+      finding('AGENT-001', ['https://example.com/', 'https://example.com/a']),
+    ])
+
+    expect(result.falsePositives).toBe(1)
+  })
+})
