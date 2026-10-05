@@ -1,4 +1,4 @@
-import { generateContentFix } from '@seo/agent'
+import { generateContentFix, generateRepoFix, type RepoFixLlm } from '@seo/agent'
 import { baselineFor, getFinding } from '@seo/audit'
 import { findings, fixAttempts, sites, withTenant, type Database } from '@seo/db'
 import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
@@ -31,6 +31,8 @@ const registry = createFixerRegistry()
 /** Seams for tests. Production builds the GitHub provider from the environment. */
 export interface FixDeps {
   provider?: VersionControlProvider
+  /** The model the repository-reading agent uses. Production builds the tenant's budgeted client. */
+  llm?: RepoFixLlm
 }
 
 /** What one attempt achieved, recorded in fix_attempts. Null when there was nothing to do. */
@@ -172,12 +174,24 @@ async function attemptFix(
   // none applies does the LLM content fixer get a turn, and it makes exactly one schema-validated
   // call for text and nothing more. If the LLM chain is unconfigured it returns null, and this
   // falls through to the honest "no fix" error rather than opening an empty PR.
-  const fix =
+  let fix =
     (await registry.generate({ finding, framework, read })) ??
     (await generateContentFix(
       { finding, framework, read, siteUrl: site.url },
       { llm, tenantId: job.tenantId },
     ))
+
+  // Last, the agent that reads the repository (ADR-0030). It is tried only when nothing more
+  // constrained applies, and its "no" carries a reason written for the person who clicked.
+  if (!fix) {
+    const tree = (await provider.listFiles?.(repo)) ?? []
+    const outcome = await generateRepoFix(
+      { finding, framework, siteUrl: site.url, tree, read },
+      { llm: deps.llm ?? llm, tenantId: job.tenantId },
+    )
+    if (outcome.kind === 'fix') fix = outcome.fix
+    else if (outcome.kind === 'declined') throw new Error(outcome.reason)
+  }
   if (!fix) {
     throw new Error(
       'No safe automatic fix could be generated for this finding. The code that produces the ' +

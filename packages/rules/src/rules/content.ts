@@ -205,7 +205,7 @@ export const TECH_019: Rule = {
   axis: 'content',
   severity: 'low',
   estimatedEffort: 'trivial',
-  fixable: false,
+  fixable: true,
   description: 'A page has no h1, or has several.',
 
   evaluate: (context) =>
@@ -230,9 +230,9 @@ export const TECH_019: Rule = {
             `Re-crawl ${page.finalUrl} and count h1 elements. If there is exactly one, this ` +
             'was wrong. Do not expect a ranking movement from this alone: multiple h1s are ' +
             'valid HTML5 and Google has said they do not cause a problem. Fix it for clarity ' +
-            'and for screen readers, not for rank. Fix this by hand: an h1 is body content ' +
-            'in whichever component renders this route, and which heading should be the h1 is a ' +
-            'judgement about what the page is about.',
+            'and for screen readers, not for rank. The agent can propose this in a pull ' +
+            'request. When you review it, check that the heading it made the h1 is the one that ' +
+            'names what the page is about.',
         }
       }),
 }
@@ -291,7 +291,7 @@ export const TECH_020: Rule = {
   axis: 'content',
   severity: 'info',
   estimatedEffort: 'trivial',
-  fixable: false,
+  fixable: true,
   description: 'The heading hierarchy skips a level.',
 
   evaluate: (context) =>

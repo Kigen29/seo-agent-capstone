@@ -210,6 +210,18 @@ The decision is a deterministic fingerprint, `sha256(ruleId | subject)`, where t
 
 **A pull request and its outcome are deliberately not copied.** They stay on the row the pull request was opened for, because the webhook, the reconciler and the verifier all find that row by its URL, and a second row holding the same URL would give those paths two candidates. The newer finding is linked to the earlier one when it is read: a fix that is open or merged withholds the button and the API answers 409, a verified fix that has returned is shown as back after a fix, and a rejected one offers the fix again. The refusal is enforced in the API and not only by hiding a button, because the MCP server calls the same route. The alternative, a separate `issues` table that findings point at, is the cleaner model and was rejected as a rewrite of every query in the product for a benefit the fingerprint column already delivers.
 
+### 1.16a The agent reads the repository and proposes the fix (ADR-0030)
+
+Section 1.9 describes a write path in which a model writes one string and a parser writes the file. That held the line on safety and it capped the product: by October a pull request was possible for 11 of 44 rules, and an audit of a real site showed a Fix button on a handful of findings and "Needs you" on the rest. For a product whose positioning is a pull request instead of a list, that label was the list.
+
+The cause is that a hand-written fixer must know in advance where each framework keeps each thing, and a missing H1 lives somewhere different in every repository. So a second kind of fixer was added and placed last: the registry first, then the meta-description writer, then an agent that reads the repository. Detection does not move. The agent is handed a finding a deterministic rule already produced and asked for the change that makes that rule pass.
+
+What makes this defensible is that everything around the model call is code. A selector scores the repository's file tree against the finding, reads the best candidates, promotes those containing the finding's own evidence, and stops at 14 files and 70,000 characters. Environment files, workflows, lockfiles, keys, migrations and tests are refused by path before their content is fetched, and a file that contains something shaped like a credential is withheld; one of the two real repositories used in development has an environment file committed, so this is not hypothetical. The model returns a Zod-validated object of find-and-replace edits, never whole files, so a change reads as a diff. Before any pull request exists the proposal is applied in memory and thrown away if it edits a file the model was not shown, if a search string does not match exactly once, if it exceeds 8 files or 30 edits, if it deletes more than half a file, or if it introduces a hostname that is neither the site's nor already present. Declining is a first-class answer and its reason is shown on the finding.
+
+Thirteen rules are on the agent's list and three near neighbours are deliberately off it, because their fix is a choice (which of robots and the sitemap is right, where a redirect should go) or needs something the agent cannot see (what an image shows). The findings that remain manual no longer say "Needs you". Each names one of four reasons, because each implies a different next step for the reader. The cost stays inside ADR-0005: one `smart` call per finding, and a second only when the model asks for more files.
+
+The limit is stated plainly in the ADR and here: the deterministic half is tested exhaustively and the whole path is tested against a real database with a fake model, but no test calls a real model. The measures of the model half are the merge rate and revert rate of its pull requests in production.
+
 ### 1.17 Proof of deployment, and whose credentials provide it (ADR-0027, ADR-0028)
 
 A merged fix is marked verified only when there is evidence that the site's domain is serving a commit that contains it. Re-crawling too early would "verify" a fix against the previous deployment, or reject one that had not shipped yet. The evidence is read, not inferred: GitHub deployment records through the App's `deployments: read` permission (ADR-0027), and for a Vercel custom domain, where GitHub's status names a generated URL rather than the domain, the domain's current alias assignment from the hosting API.
@@ -495,5 +507,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0027 | Read repository deployment evidence through the GitHub App | Accepted; extends 0002 |
 | 0028 | Hosting credentials belong to the site, not to the operator | Accepted; narrows 0027 |
 | 0029 | A finding is the same finding on the next audit | Accepted |
+| 0030 | The agent reads the repository and proposes the fix | Accepted; supersedes part of 0011 |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

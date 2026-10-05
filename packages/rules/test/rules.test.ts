@@ -176,20 +176,20 @@ describe('TECH-006: missing canonical', () => {
     ).toEqual([])
   })
 
-  it('does not claim to be fixable in code, because it is not', () => {
-    // A canonical has to be self-referencing per page, and every file a head-tag fixer can write
-    // to is a shared layout. One tag in app/layout.tsx, header.php or index.html gives every route
-    // the same canonical, which tells Google the whole site duplicates one page: worse than the
-    // missing tag being reported. Next.js is not an escape either; its docs are explicit that a
-    // relative alternates.canonical resolves against metadataBase, not the current path. ADR-0022.
-    expect(ruleById('TECH-006')?.fixable).toBe(false)
+  it('is fixable, but only by the agent that reads the repository', () => {
+    // No static tag can fix this: every file a head-tag fixer can write to is a shared layout, and
+    // one tag there gives every route the same canonical, which is worse than the missing tag
+    // (ADR-0022). It became fixable when the agent could read the code and derive the canonical
+    // from the route (ADR-0030), and no deterministic fixer is registered for it.
+    expect(ruleById('TECH-006')?.fixable).toBe(true)
   })
 
-  it('tells the reader the fix is per page and a shared layout would be wrong', () => {
+  it('tells the reviewer what to check, because the trap has not gone away', () => {
     const [finding] = fire('TECH-006', context({ pages: [page({ path: '/' })] }))
 
-    // The button is gone, so the finding has to carry the guidance the button used to imply.
-    expect(finding?.falsification).toContain('per page')
+    // The agent can write it now, and a person still merges it. The finding names the mistake a
+    // reviewer must look for: one static tag in a shared layout.
+    expect(finding?.falsification).toContain('its own URL')
     expect(finding?.falsification).toContain('shared layout')
   })
 })
@@ -1451,16 +1451,32 @@ describe('rules whose fix is a decision, not an edit', () => {
     'TECH-013',
     'TECH-014',
     'TECH-016',
-    // The fix is per-page source the reader cannot locate, and the only file it *can* write to is
-    // a shared layout, where the edit would apply to every route. For a title that makes the
-    // duplication being reported worse and site-wide; for a heading it is simply the wrong file.
+    // The model cannot see a picture, so alt text it wrote would be a guess from a file name.
+    'AGENT-004',
+  ])('%s does not offer a fix it cannot deliver', (ruleId) => {
+    expect(ruleById(ruleId)?.fixable).toBe(false)
+  })
+
+  it.each([
+    // These were "a decision, not an edit" only because nothing could read the per-page source:
+    // the one file a fixer could write to was a shared layout, where the edit applies to every
+    // route. The repository-reading agent (ADR-0030) reads the page files, so they are fixable,
+    // by a model-written change that a person reviews.
+    'TECH-006',
     'TECH-011',
     'TECH-019',
     'TECH-020',
-    // A canonical in a shared layout tells Google the whole site duplicates one page (ADR-0022).
-    'TECH-006',
-  ])('%s does not offer a fix it cannot deliver', (ruleId) => {
-    expect(ruleById(ruleId)?.fixable).toBe(false)
+    'TECH-023',
+    'TECH-024',
+    'TECH-025',
+    'TECH-026',
+    'TECH-027',
+    'TECH-028',
+    'TECH-032',
+    'AGENT-002',
+    'AGENT-003',
+  ])('%s is fixable by the agent that reads the repository', (ruleId) => {
+    expect(ruleById(ruleId)?.fixable).toBe(true)
   })
 
   it.each(['TECH-003', 'TECH-004', 'TECH-015'])(

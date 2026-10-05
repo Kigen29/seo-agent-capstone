@@ -42,7 +42,7 @@ export const TECH_024: Rule = {
   axis: 'content',
   severity: 'medium',
   estimatedEffort: 'small',
-  fixable: false,
+  fixable: true,
   description: 'A page has no title tag, so Google makes up the headline shown in search results.',
 
   evaluate: (context) => {
@@ -79,7 +79,7 @@ export const TECH_025: Rule = {
   axis: 'content',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: false,
+  fixable: true,
   description: 'A title is long enough that search results will probably cut it off.',
 
   evaluate: (context) => {
@@ -117,7 +117,7 @@ export const TECH_026: Rule = {
   axis: 'content',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: false,
+  fixable: true,
   description: 'Pages have no meta description, so Google writes each search snippet itself.',
 
   evaluate: (context) => {
@@ -145,7 +145,7 @@ export const TECH_027: Rule = {
   axis: 'content',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: false,
+  fixable: true,
   description: 'Several pages share the same meta description.',
 
   evaluate: (context) => {
@@ -214,7 +214,7 @@ export const TECH_028: Rule = {
   axis: 'structure',
   severity: 'low',
   estimatedEffort: 'small',
-  fixable: false,
+  fixable: true,
   description: 'Internal links use text like "click here", which says nothing about the target.',
 
   evaluate: (context) => {
@@ -392,7 +392,7 @@ export const TECH_032: Rule = {
   axis: 'structure',
   severity: 'medium',
   estimatedEffort: 'trivial',
-  fixable: false,
+  fixable: true,
   description: 'Pages are not set up to fit a phone screen: the viewport tag is missing or fixed.',
 
   evaluate: (context) => {

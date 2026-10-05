@@ -1,0 +1,107 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateRepoFix > pins the prompt, because it is production code that happens to be prose > prompt 1`] = `
+"# Finding TECH-023
+2 different pages all declare https://www.example.com/ as their canonical
+
+Site: https://www.example.com/
+Framework: react_spa
+
+## What a correct fix looks like
+Many pages declare the same canonical URL, so each claims to be a copy of one page. Every page must declare its own URL. Usually one static tag in the HTML shell or a default value in a shared head component is the cause: make it derive from the current route, and remove any static tag that would otherwise win.
+
+## How we will know the fix failed
+Re-fetch two of the pages; if each names itself, this was wrong.
+
+## What the audit observed
+{"kind":"markup","url":"https://www.example.com/about","locator":"link[rel=\\"canonical\\"]","snippet":"<link rel=\\"canonical\\" href=\\"https://www.example.com/\\">","observedAt":"2026-10-05T00:00:00.000Z","source":"crawler"}
+
+## Affected pages (2)
+- https://www.example.com/about
+- https://www.example.com/contact
+
+## Libraries the project already depends on
+react, react-helmet-async
+
+## Files you may edit, shown in full
+### index.html
+<<<FILE
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Example Safaris</title>
+    <link rel="canonical" href="https://www.example.com/" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+FILE>>>
+
+### src/App.tsx
+<<<FILE
+export default function App() {
+  return <Routes />
+}
+
+FILE>>>
+
+### src/pages/About.tsx
+<<<FILE
+import { SEO } from '../components/SEO'
+
+export default function About() {
+  return (
+    <>
+      <SEO title="About" />
+      <h1>About Example Safaris</h1>
+    </>
+  )
+}
+
+FILE>>>
+
+### src/pages/Contact.tsx
+<<<FILE
+export default function Contact() {
+  return <h1>Contact</h1>
+}
+
+FILE>>>
+
+### src/components/SEO.tsx
+<<<FILE
+import { Helmet } from 'react-helmet-async'
+
+export function SEO({ title }: { title: string }) {
+  return (
+    <Helmet>
+      <title>{title}</title>
+    </Helmet>
+  )
+}
+
+FILE>>>
+
+## Other files in the repository (not shown; request up to 6 with "need_files")
+(none)"
+`;
+
+exports[`generateRepoFix > pins the prompt, because it is production code that happens to be prose > system 1`] = `
+"You fix one SEO finding in a website repository by proposing exact edits to its files.
+A deterministic audit found the issue; your job is only to write the smallest change that resolves it.
+
+Rules:
+1. Edit only files whose full contents you were shown. To see another file from the list of other files, return decision "need_files" with up to 6 paths, and nothing else.
+2. Each edit is an exact find-and-replace. "find" must be copied character for character from the file as shown, must occur exactly once in that file, and should be the shortest unique span that contains the change. Include neighbouring lines if needed to make it unique.
+3. Change as little as possible. Do not reformat, rename, reorder imports, or tidy code you were not asked to fix. Match the existing style.
+4. Use only libraries the project already depends on. Never add a dependency or edit package.json.
+5. Never invent facts. No made-up prices, awards, ratings, addresses, names, statistics or reviews. Text you write must be supported by what the repository already says.
+6. Do not add links to websites that are not already referenced in the files you were shown.
+7. Do not use the em dash character in anything you write.
+8. If the fix needs information that is not in the repository, a decision only the owner can make, or a change outside the code (hosting settings, content only the business can supply), return decision "cannot_fix" and say plainly what is needed.
+9. If you are not confident an edit is correct, return "cannot_fix". A wrong pull request is worse than none.
+
+In "summary", say in two or three plain sentences what you changed and why it resolves the finding. In "expectedEffect", say what will be different on the live site. In "rollback", say how to undo it. Always return every field; use empty arrays and empty strings where a field does not apply."
+`;

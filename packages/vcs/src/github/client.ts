@@ -179,6 +179,21 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
         return data.default_branch
       },
 
+      async listTree(branch) {
+        const octokit = await octokitFor(ctx.installationId)
+        const { data } = await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
+          owner,
+          repo,
+          tree_sha: branch,
+          recursive: '1',
+        })
+        // GitHub truncates a very large tree. What came back is still real; the agent works with
+        // the files it can see and says so if the one it needs is not among them.
+        return data.tree
+          .filter((entry) => entry.type === 'blob' && typeof entry.path === 'string')
+          .map((entry) => ({ path: entry.path as string, size: entry.size ?? 0 }))
+      },
+
       async getRepositoryId() {
         const octokit = await octokitFor(ctx.installationId)
         const { data } = await octokit.request('GET /repos/{owner}/{repo}', { owner, repo })

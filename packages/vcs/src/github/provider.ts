@@ -5,6 +5,7 @@ import type {
   PullRequest,
   RepoContext,
   RepoFile,
+  RepoTreeEntry,
   VersionControlProvider,
 } from '../provider.js'
 
@@ -23,6 +24,8 @@ export interface GitHubApi {
   getRepositoryId?(): Promise<number>
   isPullRequestDeployed?(number: number, siteUrl: string): Promise<boolean>
   getDefaultBranch(): Promise<string>
+  /** Every blob on a branch, recursively. Optional so existing fakes stay valid. */
+  listTree?(branch: string): Promise<RepoTreeEntry[]>
   getBranchHeadSha(branch: string): Promise<string>
   getFile(path: string, ref: string): Promise<RepoFile | null>
   createBranch(branch: string, fromSha: string): Promise<void>
@@ -84,6 +87,12 @@ export class GitHubProvider implements VersionControlProvider {
     const api = await this.apiFor(ctx)
     const branch = ref ?? (await api.getDefaultBranch())
     return api.getFile(path, branch)
+  }
+
+  async listFiles(ctx: RepoContext): Promise<RepoTreeEntry[]> {
+    const api = await this.apiFor(ctx)
+    if (!api.listTree) return []
+    return api.listTree(await api.getDefaultBranch())
   }
 
   async findOpenPullRequest(ctx: RepoContext, findingId: string): Promise<PullRequest | null> {

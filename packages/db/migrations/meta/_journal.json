@@ -218,6 +218,13 @@
       "when": 1791244800000,
       "tag": "0030_finding_fingerprint",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791331200000,
+      "tag": "0031_agent_fixable_findings",
+      "breakpoints": true
     }
   ]
 }
