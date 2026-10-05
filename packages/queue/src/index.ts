@@ -284,8 +284,7 @@ async function drain<T extends object>(
         // nothing else, so the reason for a failure in production could not be read from the run
         // that had it. Handlers already raise messages fit for a person (they are shown on the
         // finding), and the first line is enough to act on.
-        console.error(`queue: a ${source} job failed: ${message.split('
-')[0]}`)
+        console.error(`queue: ${source} job failed: ${message.split(/\r?\n/)[0]}`)
         await queue.fail(source, job.id, { message })
         failed += 1
       }
