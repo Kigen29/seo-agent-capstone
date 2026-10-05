@@ -122,6 +122,30 @@ describe('crawl: against a live server', () => {
     expect(home?.extract.links.some((l) => l.internal === false)).toBe(true)
   })
 
+  describe('how heavy the images are', () => {
+    const weightOf = (name: string) =>
+      result.images?.find((image) => image.url === `${site.origin}/img/${name}`)
+
+    it('reads the declared size and type without downloading anything', () => {
+      expect(weightOf('hero.jpg')).toMatchObject({ bytes: 2_400_000, contentType: 'image/jpeg' })
+      // Parameters on the type are dropped, so a rule can compare it plainly.
+      expect(weightOf('icon.png')).toMatchObject({ bytes: 4096, contentType: 'image/png' })
+      const methods = site.requests
+        .filter((request) => request.url.startsWith('/img/'))
+        .map((request) => request.method)
+      expect(new Set(methods)).toEqual(new Set(['HEAD']))
+    })
+
+    it('records an undeclared size as unknown, never as zero', () => {
+      expect(weightOf('no-length.jpg')).toMatchObject({ bytes: null })
+    })
+
+    it('measures each image once, and never an inline data: image', () => {
+      expect(result.images).toHaveLength(3)
+      expect(weightOf('hero.jpg')?.usedOn).toEqual([`${site.origin}/`])
+    })
+  })
+
   describe('rendered again at phone width', () => {
     const renderOf = (path: string) =>
       result.mobile?.find((render) => new URL(render.url).pathname === path)

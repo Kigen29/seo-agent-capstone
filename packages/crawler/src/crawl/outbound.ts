@@ -104,15 +104,23 @@ const classify = (status: number): OutboundOutcome =>
       ? 'inconclusive'
       : 'ok'
 
-/** One request, following redirects ourselves so every hop passes the guard. */
-async function request(
+/**
+ * One request, following redirects ourselves so every hop passes the guard. Shared with the image
+ * check: anything that asks a host the site merely mentions goes through here.
+ */
+export async function guardedRequest(
   context: BrowserContext,
   guard: EgressGuard,
   method: 'HEAD' | 'GET',
   input: string,
   timeout: number,
   onBlocked?: (blocked: BlockedRequest) => void,
-): Promise<{ status: number | null; reason?: string; dead?: boolean }> {
+): Promise<{
+  status: number | null
+  reason?: string
+  dead?: boolean
+  headers?: Record<string, string>
+}> {
   let url = input
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const refusal = await guard(url)
@@ -125,9 +133,10 @@ async function request(
     }
     const response = await context.request.fetch(url, { method, timeout, maxRedirects: 0 })
     const status = response.status()
-    const location = response.headers()['location']
+    const headers = response.headers()
+    const location = headers['location']
     await response.dispose()
-    if (status < 300 || status >= 400 || !location) return { status }
+    if (status < 300 || status >= 400 || !location) return { status, headers }
     url = new URL(location, url).toString()
   }
   return { status: null, reason: 'Too many redirects.' }
@@ -147,12 +156,12 @@ async function checkOne(
   ): OutboundLink => ({ ...candidate, outcome, status, ...(reason ? { reason } : {}) })
 
   try {
-    let result = await request(context, guard, 'HEAD', candidate.url, timeout, onBlocked)
+    let result = await guardedRequest(context, guard, 'HEAD', candidate.url, timeout, onBlocked)
     if (result.dead) return done('broken', null, result.reason)
     // Plenty of servers answer HEAD wrongly (404, 405, 403) for a page GET serves. Never call a
     // link broken, or blocked, on the strength of HEAD alone.
     if (result.status === null || result.status >= 400) {
-      result = await request(context, guard, 'GET', candidate.url, timeout, onBlocked)
+      result = await guardedRequest(context, guard, 'GET', candidate.url, timeout, onBlocked)
       if (result.dead) return done('broken', null, result.reason)
     }
     if (result.status === null) return done('inconclusive', null, result.reason)

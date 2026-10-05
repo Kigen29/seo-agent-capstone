@@ -304,7 +304,9 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         egress: options.egress,
         // A verification re-crawl exists to re-check specific findings; outbound links are not
         // among the things it can verify, so it does not spend requests on them.
-        ...(options.verificationFindings ? { outboundLinkLimit: 0, mobileSampleSize: 0 } : {}),
+        ...(options.verificationFindings
+          ? { outboundLinkLimit: 0, mobileSampleSize: 0, imageSampleSize: 0 }
+          : {}),
       },
       { onPage },
     )
@@ -346,6 +348,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       skipped: result.skipped,
       ...(result.outbound ? { outbound: result.outbound } : {}),
       ...(result.mobile ? { mobile: result.mobile } : {}),
+      ...(result.images ? { images: result.images } : {}),
     })
 
     /**

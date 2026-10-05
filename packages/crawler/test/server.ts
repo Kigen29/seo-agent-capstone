@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 
 export interface RequestLog {
   url: string
+  method: string
   userAgent: string
   at: number
 }
@@ -73,6 +74,7 @@ export async function startTestSite(): Promise<TestSite> {
     const path = req.url ?? '/'
     requests.push({
       url: path,
+      method: req.method ?? 'GET',
       userAgent: req.headers['user-agent'] ?? '',
       at: Date.now(),
     })
@@ -118,6 +120,10 @@ export async function startTestSite(): Promise<TestSite> {
              <a href="/csr">Client rendered</a>
              <a href="/csr-late">Client rendered from an API</a>
              <a href="/wide">A page with a fixed-width table</a>
+             <img src="/img/hero.jpg" alt="A very large photograph">
+             <img src="/img/icon.png" alt="A small icon">
+             <img src="/img/no-length.jpg" alt="An image whose server will not say how big it is">
+             <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="">
              <a href="/nofollowed" rel="nofollow">Nofollowed</a>
              <a href="${external}/alive">External</a>
              <a href="${external}/gone">A page that was deleted</a>
@@ -195,6 +201,23 @@ export async function startTestSite(): Promise<TestSite> {
              </script>
            </body></html>`,
         )
+        return
+
+      // Images answer HEAD with a declared size and nothing else: the check must never download.
+      case '/img/hero.jpg':
+        res.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': '2400000' })
+        res.end()
+        return
+      case '/img/icon.png':
+        res.writeHead(200, {
+          'content-type': 'image/png; charset=binary',
+          'content-length': '4096',
+        })
+        res.end()
+        return
+      case '/img/no-length.jpg':
+        res.writeHead(200, { 'content-type': 'image/jpeg', 'transfer-encoding': 'chunked' })
+        res.end()
         return
 
       // Correct viewport tag, and still too wide for a phone: one fixed-width element is enough.

@@ -83,7 +83,7 @@ describe('crawl: browser egress', () => {
     expect(result.llmsTxt).toBeNull()
   }, 60_000)
 
-  it('never requests an image at all when no screenshot needs one', async () => {
+  it('never has the browser load an image when no screenshot needs one', async () => {
     site.requests.length = 0
     const result = await crawl({
       seed: `${site.origin}/`,
@@ -91,6 +91,10 @@ describe('crawl: browser egress', () => {
       delayMs: 0,
       concurrency: 1,
       maxPages: 5,
+      // The image-weight check asks for image headers on purpose, after the crawl and through the
+      // guard (the first test above runs it under the hostile policy and sees it refused). It is
+      // off here so this test stays about one thing: rendering a page does not fetch its images.
+      imageSampleSize: 0,
     })
     expect(result.pages.length).toBeGreaterThan(0)
     expect(site.requests).not.toContain('/leak/img')
