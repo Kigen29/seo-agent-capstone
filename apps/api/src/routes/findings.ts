@@ -14,6 +14,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
+import { refreshWaitingPullRequest } from '../pr-refresh.js'
 
 /**
  * The findings inbox, one finding, and the button that turns a finding into a pull request.
@@ -64,6 +65,10 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
       const finding = await getFinding(db, request.tenantId, request.params.id)
 
       if (!finding) return notFound(reply)
+      // A merge whose webhook was lost is noticed here, when somebody looks (see pr-refresh.ts).
+      if (await refreshWaitingPullRequest(deps, request.tenantId, finding, request.log)) {
+        return { finding: (await getFinding(db, request.tenantId, request.params.id)) ?? finding }
+      }
       return { finding }
     })
 
