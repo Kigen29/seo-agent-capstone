@@ -1869,3 +1869,78 @@ describe('TECH-031: dead links to other sites', () => {
     expect(fire('TECH-031', context({ pages: [linking] }))).toEqual([])
   })
 })
+
+describe('TECH-032: no responsive viewport tag', () => {
+  const raw = (head: string) =>
+    `<!doctype html><html lang="en"><head>${head}</head><body><main><h1>H</h1><p>${'word '.repeat(150)}</p></main></body></html>`
+
+  it('lists pages whose viewport tag is missing or pinned to a fixed width', () => {
+    const findings = fire(
+      'TECH-032',
+      context({
+        pages: [
+          page({ path: '/none', html: raw('') }),
+          page({ path: '/fixed', html: raw('<meta name="viewport" content="width=1024">') }),
+          page({
+            path: '/fits',
+            html: raw('<meta name="viewport" content="width=device-width, initial-scale=1">'),
+          }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.affectedUrls).toEqual([u('/none'), u('/fixed')])
+  })
+
+  it('stays silent on the standard tag, however it is spaced', () => {
+    expect(
+      fire(
+        'TECH-032',
+        context({
+          pages: [
+            page({
+              path: '/',
+              html: raw('<meta name="viewport" content="initial-scale=1,width = device-width">'),
+            }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('TECH-033: wider than a phone screen', () => {
+  const render = (path: string, contentWidth: number) => ({
+    url: u(path),
+    viewportWidth: 375,
+    contentWidth,
+    overflowPx: Math.max(0, contentWidth - 375),
+  })
+  const pages = ['/', '/wide', '/wider'].map((path) => page({ path, html: html.doc(body(150)) }))
+
+  it('reports the pages that overflow, with the worst as evidence and the sample size stated', () => {
+    const findings = fire(
+      'TECH-033',
+      context({
+        pages,
+        mobile: [render('/', 375), render('/wide', 600), render('/wider', 1200)],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe('2 of 3 pages checked on a phone-sized screen scroll sideways')
+    expect(findings[0]?.affectedUrls).toEqual([u('/wide'), u('/wider')])
+    expect(findings[0]?.evidence).toMatchObject({ metric: 'mobile_overflow_px', value: 825 })
+  })
+
+  it('ignores a few pixels, which is a scrollbar or rounding and not a layout problem', () => {
+    expect(
+      fire('TECH-033', context({ pages, mobile: [render('/', 375), render('/wide', 381)] })),
+    ).toEqual([])
+  })
+
+  it('stays silent when no page was rendered at phone width', () => {
+    expect(fire('TECH-033', context({ pages }))).toEqual([])
+  })
+})

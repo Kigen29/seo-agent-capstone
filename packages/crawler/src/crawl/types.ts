@@ -1,3 +1,4 @@
+import type { MobileRender } from './mobile.js'
 import type { OutboundLink } from './outbound.js'
 import type { PageExtract } from '../page/types.js'
 import type { RenderComparison } from '../page/render.js'
@@ -86,6 +87,9 @@ export interface CrawlResult {
    * Absent when the check was skipped. See outbound.ts for why "could not load" is not "broken".
    */
   outbound?: OutboundLink[]
+
+  /** A sample of pages rendered again at phone width. Absent when the check was skipped. */
+  mobile?: MobileRender[]
 
   /** Resumable snapshot. Persist this after every page. */
   state: FrontierState

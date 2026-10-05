@@ -95,6 +95,11 @@ export interface PageExtract {
    * either way: unlike an image's alt, there is no meaning to declaring an empty language.
    */
   lang: string | null
+  /**
+   * The content of `meta[name="viewport"]`, or null when the tag is absent. Without
+   * `width=device-width` a phone lays the page out at desktop width and shrinks it.
+   */
+  viewport: string | null
   text: string
   wordCount: number
 }

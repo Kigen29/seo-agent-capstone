@@ -117,6 +117,7 @@ export async function startTestSite(): Promise<TestSite> {
              <a href="/missing">Missing</a>
              <a href="/csr">Client rendered</a>
              <a href="/csr-late">Client rendered from an API</a>
+             <a href="/wide">A page with a fixed-width table</a>
              <a href="/nofollowed" rel="nofollow">Nofollowed</a>
              <a href="${external}/alive">External</a>
              <a href="${external}/gone">A page that was deleted</a>
@@ -192,6 +193,16 @@ export async function startTestSite(): Promise<TestSite> {
                    '<h1>' + data.title + '</h1><p>' + 'word '.repeat(120) + '</p>'
                })
              </script>
+           </body></html>`,
+        )
+        return
+
+      // Correct viewport tag, and still too wide for a phone: one fixed-width element is enough.
+      case '/wide':
+        html(
+          `<!doctype html><html><head><title>Wide</title>
+             <meta name="viewport" content="width=device-width, initial-scale=1"></head>
+             <body><h1>Prices</h1><div style="width:1200px;height:40px;background:#ccc">a table</div>
            </body></html>`,
         )
         return

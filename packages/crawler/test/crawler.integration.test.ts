@@ -18,7 +18,14 @@ describe('crawl: against a live server', () => {
 
   beforeAll(async () => {
     site = await startTestSite()
-    result = await crawl({ seed: site.origin, egress: LOCAL, delayMs: 0, concurrency: 2 })
+    result = await crawl({
+      seed: site.origin,
+      egress: LOCAL,
+      delayMs: 0,
+      concurrency: 2,
+      // Every page, so the wide one is in the sample whatever order the URLs sort in.
+      mobileSampleSize: 50,
+    })
   }, 120_000)
 
   afterAll(async () => {
@@ -113,6 +120,31 @@ describe('crawl: against a live server', () => {
     expect(home?.extract.h1s).toEqual(['Home'])
     expect(home?.extract.links.some((l) => l.href === '/a' && l.internal)).toBe(true)
     expect(home?.extract.links.some((l) => l.internal === false)).toBe(true)
+  })
+
+  describe('rendered again at phone width', () => {
+    const renderOf = (path: string) =>
+      result.mobile?.find((render) => new URL(render.url).pathname === path)
+
+    it('measures a page that fits as exactly as wide as the phone', () => {
+      expect(renderOf('/a')).toMatchObject({ viewportWidth: 375, overflowPx: 0 })
+    })
+
+    it('measures how far a fixed-width element pushes a page past the screen', () => {
+      // The viewport tag on this page is correct. Only rendering it shows the problem.
+      const wide = renderOf('/wide')
+      expect(result.pages.find((p) => p.url.endsWith('/wide'))?.extract.viewport).toMatch(
+        /width=device-width/,
+      )
+      expect(wide?.contentWidth).toBeGreaterThanOrEqual(1200)
+      expect(wide?.overflowPx).toBeGreaterThan(800)
+    })
+
+    it('renders only pages that loaded, each once', () => {
+      const paths = (result.mobile ?? []).map((render) => new URL(render.url).pathname)
+      expect(new Set(paths).size).toBe(paths.length)
+      expect(paths).not.toContain('/missing')
+    })
   })
 
   describe('links that leave the site', () => {

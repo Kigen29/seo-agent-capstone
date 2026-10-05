@@ -3,6 +3,7 @@ import type {
   AiCrawlerPosture,
   CrawledPage,
   LinkGraph,
+  MobileRender,
   OutboundLink,
   RobotsTxt,
   SkippedUrl,
@@ -34,6 +35,8 @@ export interface RuleContext {
    * which case the rule that reads it stays silent rather than assuming every link is fine.
    */
   outbound?: readonly OutboundLink[]
+  /** A sample of pages rendered at phone width, when the crawl did that. */
+  mobile?: readonly MobileRender[]
   /**
    * The Google Business Profile the client connected, when they have connected one.
    *

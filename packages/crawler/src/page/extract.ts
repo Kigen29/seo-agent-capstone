@@ -70,6 +70,7 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
   const title = $('head > title').first().text().trim() || null
 
   const metaDescription = $('meta[name="description"]').first().attr('content')?.trim() ?? null
+  const viewport = $('meta[name="viewport"]').first().attr('content')?.trim() ?? null
 
   const canonicalHref = $('link[rel="canonical"]').first().attr('href')
   const canonical = canonicalHref ? (resolve(canonicalHref, baseUrl) ?? null) : null
@@ -215,6 +216,7 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
   return {
     title,
     metaDescription,
+    viewport,
     canonical,
     metaRobots,
     headings,

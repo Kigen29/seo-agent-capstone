@@ -379,3 +379,81 @@ export const TECH_031: Rule = {
     ]
   },
 }
+
+/**
+ * TECH-032: pages with no responsive viewport tag.
+ *
+ * Without `width=device-width` a phone lays the page out as if it were a desktop screen and
+ * shrinks the result, so the text is too small to read without zooming. Google indexes the mobile
+ * version of a page, so this is the version being judged.
+ */
+export const TECH_032: Rule = {
+  id: 'TECH-032',
+  axis: 'structure',
+  severity: 'medium',
+  estimatedEffort: 'trivial',
+  fixable: false,
+  description: 'Pages are not set up to fit a phone screen: the viewport tag is missing or fixed.',
+
+  evaluate: (context) => {
+    const unfit = indexableHtmlPages(context.pages).filter(
+      (page) => !/width\s*=\s*device-width/i.test(page.extract.viewport ?? ''),
+    )
+    if (unfit.length === 0) return []
+    return grouped(unfit, {
+      title: `${plural(unfit.length, 'page is', 'pages are')} not set up to fit a phone screen`,
+      subject: 'missing-viewport',
+      evidence: markupEvidence(
+        unfit[0]!,
+        'meta[name="viewport"]',
+        unfit[0]!.extract.viewport ?? '',
+      ),
+      confidence: 1,
+      estimatedImpact: 40,
+      falsification:
+        `Re-fetch ${unfit[0]!.finalUrl} and read meta[name="viewport"]. If its content includes ` +
+        'width=device-width, this was wrong. After the fix, the page opens on a phone at a ' +
+        'readable size without zooming.',
+    })
+  },
+}
+
+/** A few pixels of overflow is a rounding artefact or a scrollbar, not a layout problem. */
+export const MOBILE_OVERFLOW_TOLERANCE_PX = 8
+
+/** TECH-033: pages that are wider than a phone screen when actually rendered on one. */
+export const TECH_033: Rule = {
+  id: 'TECH-033',
+  axis: 'structure',
+  severity: 'medium',
+  estimatedEffort: 'small',
+  fixable: false,
+  description: 'Pages are wider than a phone screen, so visitors have to scroll sideways.',
+
+  evaluate: (context) => {
+    const wide = (context.mobile ?? []).filter(
+      (render) => render.overflowPx > MOBILE_OVERFLOW_TOLERANCE_PX,
+    )
+    if (wide.length === 0) return []
+
+    const worst = [...wide].sort((a, b) => b.overflowPx - a.overflowPx)[0]!
+    const page = context.pages.find((candidate) => candidate.finalUrl === worst.url)
+    if (!page) return []
+    const checked = context.mobile?.length ?? 0
+
+    return [
+      {
+        title: `${wide.length} of ${checked} pages checked on a phone-sized screen scroll sideways`,
+        subject: 'mobile-overflow',
+        evidence: metricEvidence(page, 'mobile_overflow_px', worst.overflowPx, 'count'),
+        affectedUrls: wide.map((render) => render.url),
+        confidence: 0.9,
+        estimatedImpact: 40,
+        falsification:
+          `Open ${worst.url} on a phone, or in a browser window ${worst.viewportWidth} pixels ` +
+          'wide. If the page cannot be scrolled sideways, this was wrong. Only a sample of ' +
+          'pages is rendered this way, so other pages using the same template are likely affected.',
+      },
+    ]
+  },
+}
