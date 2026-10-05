@@ -35,7 +35,7 @@ export type {
 export { Frontier, normaliseUrl } from './crawl/frontier.js'
 export type { FrontierEntry, FrontierOptions, FrontierState } from './crawl/frontier.js'
 
-export { crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from './crawl/crawler.js'
+export { acceptLlmsTxt, crawl, CrawlAbortedError, DEFAULT_USER_AGENT } from './crawl/crawler.js'
 export type { CrawlHooks, CrawlOptions } from './crawl/crawler.js'
 export { createEgressGuard } from './crawl/egress.js'
 export type { BlockedRequest, EgressGuard, EgressPolicy } from './crawl/egress.js'

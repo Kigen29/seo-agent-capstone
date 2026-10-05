@@ -64,17 +64,67 @@ direction: an unlabelled rule is indistinguishable from a rule nobody looked at,
 positive can be waved away as "we just did not label that one". The `AGENT-002` gap above is
 exactly what this field exists to make visible.
 
+## What happened the second time, at fifty pages
+
+Two more real sites were captured on 2026-10-05, both single-page apps, with a browser so the
+rendered DOM is stored beside the served HTML: `heartbeest-safaris` (24 pages) and `solian-girls`
+(22 pages). With `rangau-tiles` that is 50 pages and 232 claims. They were labelled from the stored
+bytes with plain regular expressions (not `extractPage`), before the harness was run.
+
+| | first run | after going back to the bytes |
+|---|---|---|
+| precision | 91.4% | 100.0% |
+| recall | 87.8% | 97.9% |
+| hallucinations | 0 | 0 |
+
+This time the disagreements went **both ways**, which is what makes the number worth more than the
+first one. Each was settled by reading the bytes again, never by reading the engine's output.
+
+**The engine was wrong, four times, and each is now fixed with a regression test:**
+
+- It reported that a site **had** an llms.txt when it did not. A single-page app answers
+  `/llms.txt` with its HTML shell and a 200, and any non-empty 200 was accepted.
+- It proposed, as the contents of a generated llms.txt, **twenty pages that answer 404**.
+- It called a sitemap URL that answers 404 an **orphan**, and advised linking to it.
+- It called a 16-word **login form** thin content, and `/contactus` too (the exclusion list knew
+  `/contact` and `/contact-us`).
+
+**The labels were wrong, four times:**
+
+- `/reviews` really is thin: 94 words, nearly all of them menu and footer. My count was 104
+  because it included the `<title>`.
+- The four `rangau-tiles` pages share a 124-character title and one description; those rules did
+  not exist when the case was first labelled.
+- One URL I labelled as a broken link from the homepage is in the sitemap and is not linked.
+- I cleared LOCAL-001 on a school with a phone number, an address and no LocalBusiness markup.
+  The claim as the rule states it is true.
+
+**Five misses remain, on purpose.** TECH-018 will not judge a page with fewer than fifty rendered
+words. On a site where every route is an empty shell that is still true of the 404 page and the
+login form, so they are labelled and they are missed. Unlabelling them would make recall 100% and
+the dataset a little less honest.
+
+A site-wide fact is now scored once (`SITE_LEVEL_RULES` in `metrics.ts`). A missing llms.txt used
+to count once per page the rule happened to list, so the same fact weighed four claims on one site
+and ten on another.
+
+`test/dataset.test.ts` pins all of this: any claim nobody has checked, or any miss beyond the known
+five, fails CI.
+
 ## Known limitations
 
-- **No JavaScript.** A captured case stores served HTML, so `preJsHtml` and `renderedHtml` are the
-  same string and TECH-018 (renders nothing until JavaScript runs) can never fire. A case may still
-  label it; the false negative is honest. Storing a rendered snapshot alongside the raw bytes is
-  the obvious next extension.
-- **Labels read through the same parser.** Convenient, but `extractPage` is the product's own code.
-  Every label in `rangau-tiles` was therefore re-verified by grepping the raw HTML directly.
-- **One case.** Against the ~50 pages the story asks for, this is four. The runner is done; the
-  dataset is the remaining work, and padding it with invented pages would produce precisely the
-  number nobody should trust.
+- **Three sites, all small, all from one country, two of them single-page apps.** Fifty pages is
+  the number the story asked for and is still a narrow sample. The cases a parser has never seen
+  are on a WordPress shop, a Shopify store, a site with hreflang, a site with ten thousand pages.
+- **One labeller, who also wrote several of the rules.** The labels were made before the run and
+  from an independent reading of the bytes, but the same head chose what to look for.
+- **Labels are a second pass of regular expressions, not a second person.** Word counts in
+  particular differ by what is counted as visible text, which is how `/reviews` was mislabelled.
+- **What a live crawl measures is absent.** Redirects, outbound links, phone-width renders and
+  image weights are not in a stored case, so TECH-004 on redirecting sitemap URLs, TECH-008 to
+  TECH-010 across hosts, and TECH-031 to TECH-034 cannot be graded here.
+- **A rendered snapshot is one moment.** It was taken after network idle; a page that fills in
+  later would be captured part-rendered.
 
 ## Judge independence
 

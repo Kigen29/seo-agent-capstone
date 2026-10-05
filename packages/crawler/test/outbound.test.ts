@@ -1,5 +1,6 @@
 import type { BrowserContext } from 'playwright'
 import { describe, expect, it, vi } from 'vitest'
+import { acceptLlmsTxt } from '../src/crawl/crawler.js'
 import { checkOutboundLinks, outboundCandidates } from '../src/crawl/outbound.js'
 import type { CrawledPage } from '../src/crawl/types.js'
 import { extractPage } from '../src/page/extract.js'
@@ -154,5 +155,27 @@ describe('checkOutboundLinks', () => {
       (fetch.mock.calls as unknown[][]).every((call) => !String(call[0]).includes('169.254')),
     ).toBe(true)
     expect(link?.outcome).toBe('inconclusive')
+  })
+})
+
+describe('acceptLlmsTxt', () => {
+  // Found by the golden dataset: a single-page app answered /llms.txt with its HTML shell and a
+  // 200, and the audit reported that the site had an llms.txt.
+  it('refuses an HTML page served where the file should be', () => {
+    expect(acceptLlmsTxt('<!DOCTYPE html>\n<html lang="en"><head></head></html>')).toBeNull()
+    expect(acceptLlmsTxt('\n  <html><body>app</body></html>')).toBeNull()
+    expect(acceptLlmsTxt('# Looks like Markdown', 'text/html; charset=utf-8')).toBeNull()
+  })
+
+  it('accepts Markdown served as text, whatever the exact type', () => {
+    const body = '# Acme\n\n> What we do.\n\n## Pages\n\n- [Home](https://acme.example/)'
+
+    expect(acceptLlmsTxt(body, 'text/plain; charset=utf-8')).toBe(body)
+    expect(acceptLlmsTxt(body, 'text/markdown')).toBe(body)
+    expect(acceptLlmsTxt(body)).toBe(body)
+  })
+
+  it('passes an absent file through as absent', () => {
+    expect(acceptLlmsTxt(null)).toBeNull()
   })
 })

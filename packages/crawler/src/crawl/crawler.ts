@@ -166,11 +166,26 @@ async function fetchLlmsTxt(
     const response = await guardedGet(context, guard, url, 15_000, onBlocked)
     resources.llmsTxt = !!response && (response.ok() || [404, 410].includes(response.status()))
     if (!response || !response.ok()) return null
-    return await response.text()
+    return acceptLlmsTxt(await response.text(), response.headers()['content-type'])
   } catch {
     resources.llmsTxt = false
     return null
   }
+}
+
+/**
+ * The body of an llms.txt, or null when what came back is not one.
+ *
+ * A single-page app answers every unknown path with its HTML shell and a 200, `/llms.txt`
+ * included. Taking any non-empty 200 as the file made the audit report that such a site had an
+ * llms.txt, which it did not: found by the golden dataset on a real site. An llms.txt is Markdown
+ * served as text, so an HTML content type or a body that opens with a document tag is refused.
+ */
+export function acceptLlmsTxt(body: string | null, contentType?: string): string | null {
+  if (body === null) return null
+  if (/^\s*text\/html\b/i.test(contentType ?? '')) return null
+  if (/^\s*(<!doctype\s+html|<html[\s>])/i.test(body)) return null
+  return body
 }
 
 async function crawlOne(

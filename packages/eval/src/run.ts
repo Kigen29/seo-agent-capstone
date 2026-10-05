@@ -1,5 +1,6 @@
 import type { Finding } from '@seo/core'
 import {
+  acceptLlmsTxt,
   buildLinkGraph,
   compareRenders,
   evaluateAiCrawlerPosture,
@@ -33,7 +34,8 @@ export function findingsFor(golden: GoldenCase): Finding[] {
     pages,
     robots: parseRobotsTxt(golden.robotsTxt),
     posture: evaluateAiCrawlerPosture(parseRobotsTxt(golden.robotsTxt)),
-    llmsTxt: golden.llmsTxt,
+    // The case stores what the server sent. The product decides whether that is an llms.txt.
+    llmsTxt: acceptLlmsTxt(golden.llmsTxt),
     sitemapUrls: golden.sitemapUrls,
     graph: buildLinkGraph(toGraphPages(pages), { seed: golden.seed }),
     skipped: [],
@@ -47,15 +49,17 @@ export function evaluate(golden: GoldenCase): CaseResult {
 /**
  * Turn stored bytes into the shape the crawler would have produced.
  *
- * `preJsHtml` and `renderedHtml` are the same string, because a captured case has no browser to
- * run. That is a real limitation and worth naming rather than hiding: TECH-018 asks whether a page
- * renders without JavaScript, and against this dataset it can never fire. A case can still label
- * it, and the resulting false negative is honest; what it must not do is quietly count as a pass.
- * Capturing a rendered snapshot alongside the raw HTML would lift it, and is the obvious next
- * extension of the format.
+ * A case captured with a browser stores the rendered DOM beside the served HTML, and the two are
+ * compared exactly as the crawler compares them, so TECH-018 (renders nothing until JavaScript
+ * runs) and everything that only exists after rendering can be graded. A case captured with plain
+ * fetch has only the served HTML: both strings are then the same and TECH-018 cannot fire on it,
+ * which is an honest false negative if the case labels it.
  */
 function toCrawledPage(page: GoldenPage, golden: GoldenCase): CrawledPage {
-  const extract = extractPage(page.html, page.url)
+  // The crawler extracts from the rendered DOM and compares it with the served HTML. A case
+  // captured with a browser carries both; one captured with fetch has only the served HTML.
+  const rendered = page.renderedHtml ?? page.html
+  const extract = extractPage(rendered, page.url)
 
   return {
     url: page.url,
@@ -66,9 +70,9 @@ function toCrawledPage(page: GoldenPage, golden: GoldenCase): CrawledPage {
     depth: page.url === golden.seed ? 0 : 1,
     fetchedAt: golden.capturedAt,
     preJsHtml: page.html,
-    renderedHtml: page.html,
+    renderedHtml: rendered,
     extract,
-    render: compareRenders(page.html, page.html, page.url),
+    render: compareRenders(page.html, rendered, page.url),
     xRobotsTag: page.headers['x-robots-tag'] ?? null,
   }
 }
