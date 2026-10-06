@@ -511,5 +511,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0029 | A finding is the same finding on the next audit | Accepted |
 | 0030 | The agent reads the repository and proposes the fix | Accepted; supersedes part of 0011 |
 | 0031 | The agent's context shrinks to fit the model | Accepted; amends 0030 |
+| 0032 | The topic threshold belongs to the embedding model | Accepted; amends 0024 |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

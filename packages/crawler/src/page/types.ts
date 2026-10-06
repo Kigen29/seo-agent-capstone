@@ -101,5 +101,7 @@ export interface PageExtract {
    */
   viewport: string | null
   text: string
+  /** The page's own content: the main landmark, or the body without navigation, banner and footer. */
+  mainText: string
   wordCount: number
 }

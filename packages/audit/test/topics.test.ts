@@ -208,10 +208,35 @@ describe('pageText', () => {
   })
 })
 
+describe('pageText: what a page is about, not what every page shares', () => {
+  const withMain = (mainText: string): CrawledPage => {
+    const base = page('https://ex.com/a', 'Title', 'Home About Contact Quick links PO Box 1')
+    return { ...base, extract: { ...base.extract, mainText } } as CrawledPage
+  }
+
+  it('reads the opening of the page content, not the menu at the top of the body', () => {
+    const text = pageText(withMain('Elephants under Kilimanjaro.'))
+
+    expect(text).toContain('Elephants under Kilimanjaro.')
+    expect(text).not.toContain('Quick links')
+  })
+
+  it('falls back to the body when a page has no content of its own', () => {
+    expect(pageText(withMain(''))).toContain('Quick links')
+  })
+})
+
 describe('the threshold belongs to the model that produced the vectors', () => {
   it('uses the calibrated value for a model it has one for', () => {
     expect(similarityThresholdFor('openai:text-embedding-3-small')).toEqual({
       threshold: SIMILARITY_THRESHOLD,
+      calibrated: true,
+    })
+  })
+
+  it('has its own value for the Google model, which scores the same pages differently', () => {
+    expect(similarityThresholdFor('google:gemini-embedding-001')).toEqual({
+      threshold: 0.88,
       calibrated: true,
     })
   })

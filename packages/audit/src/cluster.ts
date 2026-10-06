@@ -69,6 +69,11 @@ export const SIMILARITY_THRESHOLD = 0.86
  */
 const THRESHOLD_BY_MODEL: Record<string, number> = {
   'openai:text-embedding-3-small': SIMILARITY_THRESHOLD,
+  // Measured 2026-10-06 (ADR-0032). Similarity within one site runs from about 0.66 to 1.0 on
+  // these vectors. At 0.86 three identical not-found pages grouped with a homepage; at 0.90 a
+  // safari operator's package pages split from their own index. 0.88 does neither, and keeps a
+  // tile shop's home and about pages together with its catalogue and contact page apart.
+  'google:gemini-embedding-001': 0.88,
 }
 
 /** `LLM_EMBED` is a chain; the first target is the one that answers unless it is failing. */

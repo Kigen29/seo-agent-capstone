@@ -59,6 +59,10 @@ const MIN_PAGES = 4
  * screen; the rest is navigation, footers and boilerplate that every page on the site shares, and
  * including it makes every page look like every other page. Trimmed to a fixed length so one long
  * article does not dominate a cluster by sheer volume.
+ *
+ * The opening is read from the page's own content, not from the top of the body. Measured on real
+ * sites, the first 600 characters of a body were the menu followed by the footer, identical on
+ * every page, and a contact page and a reviews page scored 0.985 alike.
  */
 const LEAD_CHARACTERS = 600
 
@@ -66,7 +70,7 @@ export function pageText(page: CrawledPage): string {
   const parts = [
     page.extract.title ?? '',
     page.extract.h1s[0] ?? '',
-    page.extract.text.slice(0, LEAD_CHARACTERS),
+    (page.extract.mainText || page.extract.text).slice(0, LEAD_CHARACTERS),
   ]
   return parts
     .map((part) => part.trim())

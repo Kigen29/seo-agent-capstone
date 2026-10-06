@@ -78,7 +78,7 @@ You have OpenAI credit. Use it. But route by role, and keep the free options wir
 |---|---|---|---|
 | `fast` | Extraction, classification, summarisation. High volume. | `openai:gpt-4.1-mini` | `groq:llama-3.3-70b-versatile` (very fast), `google:gemini-2.5-flash` |
 | `smart` | Reasoning, code generation for fixes. Low volume, high stakes. | `openai:gpt-4.1` | `google:gemini-2.5-pro` |
-| `embed` | Page embeddings for internal linking and content gaps | `openai:text-embedding-3-small` (very cheap) | None configured: switching embedding models changes the vector space, so a fallback needs a re-embedding plan. Local `bge-small` via transformers.js remains an option. |
+| `embed` | Page embeddings for the topic map | `google:gemini-embedding-001` (free tier) | None, on purpose: the grouping threshold is calibrated per model (ADR-0032), so a fallback to another model would be grouped with the wrong number. `openai:text-embedding-3-small` also has a threshold. |
 | `judge` | Scores the eval harness | **must be a different provider than the one under test** | `google:gemini-2.5-pro` |
 
 Google and Groq offer free tiers, but the budget guard meters every fallback at paid rates anyway: a free tier depends on how the key's project is billed, which the code cannot see, and a model priced at zero would let the cap spend money it believes it has not. Prices, their sources and the date they were checked live in `packages/llm/src/pricing.ts` (last verified 2026-09-26; `gemini-2.0-flash` and `text-embedding-004` were removed after Google shut them down).
