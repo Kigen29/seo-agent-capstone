@@ -38,12 +38,3 @@ export function AvatarFallback({ className, ...props }: ComponentProps<typeof Pr
     />
   )
 }
-
-/** First letters of the name, or of the email, or a dash. Never an empty circle. */
-export function initials(name?: string | null, email?: string | null): string {
-  const source = name?.trim() || email?.trim()
-  if (!source) return '\u2014'
-
-  const parts = source.split(/[\s@._-]+/).filter(Boolean)
-  return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
-}
