@@ -41,6 +41,7 @@ export const PRICING: Record<string, Price> = {
   // that still names one now fails loudly here instead of with a provider 404.
   'google:gemini-2.5-pro': { inputPerMTok: 1.25, outputPerMTok: 10.0 },
   'google:gemini-2.5-flash': { inputPerMTok: 0.3, outputPerMTok: 2.5 },
+  'google:gemini-embedding-001': { inputPerMTok: 0.15, outputPerMTok: 0 },
 
   // Groq publishes no per-token price for this model ("Contact sales" on its models page). This
   // is a deliberate ceiling, not a quote: set well above what the model has historically cost, so

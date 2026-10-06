@@ -18,9 +18,11 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "eval": "node --env-file-if-exists=../../.env dist/cli.js"
+    "eval": "node --env-file-if-exists=../../.env dist/cli.js",
+    "calibrate-topics": "node --env-file-if-exists=../../.env dist/calibrate-topics.js"
   },
   "dependencies": {
+    "@seo/audit": "workspace:*",
     "@seo/core": "workspace:*",
     "@seo/crawler": "workspace:*",
     "@seo/llm": "workspace:*",

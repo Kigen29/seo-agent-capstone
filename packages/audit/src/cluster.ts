@@ -59,6 +59,31 @@ export interface Clustered<T> {
  */
 export const SIMILARITY_THRESHOLD = 0.86
 
+/**
+ * The threshold for each embedding model it has been chosen for, by the method above.
+ *
+ * A model with no entry gets the default, which is a guess for that model and is reported as one:
+ * `measureTopics` says in its coverage note when the threshold in use was not calibrated for the
+ * model that produced the vectors. To add a model, run the `calibrate-topics` workflow, read the
+ * clusters it prints, and record the number here with what was seen.
+ */
+const THRESHOLD_BY_MODEL: Record<string, number> = {
+  'openai:text-embedding-3-small': SIMILARITY_THRESHOLD,
+}
+
+/** `LLM_EMBED` is a chain; the first target is the one that answers unless it is failing. */
+const firstTarget = (chain: string | undefined): string => (chain ?? '').split(',')[0]!.trim()
+
+export function similarityThresholdFor(chain: string | undefined): {
+  threshold: number
+  calibrated: boolean
+} {
+  const known = THRESHOLD_BY_MODEL[firstTarget(chain)]
+  return known === undefined
+    ? { threshold: SIMILARITY_THRESHOLD, calibrated: false }
+    : { threshold: known, calibrated: true }
+}
+
 export function clusterByCosine<T>(
   items: readonly { item: T; vector: readonly number[] }[],
   threshold: number = SIMILARITY_THRESHOLD,
