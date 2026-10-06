@@ -84,14 +84,3 @@ export function embeddingModel(target: ModelTarget): EmbeddingModel<string> {
       )
   }
 }
-
-/**
- * Per-provider settings for an embedding call. Lives here because it is vendor knowledge.
- *
- * Every embedding in this product is used to group pages by topic, and Google's models take a
- * task type that shapes the vectors for that use. Other providers have no equivalent and get
- * nothing.
- */
-export function embeddingOptions(target: ModelTarget): Record<string, Record<string, string>> {
-  return target.provider === 'google' ? { google: { taskType: 'CLUSTERING' } } : {}
-}

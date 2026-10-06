@@ -1,7 +1,7 @@
 import { generateText, generateObject, embedMany, asSchema } from 'ai'
 import type { z } from 'zod'
 import { resolveChain } from './config.js'
-import { languageModel, embeddingModel, embeddingOptions } from './providers.js'
+import { languageModel, embeddingModel } from './providers.js'
 import { AllTargetsFailedError, type LlmUsage, type ModelRole, type ModelTarget } from './types.js'
 import { PRICING } from './pricing.js'
 
@@ -205,7 +205,6 @@ export class LlmClient {
         const res = await embedMany({
           model: embeddingModel(target),
           values: texts,
-          providerOptions: embeddingOptions(target),
           maxRetries: 0,
           maxParallelCalls: 1,
         })

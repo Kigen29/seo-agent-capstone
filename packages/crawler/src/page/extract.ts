@@ -213,6 +213,24 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
   const text = $('body').text().replace(/\s+/g, ' ').trim()
   const wordCount = text ? text.split(/\s+/).length : 0
 
+  /**
+   * The page's own content, without the frame every page on the site shares.
+   *
+   * `text` above is the whole body and is what the word count and the duplicate check are defined
+   * over, so it stays as it is. But a body starts with the menu, and a measure of what a page is
+   * about (the topic map) that reads its opening reads the same menu on every page. So this takes
+   * the main landmark when the page declares one, and otherwise the body with navigation, banner
+   * and footer removed. A space is added after each element first, because a menu or a card grid
+   * otherwise reads as one unbroken word.
+   */
+  const scope = $('main, [role="main"]').first()
+  const content = scope.length > 0 ? scope : $('body')
+  content
+    .find('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]')
+    .remove()
+  content.find('*').after(' ')
+  const mainText = content.text().replace(/\s+/g, ' ').trim()
+
   return {
     title,
     metaDescription,
@@ -230,6 +248,7 @@ export function extractPage(html: string, baseUrl: string): PageExtract {
     landmarks,
     lang,
     text,
+    mainText,
     wordCount,
   }
 }

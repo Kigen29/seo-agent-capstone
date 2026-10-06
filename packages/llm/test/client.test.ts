@@ -10,8 +10,6 @@ vi.mock('ai', () => ({
 vi.mock('../src/config.js', () => ({ resolveChain: mock.chain }))
 vi.mock('../src/providers.js', () => ({
   embeddingModel: (target: unknown) => target,
-  embeddingOptions: (target: { provider: string }) =>
-    target.provider === 'google' ? { google: { taskType: 'CLUSTERING' } } : {},
   languageModel: (target: unknown) => target,
 }))
 import { LlmClient } from '../src/client.js'
@@ -52,9 +50,6 @@ describe('metered model calls', () => {
     expect(Number.isFinite(usage.inputTokens)).toBe(true)
     expect(usage.inputTokens).toBeGreaterThan(0)
     expect(Number.isFinite(usage.estimatedUsd)).toBe(true)
-    expect(mock.embed).toHaveBeenCalledWith(
-      expect.objectContaining({ providerOptions: { google: { taskType: 'CLUSTERING' } } }),
-    )
   })
   it('refuses unknown pricing before invoking a provider', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'unknown' }] })

@@ -218,3 +218,43 @@ describe('landmarks and language', () => {
     expect(extract.text).not.toContain('var a')
   })
 })
+
+/**
+ * The topic map reads the opening of a page to say what it is about. On two real sites the
+ * opening of the body was the menu and then the footer, the same on every page.
+ */
+describe("extractPage: the page's own content", () => {
+  const FRAME =
+    '<nav><a href="/">Home</a><a href="/about">About</a></nav>' +
+    '<footer><p>Quick links</p><p>PO Box 1</p></footer>'
+
+  it('leaves out navigation, banner and footer when there is no main landmark', () => {
+    const html = `<html><body><header>Logo</header>${FRAME}<div><h1>Amboseli</h1><p>Elephants under Kilimanjaro.</p></div></body></html>`
+
+    const page = extractPage(html, 'https://ex.com/amboseli')
+
+    expect(page.mainText).toBe('Amboseli Elephants under Kilimanjaro.')
+    // The whole-body text other checks are defined over is unchanged.
+    expect(page.text).toContain('Home')
+    expect(page.text).toContain('Quick links')
+  })
+
+  it('uses the main landmark when the page declares one', () => {
+    const html = `<html><body><div>Cookie notice</div><main><h1>Fees</h1><p>Term one.</p></main>${FRAME}</body></html>`
+
+    expect(extractPage(html, 'https://ex.com/fees').mainText).toBe('Fees Term one.')
+  })
+
+  it('separates adjacent elements, so a card grid is not one unbroken word', () => {
+    const html =
+      '<html><body><main><span>Wall tiles</span><span>Floor tiles</span></main></body></html>'
+
+    expect(extractPage(html, 'https://ex.com/').mainText).toBe('Wall tiles Floor tiles')
+  })
+
+  it('is empty for a page that is nothing but its frame', () => {
+    expect(
+      extractPage(`<html><body>${FRAME}</body></html>`, 'https://ex.com/contact').mainText,
+    ).toBe('')
+  })
+})
