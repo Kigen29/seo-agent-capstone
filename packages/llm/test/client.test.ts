@@ -152,6 +152,45 @@ describe('model spending reservations', () => {
     expect(result.output).toEqual({ ok: true })
     expect(mock.object).toHaveBeenCalledTimes(2)
   })
+  it('moves past a model the provider has retired, instead of ending the attempt there', async () => {
+    mock.chain.mockReturnValue({
+      targets: [
+        { provider: 'google', model: 'gemini-2.5-flash' },
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+      ],
+    })
+    // Google's own words, from the first real agent fix attempt.
+    mock.object
+      .mockRejectedValueOnce(
+        new Error(
+          'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash',
+        ),
+      )
+      .mockResolvedValueOnce({ object: { ok: true }, usage: { inputTokens: 10, outputTokens: 5 } })
+
+    const result = await new LlmClient(vi.fn(), async () => ({ allowed: true })).object({
+      role: 'smart',
+      tenantId: 'tenant',
+      prompt: 'test',
+      schema: z.object({ ok: z.boolean() }),
+    })
+
+    expect(result.output).toEqual({ ok: true })
+    expect(mock.object).toHaveBeenCalledTimes(2)
+  })
+  it('reports the retired model when nothing after it could answer either', async () => {
+    mock.chain.mockReturnValue({ targets: [{ provider: 'google', model: 'gemini-2.5-flash' }] })
+    mock.object.mockRejectedValueOnce(new Error('This model is no longer available to new users.'))
+
+    await expect(
+      new LlmClient(vi.fn(), async () => ({ allowed: true })).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).rejects.toThrow(/no longer available/)
+  })
   it('refuses the vendor call when reservation capacity is unavailable', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
     await expect(

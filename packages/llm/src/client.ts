@@ -36,7 +36,16 @@ function isRetriable(err: unknown): boolean {
     msg.includes('too large') ||
     msg.includes('413') ||
     msg.includes('context length') ||
-    msg.includes('context window')
+    msg.includes('context window') ||
+    // A model the provider has retired or closed to this account is a dead link in the chain,
+    // not a reason to stop: vendors withdraw models without notice, and the next target may be
+    // fine. The failure is still reported if every target fails.
+    msg.includes('no longer available') ||
+    msg.includes('decommissioned') ||
+    msg.includes('deprecated') ||
+    msg.includes('model not found') ||
+    msg.includes('does not exist') ||
+    msg.includes('is not found for api version')
   )
 }
 

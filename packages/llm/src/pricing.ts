@@ -41,6 +41,10 @@ export const PRICING: Record<string, Price> = {
   // that still names one now fails loudly here instead of with a provider 404.
   'google:gemini-2.5-pro': { inputPerMTok: 1.25, outputPerMTok: 10.0 },
   'google:gemini-2.5-flash': { inputPerMTok: 0.3, outputPerMTok: 2.5 },
+  // Read from ai.google.dev/gemini-api/docs/pricing on 2026-10-06: $0.75 in and $3.75 out through
+  // 2026-12-31, then $1.50 and $7.50. Priced at the later rate now, so the budget guard does not
+  // start under-charging on the first of January with nobody watching.
+  'google:gemini-3.8-flash': { inputPerMTok: 1.5, outputPerMTok: 7.5 },
   'google:gemini-embedding-001': { inputPerMTok: 0.15, outputPerMTok: 0 },
 
   // Groq publishes no per-token price for this model ("Contact sales" on its models page). This
