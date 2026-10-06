@@ -36,6 +36,11 @@ export function TopicMapFigure({ map }: { map: TopicMap }) {
   // rather than overflowing it into the neighbouring block.
   const LABEL_FLOOR = 0.08
 
+  // The index is kept so a group's swatch matches its block in the bar above.
+  const indexed = map.clusters.map((cluster, index) => ({ cluster, index }))
+  const groups = indexed.filter(({ cluster }) => cluster.pages.length > 1)
+  const alone = indexed.filter(({ cluster }) => cluster.pages.length === 1)
+
   return (
     <div>
       <div
@@ -72,7 +77,7 @@ export function TopicMapFigure({ map }: { map: TopicMap }) {
       </div>
 
       <ul className="mt-4 grid gap-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {map.clusters.map((cluster, index) => (
+        {groups.map(({ cluster, index }) => (
           <li key={cluster.name + String(index)} className="flex items-baseline gap-3">
             <span
               aria-hidden
@@ -92,6 +97,24 @@ export function TopicMapFigure({ map }: { map: TopicMap }) {
           </li>
         ))}
       </ul>
+
+      {/*
+        A page that resembles no other is a topic of one. A site about a single subject has many
+        of them, and twenty rows each saying "1 page, 2%" bury the groups above. So they are
+        counted on one line and listed on request.
+      */}
+      {alone.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm">
+            {alone.length} page{alone.length === 1 ? '' : 's'} that stand
+            {alone.length === 1 ? 's' : ''} alone ·{' '}
+            {percent(alone.reduce((sum, { cluster }) => sum + cluster.share, 0))}
+          </summary>
+          <p className="text-muted mt-2 mb-0 max-w-[72ch] text-[13px]" style={{ lineHeight: 1.7 }}>
+            {alone.map(({ cluster }) => cluster.name).join(' · ')}
+          </p>
+        </details>
+      )}
 
       <p className="text-muted mt-4 mb-0 text-[13px]">
         Shares are of the {map.pagesEmbedded} page{map.pagesEmbedded === 1 ? '' : 's'} measured, out

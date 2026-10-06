@@ -277,6 +277,18 @@
 .classical select.input {
   background-color: var(--color-surface);
   color-scheme: inherit;
+  /*
+    The browser's own arrow sits hard against the border and cannot be moved. So it is turned off
+    and drawn here, inset by the same 10px the text has on the left, with room reserved so a long
+    option never runs underneath it. Mid-grey reads on both the light and the dark surface.
+  */
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238a8a8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  text-overflow: ellipsis;
 }
 .classical select.input option {
   background-color: var(--color-surface);

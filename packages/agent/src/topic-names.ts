@@ -32,7 +32,7 @@ export interface TopicNamingLlm {
 export interface ClusterToName {
   /** A stable handle the model echoes back, so names cannot be silently reordered. */
   id: number
-  /** A sample of the cluster's page titles. Enough to recognise a subject, not the whole list. */
+  /** A sample of the cluster's pages, each as its heading and path. Enough to recognise a subject. */
   titles: string[]
 }
 
@@ -55,8 +55,9 @@ export const TOPIC_NAMING_SYSTEM =
   'what belongs together: the grouping is fixed and is not yours to question, even when a page ' +
   'looks out of place. Give each group the shortest noun phrase a person browsing the site would ' +
   'recognise, two or three words, in the language of the titles. No marketing adjectives, no ' +
-  'invented categories, nothing that is not evidenced by the titles you were shown. Echo each ' +
-  'group id back exactly as given.'
+  'invented categories, nothing that is not evidenced by the titles you were shown. Give ' +
+  'different groups different names: when two groups are about the same broad subject, name each ' +
+  'by what sets it apart. Echo each group id back exactly as given.'
 
 /** Longest topic name the treemap can show; a longer one is dropped and falls back to keywords. */
 const MAX_NAME = 40

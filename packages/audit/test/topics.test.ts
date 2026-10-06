@@ -6,7 +6,14 @@ import {
   SIMILARITY_THRESHOLD,
   similarityThresholdFor,
 } from '../src/cluster.js'
-import { measureTopics, pageText, type TopicsLlm } from '../src/topics.js'
+import {
+  describePage,
+  distinctNames,
+  measureTopics,
+  ownName,
+  pageText,
+  type TopicsLlm,
+} from '../src/topics.js'
 
 /**
  * The tests ADR-0024 rests on.
@@ -253,5 +260,105 @@ describe('the threshold belongs to the model that produced the vectors', () => {
       calibrated: false,
     })
     expect(similarityThresholdFor(undefined).calibrated).toBe(false)
+  })
+})
+
+/**
+ * A real audit of a safari operator's site came back with twenty-three topics, fourteen of them
+ * called "Safari Tours". The grouping was right; the names were useless.
+ */
+describe('topic names are different from each other', () => {
+  const at = (path: string, h1: string, title = 'Best Kenya Safari Tours'): CrawledPage => {
+    const base = page(`https://ex.com${path}`, title, 'text')
+    return { ...base, extract: { ...base.extract, h1s: h1 ? [h1] : [] } } as CrawledPage
+  }
+
+  it('names a page that stands alone by its own heading, with no model involved', () => {
+    expect(ownName(at('/destinations/amboseli', 'Amboseli'))).toBe('Amboseli')
+  })
+
+  it('uses the address when the heading is too long to show', () => {
+    expect(
+      ownName(at('/kenya-safari-faqs', 'Everything you ever wanted to know about going on safari')),
+    ).toBe('Kenya safari faqs')
+  })
+
+  it('does not name a page after a record id', () => {
+    expect(ownName(at('/safaris/82695b94-7ee5-4096-8f69-209348c0ae7b', ''))).toBe(
+      'Best Kenya Safari Tours',
+    )
+    expect(ownName(at('/', ''))).toBe('Homepage')
+  })
+
+  it('shows the model each page heading and path, since titles are often shared', () => {
+    expect(describePage(at('/hotels-and-lodges/Mara%20Simba', 'Mara Simba Lodge'))).toBe(
+      'Mara Simba Lodge (/hotels-and-lodges/Mara Simba)',
+    )
+  })
+
+  it('tells two groups with one name apart by the section their pages live in', () => {
+    const packages = [at('/safaris/a', 'A'), at('/safaris/b', 'B'), at('/', 'Home')]
+    const hotels = [at('/hotels-and-lodges/x', 'X'), at('/hotels-and-lodges/y', 'Y')]
+
+    expect(distinctNames(['Safari Tours', 'Safari Tours'], [packages, hotels])).toEqual([
+      'Safari Tours: Safaris',
+      'Safari Tours: Hotels and lodges',
+    ])
+  })
+
+  it('numbers what a section cannot separate, largest group first', () => {
+    const small = [at('/a', 'A')]
+    const large = [at('/b', 'B'), at('/c', 'C')]
+
+    expect(distinctNames(['Safari Tours', 'Safari Tours', 'Birds'], [small, large, small])).toEqual(
+      ['Safari Tours (2)', 'Safari Tours', 'Birds'],
+    )
+  })
+
+  it('leaves names that were already different alone', () => {
+    expect(distinctNames(['Tiles', 'Contact'], [[at('/a', 'A')], [at('/b', 'B')]])).toEqual([
+      'Tiles',
+      'Contact',
+    ])
+  })
+
+  it('never returns two topics with one name from a whole measurement', async () => {
+    const pages = [
+      at('/safaris/a', 'Three day Mara safari'),
+      at('/safaris/b', 'Five day Mara safari'),
+      at('/hotels/x', 'Mara lodge one'),
+      at('/hotels/y', 'Mara lodge two'),
+      at('/about', 'About'),
+    ]
+    // Two tight pairs and one page alone.
+    const vectors: Record<string, number[]> = {
+      '/safaris/a': [1, 0, 0],
+      '/safaris/b': [0.99, 0.1, 0],
+      '/hotels/x': [0, 1, 0],
+      '/hotels/y': [0.1, 0.99, 0],
+      '/about': [0, 0, 1],
+    }
+    const llm: TopicsLlm = {
+      embed: async (texts) =>
+        texts.map((_, index) => {
+          const sorted = [...pages].sort((a, b) => a.finalUrl.localeCompare(b.finalUrl))
+          return vectors[new URL(sorted[index]!.finalUrl).pathname]!
+        }),
+    }
+    const asked: number[] = []
+    const result = await measureTopics(
+      { tenantId: 't', pages, model: 'openai:text-embedding-3-small' },
+      llm,
+      async (clusters) => {
+        asked.push(...clusters.map((c) => c.titles.length))
+        return new Map(clusters.map((c) => [c.id, 'Safari Tours']))
+      },
+    )
+
+    const names = result.map!.clusters.map((c) => c.name)
+    expect(new Set(names).size).toBe(names.length)
+    expect(names).toContain('About')
+    // Only the two real groups were sent to the model; the lone page was not.
+    expect(asked).toEqual([2, 2])
   })
 })
