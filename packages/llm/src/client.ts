@@ -29,6 +29,12 @@ function isRetriable(err: unknown): boolean {
     msg.includes('quota') ||
     msg.includes('insufficient_quota') ||
     msg.includes('overloaded') ||
+    // The same condition in other vendors' words. Google's reads "currently experiencing high
+    // demand ... Please try again later", with no status code in the text.
+    msg.includes('high demand') ||
+    msg.includes('try again later') ||
+    msg.includes('temporarily unavailable') ||
+    msg.includes('service unavailable') ||
     msg.includes('timeout') ||
     msg.includes('503') ||
     msg.includes('502') ||

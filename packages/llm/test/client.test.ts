@@ -178,6 +178,32 @@ describe('model spending reservations', () => {
     expect(result.output).toEqual({ ok: true })
     expect(mock.object).toHaveBeenCalledTimes(2)
   })
+  it('moves past a model that says it is busy, in whatever words it says it', async () => {
+    mock.chain.mockReturnValue({
+      targets: [
+        { provider: 'google', model: 'gemini-3.8-flash' },
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+      ],
+    })
+    // Google's own words, from the second real agent fix attempt.
+    mock.object
+      .mockRejectedValueOnce(
+        new Error(
+          'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+        ),
+      )
+      .mockResolvedValueOnce({ object: { ok: true }, usage: { inputTokens: 10, outputTokens: 5 } })
+
+    const result = await new LlmClient(vi.fn(), async () => ({ allowed: true })).object({
+      role: 'smart',
+      tenantId: 'tenant',
+      prompt: 'test',
+      schema: z.object({ ok: z.boolean() }),
+    })
+
+    expect(result.output).toEqual({ ok: true })
+    expect(mock.object).toHaveBeenCalledTimes(2)
+  })
   it('reports the retired model when nothing after it could answer either', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'google', model: 'gemini-2.5-flash' }] })
     mock.object.mockRejectedValueOnce(new Error('This model is no longer available to new users.'))
