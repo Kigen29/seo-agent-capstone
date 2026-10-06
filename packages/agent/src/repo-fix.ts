@@ -464,6 +464,12 @@ export async function generateRepoFix(
       proposal = result.output
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      // Every target's own words, for the operator. The finding shows one line; the log is where
+      // "which model said what" has to be answerable after the fact.
+      console.warn(
+        `agent: model call failed for ${finding.ruleId} at context size ${size + 1} of ${CONTEXT_SIZES.length}: ` +
+          message.replace(/\s+/g, ' ').slice(0, 900),
+      )
       const smaller =
         size + 1 < CONTEXT_SIZES.length ? fitContext(ranked, CONTEXT_SIZES[size + 1]) : null
       if (TOO_LARGE.test(message) && smaller && smaller.files.length > 0) {
