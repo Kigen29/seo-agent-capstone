@@ -1,4 +1,4 @@
-import { getAudit, getAuditProgress } from '@seo/audit'
+import { getAudit, getAuditChanges, getAuditProgress, listSiteAudits } from '@seo/audit'
 import { withTenant, audits, sites, appendJob } from '@seo/db'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -18,6 +18,35 @@ export function auditRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
       if (!audit) return notFound(reply)
       return { audit }
+    })
+
+  /**
+   * What changed between this audit and the completed one before it: issues resolved, issues new,
+   * and how each axis moved. Separate from `GET /audits/:id` so the audit page pays for the
+   * comparison only when it shows one.
+   */
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get('/audits/:id/changes', { schema: { params: uuidParam } }, async (request, reply) => {
+      const changes = await getAuditChanges(db, request.tenantId, request.params.id)
+
+      if (!changes) return notFound(reply)
+      return { changes }
+    })
+
+  /**
+   * Every audit of a site, newest first. An audit is a record of what was true on a day, and a
+   * later audit never replaces it; this is the route that makes the earlier ones reachable.
+   */
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get('/sites/:id/audits', { schema: { params: uuidParam } }, async (request, reply) => {
+      const owned = await withTenant(db, request.tenantId, (tx) =>
+        tx.select({ id: sites.id }).from(sites).where(eq(sites.id, request.params.id)).limit(1),
+      )
+      if (owned.length === 0) return notFound(reply)
+
+      return { audits: await listSiteAudits(db, request.tenantId, request.params.id) }
     })
 
   /**
