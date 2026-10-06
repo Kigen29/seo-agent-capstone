@@ -234,6 +234,13 @@ describe('the threshold belongs to the model that produced the vectors', () => {
     })
   })
 
+  it('has its own value for the Google model, which scores the same pages differently', () => {
+    expect(similarityThresholdFor('google:gemini-embedding-001')).toEqual({
+      threshold: 0.88,
+      calibrated: true,
+    })
+  })
+
   it('reads the first target of a chain, since that is the one that answers', () => {
     expect(similarityThresholdFor('openai:text-embedding-3-small, other:model').calibrated).toBe(
       true,

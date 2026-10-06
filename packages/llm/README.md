@@ -19,7 +19,7 @@ const fix = await llm.object({
 ```bash
 LLM_FAST=openai:gpt-4.1-mini
 LLM_SMART=openai:gpt-4.1
-LLM_EMBED=openai:text-embedding-3-small
+LLM_EMBED=google:gemini-embedding-001
 LLM_JUDGE=google:gemini-2.5-pro
 
 OPENAI_API_KEY=sk-...
