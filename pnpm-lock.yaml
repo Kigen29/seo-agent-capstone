@@ -472,6 +472,9 @@ importers:
 
   packages/eval:
     dependencies:
+      '@seo/audit':
+        specifier: workspace:*
+        version: link:../audit
       '@seo/core':
         specifier: workspace:*
         version: link:../core

@@ -55,7 +55,7 @@ export function evaluate(golden: GoldenCase): CaseResult {
  * fetch has only the served HTML: both strings are then the same and TECH-018 cannot fire on it,
  * which is an honest false negative if the case labels it.
  */
-function toCrawledPage(page: GoldenPage, golden: GoldenCase): CrawledPage {
+export function toCrawledPage(page: GoldenPage, golden: GoldenCase): CrawledPage {
   // The crawler extracts from the rendered DOM and compares it with the served HTML. A case
   // captured with a browser carries both; one captured with fetch has only the served HTML.
   const rendered = page.renderedHtml ?? page.html

@@ -1,6 +1,11 @@
 import type { CrawledPage } from '@seo/crawler'
 import { describe, expect, it, vi } from 'vitest'
-import { clusterByCosine, cosine } from '../src/cluster.js'
+import {
+  clusterByCosine,
+  cosine,
+  SIMILARITY_THRESHOLD,
+  similarityThresholdFor,
+} from '../src/cluster.js'
 import { measureTopics, pageText, type TopicsLlm } from '../src/topics.js'
 
 /**
@@ -200,5 +205,28 @@ describe('pageText', () => {
     expect(pageText(long).startsWith('Title\nTitle\n')).toBe(true)
     // Boilerplate shared by every page would make every page look alike, so the body is trimmed.
     expect(pageText(long).length).toBeLessThan(1000)
+  })
+})
+
+describe('the threshold belongs to the model that produced the vectors', () => {
+  it('uses the calibrated value for a model it has one for', () => {
+    expect(similarityThresholdFor('openai:text-embedding-3-small')).toEqual({
+      threshold: SIMILARITY_THRESHOLD,
+      calibrated: true,
+    })
+  })
+
+  it('reads the first target of a chain, since that is the one that answers', () => {
+    expect(similarityThresholdFor('openai:text-embedding-3-small, other:model').calibrated).toBe(
+      true,
+    )
+  })
+
+  it('falls back to the default for an unknown model, and says it is a guess', () => {
+    expect(similarityThresholdFor('someone:new-embedder')).toEqual({
+      threshold: SIMILARITY_THRESHOLD,
+      calibrated: false,
+    })
+    expect(similarityThresholdFor(undefined).calibrated).toBe(false)
   })
 })

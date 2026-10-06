@@ -1,0 +1,45 @@
+name: calibrate-topics
+
+# Run by hand when the embedding model changes.
+#
+# The topic map groups pages by a similarity threshold that is only valid for the model whose
+# vectors it was chosen with (ADR-0024). This embeds the golden dataset's real pages with the
+# model named below and prints the similarities and the clusters at each candidate threshold, so
+# the number is chosen by a person reading real output and not guessed. It changes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      embed:
+        description: Embedding model to measure, as provider:model
+        required: true
+        default: google:gemini-embedding-001
+
+permissions:
+  contents: read
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm turbo run build --filter=@seo/eval...
+
+      - name: Measure
+        working-directory: packages/eval
+        env:
+          LLM_EMBED: ${{ inputs.embed }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: node dist/calibrate-topics.js

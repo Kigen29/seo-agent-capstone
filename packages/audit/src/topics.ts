@@ -1,6 +1,6 @@
 import type { AxisCoverage, TopicMap } from '@seo/core'
 import type { CrawledPage } from '@seo/crawler'
-import { clusterByCosine, SIMILARITY_THRESHOLD } from './cluster.js'
+import { clusterByCosine, similarityThresholdFor } from './cluster.js'
 
 /**
  * What this site is about, measured.
@@ -141,8 +141,10 @@ export async function measureTopics(
     )
   }
 
+  const { threshold, calibrated } = similarityThresholdFor(options.model)
   const clusters = clusterByCosine(
     embedded.map((page, index) => ({ item: page, vector: vectors[index] as number[] })),
+    threshold,
   )
 
   const names = nameClusters
@@ -174,9 +176,12 @@ export async function measureTopics(
       checksRun: map.clusters.length,
       note:
         `${map.clusters.length} topic(s) across ${embedded.length} of ${options.pages.length} ` +
-        `crawled page(s), grouped by similarity above ${SIMILARITY_THRESHOLD} and named ` +
+        `crawled page(s), grouped by similarity above ${threshold} and named ` +
         `afterwards. The grouping is deterministic: the same pages produce the same topics. ` +
         `Shares are of the ${embedded.length} pages measured, not of the whole site.` +
+        (calibrated
+          ? ''
+          : ' That threshold has not been calibrated for this embedding model, so treat the grouping as provisional.') +
         (names.size === 0
           ? ' The naming call did not return, so each topic is labelled with its own most common words.'
           : ''),
