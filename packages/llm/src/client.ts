@@ -1,7 +1,7 @@
 import { generateText, generateObject, embedMany, asSchema } from 'ai'
 import type { z } from 'zod'
 import { resolveChain } from './config.js'
-import { languageModel, embeddingModel } from './providers.js'
+import { languageModel, embeddingModel, embeddingOptions } from './providers.js'
 import { AllTargetsFailedError, type LlmUsage, type ModelRole, type ModelTarget } from './types.js'
 import { PRICING } from './pricing.js'
 
@@ -38,6 +38,18 @@ function isRetriable(err: unknown): boolean {
     msg.includes('context length') ||
     msg.includes('context window')
   )
+}
+
+/**
+ * A provider's token count, or our own estimate when it did not send a usable one.
+ *
+ * Not `??`: a provider that reports no usage can surface as NaN rather than undefined (Google's
+ * embedding endpoint does), and NaN passes `??`, prices as NaN, and cannot be recorded as spend.
+ * The estimate is the reservation's, which is deliberately high, so a missing count over-charges
+ * the budget and never under-charges it.
+ */
+function counted(reported: number | undefined, estimate: number): number {
+  return typeof reported === 'number' && Number.isFinite(reported) ? reported : estimate
 }
 
 function priceOf(target: ModelTarget, inTok: number, outTok: number): number {
@@ -116,14 +128,14 @@ export class LlmClient {
 
         const usage: LlmUsage = {
           reservationId: reservation.reservationId,
-          inputTokens: res.usage.inputTokens ?? reservation.inputTokens,
-          outputTokens: res.usage.outputTokens ?? reservation.outputTokens,
+          inputTokens: counted(res.usage.inputTokens, reservation.inputTokens),
+          outputTokens: counted(res.usage.outputTokens, reservation.outputTokens),
           provider: target.provider,
           model: target.model,
           estimatedUsd: priceOf(
             target,
-            res.usage.inputTokens ?? reservation.inputTokens,
-            res.usage.outputTokens ?? reservation.outputTokens,
+            counted(res.usage.inputTokens, reservation.inputTokens),
+            counted(res.usage.outputTokens, reservation.outputTokens),
           ),
         }
         await this.persistUsage(opts.tenantId, usage)
@@ -163,14 +175,14 @@ export class LlmClient {
 
         const usage: LlmUsage = {
           reservationId: reservation.reservationId,
-          inputTokens: res.usage.inputTokens ?? reservation.inputTokens,
-          outputTokens: res.usage.outputTokens ?? reservation.outputTokens,
+          inputTokens: counted(res.usage.inputTokens, reservation.inputTokens),
+          outputTokens: counted(res.usage.outputTokens, reservation.outputTokens),
           provider: target.provider,
           model: target.model,
           estimatedUsd: priceOf(
             target,
-            res.usage.inputTokens ?? reservation.inputTokens,
-            res.usage.outputTokens ?? reservation.outputTokens,
+            counted(res.usage.inputTokens, reservation.inputTokens),
+            counted(res.usage.outputTokens, reservation.outputTokens),
           ),
         }
         await this.persistUsage(opts.tenantId, usage)
@@ -193,16 +205,17 @@ export class LlmClient {
         const res = await embedMany({
           model: embeddingModel(target),
           values: texts,
+          providerOptions: embeddingOptions(target),
           maxRetries: 0,
           maxParallelCalls: 1,
         })
         await this.persistUsage(tenantId, {
           reservationId: reservation.reservationId,
-          inputTokens: res.usage.tokens ?? reservation.inputTokens,
+          inputTokens: counted(res.usage.tokens, reservation.inputTokens),
           outputTokens: 0,
           provider: target.provider,
           model: target.model,
-          estimatedUsd: priceOf(target, res.usage.tokens ?? reservation.inputTokens, 0),
+          estimatedUsd: priceOf(target, counted(res.usage.tokens, reservation.inputTokens), 0),
         })
         return res.embeddings
       } catch (error) {

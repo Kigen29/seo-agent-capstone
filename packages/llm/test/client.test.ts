@@ -10,6 +10,8 @@ vi.mock('ai', () => ({
 vi.mock('../src/config.js', () => ({ resolveChain: mock.chain }))
 vi.mock('../src/providers.js', () => ({
   embeddingModel: (target: unknown) => target,
+  embeddingOptions: (target: { provider: string }) =>
+    target.provider === 'google' ? { google: { taskType: 'CLUSTERING' } } : {},
   languageModel: (target: unknown) => target,
 }))
 import { LlmClient } from '../src/client.js'
@@ -35,6 +37,24 @@ describe('metered model calls', () => {
     )
     // The first target failed with a 429, so the second one served the call.
     expect(mock.embed).toHaveBeenCalledTimes(2)
+  })
+  it('records the estimate when a provider reports no usable token count', async () => {
+    mock.chain.mockReturnValue({
+      targets: [{ provider: 'google', model: 'gemini-embedding-001' }],
+    })
+    // What Google's embedding endpoint actually returns through the SDK: not undefined, NaN.
+    mock.embed.mockResolvedValueOnce({ embeddings: [[1, 2]], usage: { tokens: Number.NaN } })
+    const record = vi.fn()
+
+    await new LlmClient(record, async () => ({ allowed: true })).embed(['hello'], 'tenant')
+
+    const usage = record.mock.calls[0]![1] as { inputTokens: number; estimatedUsd: number }
+    expect(Number.isFinite(usage.inputTokens)).toBe(true)
+    expect(usage.inputTokens).toBeGreaterThan(0)
+    expect(Number.isFinite(usage.estimatedUsd)).toBe(true)
+    expect(mock.embed).toHaveBeenCalledWith(
+      expect.objectContaining({ providerOptions: { google: { taskType: 'CLUSTERING' } } }),
+    )
   })
   it('refuses unknown pricing before invoking a provider', async () => {
     mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'unknown' }] })
