@@ -2,6 +2,7 @@ import type { AuthorityMetrics, AxisCoverage, Finding } from '@seo/core'
 import {
   classifyGap,
   classifyMentions,
+  listMentions,
   evaluateAuthority,
   linkGapFinding,
   mentionQuery,
@@ -186,6 +187,7 @@ export async function measureAuthority(
         earnedDomains: report.earnedCount,
         selfPublishedDomains: footprint.selfPublishedDomains.length,
         ...(report.unlinkedMentions ? { unlinkedMentions: report.unlinkedMentions } : {}),
+        mentions: listMentions(footprint, options.domain, report.unlinkedMentions),
         ...(gap && classifiedGap
           ? {
               linkGap: {

@@ -351,6 +351,17 @@ export interface AuthorityMetrics {
   /** Domains that mention the brand without linking. Undefined when links were never checked. */
   unlinkedMentions?: string[]
   /**
+   * The pages that mention the brand. Undefined on an audit from before they were kept, which is
+   * "not recorded", not "none". `linked` is absent when links were never checked.
+   */
+  mentions?: {
+    url: string
+    domain: string
+    title?: string
+    kind: 'earned' | 'self_published'
+    linked?: boolean
+  }[]
+  /**
    * The link gap: sites linking to every tracked competitor and not to this one.
    *
    * Only the editorial domains are listed, because they are the only ones worth an email. The

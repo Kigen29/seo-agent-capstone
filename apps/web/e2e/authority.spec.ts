@@ -109,3 +109,48 @@ test('finding publications starts from the topic and is one clear action', async
     .fill('safari tours')
   await expect(find).toBeEnabled()
 })
+
+test('every mention is a link to the page that carried it', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/authority')
+
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Where you were mentioned' }),
+  })
+  await expect(section).toBeVisible()
+
+  // A site, how many of its pages name the brand, and whether it links back.
+  const site = section.getByRole('listitem').filter({ hasText: 'field-notes.example.org' }).first()
+  await expect(site).toContainText('2 pages')
+  await expect(site).toContainText('No link yet')
+
+  // The link goes to the mention itself, in a new tab, telling that site nothing about this one.
+  const mention = section.getByRole('link', { name: /Guided day trips, compared/ })
+  await expect(mention).toHaveAttribute(
+    'href',
+    'https://field-notes.example.org/2026/09/guided-day-trips-compared',
+  )
+  await expect(mention).toHaveAttribute('target', '_blank')
+  await expect(mention).toHaveAttribute('rel', /noopener/)
+  await expect(mention).toHaveAttribute('rel', /noreferrer/)
+
+  // A result with no title still gets a link, named by its path.
+  await expect(section.getByRole('link', { name: /three-days-on-foot/ })).toBeVisible()
+
+  // Platforms are listed apart, and are not shown as coverage.
+  await expect(section.getByText('1 platform you can post to yourself')).toBeVisible()
+})
+
+test('a publication to contact opens on what it wrote, not on its front page', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/authority')
+
+  const row = page
+    .getByRole('tabpanel')
+    .getByRole('listitem')
+    .filter({ hasText: 'travel-desk.example.net' })
+  await expect(row.getByRole('link', { name: 'travel-desk.example.net' })).toHaveAttribute(
+    'href',
+    'https://travel-desk.example.net/guides/off-season-departures',
+  )
+})

@@ -45,6 +45,7 @@ export interface LinkGap {
 export function OutreachWorkbench({
   siteId,
   unlinked,
+  mentionPages,
   sampled,
   gap,
   market,
@@ -52,6 +53,8 @@ export function OutreachWorkbench({
   siteId: string
   /** Undefined when links were never checked, which is different from an empty list. */
   unlinked?: string[] | undefined
+  /** The pages that mention the brand, so a row can open the mention and not just the site. */
+  mentionPages?: { url: string; domain: string; title?: string }[] | undefined
   sampled?: number | null | undefined
   gap?: LinkGap | undefined
   /** The site's market, to start the search field from. */
@@ -63,6 +66,16 @@ export function OutreachWorkbench({
   const [found, setFound] = useState<ContributorSearch | null>(null)
 
   const mentions = unlinked ?? []
+  /**
+   * The page on each site that mentions the brand, when the audit kept it. Somebody about to
+   * write to a publication should land on what it said about them, not on its front page.
+   */
+  const mentionOn = (domain: string): Target => {
+    const page = mentionPages?.find((entry) => entry.domain === domain)
+    return page
+      ? { domain, url: page.url, ...(page.title ? { detail: page.title } : {}) }
+      : { domain }
+  }
   const editorial = gap?.editorialDomains ?? []
   const first = mentions.length > 0 ? 'mentions' : editorial.length > 0 ? 'gap' : 'find'
 
@@ -99,7 +112,7 @@ export function OutreachWorkbench({
               Every publication that mentions you already links to you. Nothing to chase here.
             </Empty>
           ) : (
-            list(mentions.map((domain) => ({ domain })))
+            list(mentions.map(mentionOn))
           )}
         </TabsContent>
 

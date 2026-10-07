@@ -401,6 +401,64 @@ export async function seedShowcase(db: Database, now: Date = new Date()): Promis
       'travel-desk.example.net',
       'weekender.example.org',
     ],
+    // The pages behind the six earned domains and the one platform, in the shape `listMentions`
+    // writes: earned first, by site, with whether each site links.
+    mentions: [
+      {
+        url: 'https://city-paper.example.com/travel/small-group-walks',
+        domain: 'city-paper.example.com',
+        title: 'Five small-group walks worth the early start',
+        kind: 'earned' as const,
+        linked: true,
+      },
+      {
+        url: 'https://field-notes.example.org/2026/09/guided-day-trips-compared',
+        domain: 'field-notes.example.org',
+        title: 'Guided day trips, compared on what is actually included',
+        kind: 'earned' as const,
+        linked: false,
+      },
+      {
+        url: 'https://field-notes.example.org/2026/06/what-to-pack',
+        domain: 'field-notes.example.org',
+        title: 'What to pack for a three-day trek',
+        kind: 'earned' as const,
+        linked: false,
+      },
+      {
+        url: 'https://outdoors-monthly.example.com/reviews/walking-tour-operators',
+        domain: 'outdoors-monthly.example.com',
+        title: 'Walking tour operators, reviewed',
+        kind: 'earned' as const,
+        linked: true,
+      },
+      {
+        url: 'https://regional-news.example.net/business/tourism-season-opens',
+        domain: 'regional-news.example.net',
+        title: 'Tourism season opens with bookings up',
+        kind: 'earned' as const,
+        linked: true,
+      },
+      {
+        url: 'https://travel-desk.example.net/guides/off-season-departures',
+        domain: 'travel-desk.example.net',
+        title: 'Who runs private departures in the off season?',
+        kind: 'earned' as const,
+        linked: false,
+      },
+      {
+        url: 'https://weekender.example.org/escapes/three-days-on-foot',
+        domain: 'weekender.example.org',
+        kind: 'earned' as const,
+        linked: false,
+      },
+      {
+        url: 'https://www.facebook.com/showcase.example',
+        domain: 'facebook.com',
+        title: 'Showcase Walking Tours',
+        kind: 'self_published' as const,
+      },
+    ],
     linkGap: {
       editorialDomains: ['trail-review.example.org', 'city-guide.example.net'],
       refusedAsSpam: 12,
