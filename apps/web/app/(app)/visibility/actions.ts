@@ -4,6 +4,7 @@ import type { MinedQuestions, PromptSuggestions, VisibilitySettings } from '@seo
 import { ApiRequestError } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { act, type ActionResult } from '@/lib/action'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 
@@ -82,4 +83,30 @@ export async function addPrompts(
     handleApiError(error)
     return { error: 'Could not save the questions. Try again shortly.' }
   }
+}
+
+/** The tracked questions, for the editor. */
+export async function loadQuestions(siteId: string): Promise<ActionResult<string[]>> {
+  return act('load your questions', async (api) => (await api.getVisibility(siteId)).prompts)
+}
+
+/**
+ * Replace the tracked questions and leave the brand and the competitors as they are.
+ *
+ * The API stores all three in one call, so this reads them first and sends the other two back
+ * unchanged. Returns what was stored, which may be tidier than what was typed.
+ */
+export async function saveQuestions(
+  siteId: string,
+  prompts: string[],
+): Promise<ActionResult<string[]>> {
+  const result = await act('save your questions', async (api) => {
+    const current = await api.getVisibility(siteId)
+    return (await api.setVisibility(siteId, { ...current, prompts })).prompts
+  })
+  if (result.ok) {
+    revalidatePath('/visibility')
+    revalidatePath('/dashboard')
+  }
+  return result
 }

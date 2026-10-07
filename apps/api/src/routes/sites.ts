@@ -1,4 +1,5 @@
-import { listSites } from '@seo/audit'
+import { captureBrand, listSites, summarisePage } from '@seo/audit'
+import { brandFromTitle } from '@seo/core'
 import { appendJob, withTenant, oauthCredentials, sites } from '@seo/db'
 import { randomUUID } from 'node:crypto'
 import { and, eq, isNotNull } from 'drizzle-orm'
@@ -47,6 +48,26 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
         return created
       })
+
+      /**
+       * Capture the brand from the homepage, so nobody has to type what the site already says.
+       *
+       * Only when none is set, and only when the title plainly states it: `brandFromTitle` returns
+       * a name when part of the title matches the domain and null otherwise, because a wrong
+       * brand is worse than a blank one. The fetch goes through the SSRF guard, is bounded to a
+       * few seconds, and its failure costs nothing: the site is already saved.
+       */
+      if (site && !site.brand) {
+        const page = await summarisePage(site.url, {
+          ...(options.checkFetch ? { fetch: options.checkFetch } : {}),
+          ...(options.checkResolve ? { resolve: options.checkResolve } : {}),
+        })
+        const brand = brandFromTitle(page?.title, site.url)
+        if (brand) {
+          await captureBrand(db, request.tenantId, site.id, brand)
+          site.brand = brand
+        }
+      }
 
       return reply.status(201).send({ site })
     },

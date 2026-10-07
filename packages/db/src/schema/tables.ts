@@ -118,6 +118,13 @@ export const sites = pgTable(
     brand: text('brand'),
 
     /**
+     * What the business offers and where its customers are, as its owner would say it. Free text,
+     * optional, and used only to make suggestions specific (migration 0035).
+     */
+    offering: text('offering'),
+    market: text('market'),
+
+    /**
      * The Google Business Profile this site belongs to, as its two public identifiers.
      *
      * Stored for the same reason `brand` is: neither is derivable from the site. The CID is the

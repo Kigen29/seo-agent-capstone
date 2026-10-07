@@ -55,3 +55,10 @@ export type {
   SelectedContext,
   TreeEntry,
 } from './repo-context.js'
+
+export { domainOf, MAX_COMPETITOR_CANDIDATES, suggestCompetitors } from './suggest-competitors.js'
+export type {
+  CompetitorCandidate,
+  CompetitorContext,
+  CompetitorSuggestionLlm,
+} from './suggest-competitors.js'

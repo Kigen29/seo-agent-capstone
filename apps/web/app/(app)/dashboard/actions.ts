@@ -4,41 +4,36 @@ import {
   ApiRequestError,
   type BusinessProfileSettings,
   type ConnectRepoResult,
-  type VisibilitySettings,
 } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { act } from '@/lib/action'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { invalid, type UserError } from '@/lib/user-error'
 
 /**
  * Add a site to audit. A bad URL comes back as a message on the same page rather than an
  * error page, because a typo is the caller's to fix, not a crash.
  */
 export async function addSite(
-  _prev: { error?: string },
+  _prev: { error?: UserError },
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: UserError }> {
   const rawUrl = String(formData.get('url') ?? '').trim()
-  if (!rawUrl) return { error: 'Enter a site URL.' }
+  if (!rawUrl) {
+    return { error: invalid('Enter a web address', 'Type the site to add, like example.com.') }
+  }
 
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
 
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
-    await api.addSite(url)
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 400) {
-      return { error: 'That does not look like a valid URL.' }
-    }
-    handleApiError(error)
-    return { error: 'Could not reach the API. It may be waking up; try again shortly.' }
-  }
+  const result = await act('add that site', (api) => api.addSite(url))
+  if (!result.ok) return { error: result.error }
 
   revalidatePath('/dashboard')
-  return {}
+  // Straight to its setup: the brand name was just read from the homepage, and the competitors
+  // and questions are waiting to be suggested.
+  redirect(`/onboarding?siteId=${result.data.id}&step=business`)
 }
 
 /**
@@ -140,57 +135,6 @@ export async function chooseRepo(
 
   revalidatePath('/dashboard')
   return { ok: true }
-}
-
-/**
- * Load the questions a site's AI visibility is measured on.
- *
- * Fetched on demand rather than with the dashboard, because it is one request per site and most
- * visits to this page are not about prompts. The panel asks for it when it opens.
- */
-export async function loadVisibility(
-  siteId: string,
-): Promise<VisibilitySettings | { error: string }> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
-    return await api.getVisibility(siteId)
-  } catch (error) {
-    handleApiError(error)
-    return { error: 'Could not load the prompts. The API may be waking up; try again shortly.' }
-  }
-}
-
-/**
- * Save a site's prompts and competitors.
- *
- * Returns what the API actually stored rather than what was submitted, because the two can
- * differ: prompts are trimmed and deduplicated, and competitors come back as bare hosts. Showing
- * the user their own input after a save would hide that, and they would not learn that
- * `https://Rival.com/pricing` is tracked as `rival.com` until a share-of-voice number confused
- * them a week later.
- */
-export async function saveVisibility(
-  siteId: string,
-  settings: VisibilitySettings,
-): Promise<VisibilitySettings | { error: string }> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  let saved: VisibilitySettings
-  try {
-    saved = await api.setVisibility(siteId, settings)
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 400) {
-      return { error: error.message }
-    }
-    handleApiError(error)
-    return { error: 'Could not save the prompts. Try again shortly.' }
-  }
-
-  revalidatePath('/dashboard')
-  return saved
 }
 
 /**

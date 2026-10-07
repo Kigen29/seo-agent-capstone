@@ -81,6 +81,10 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | Page title and intro | `<PageHeader kicker title description>` |
 | Nothing to show | `<EmptyState figure title action>` |
 | A message | `<Note tone="ok\|warn\|error">` |
+| A failure from a form or an action | `<ErrorNote error>`, fed by a server action that returns `ActionResult` from `act()` in `lib/action.ts`. Never a hand-written sentence in a `<span>`: the failures are few and the same everywhere, and `toUserError` names each once with what happened and what to do |
+| A save that worked | `<SavedNote>`, in the place the error would have been |
+| A term that needs a sentence of explanation | `<InfoHint label>` beside it. Opens on click, tap or Enter; never hover only |
+| A labelled input | `<Field id label hint help>`. The hint sits beside the label, not inside it |
 | Severity | `<SeverityBadge>` — never a raw coloured span |
 | A status chip | `.tag` + `.tag-neutral\|outline\|accent\|success\|critical\|low`. Add `.tag-dot` only for live status |
 | A table | `.table` inside `.table-scroll`, always. The wrapper is the frame: border, rounded corners, raised surface. Figures and the action column take `.num` |

@@ -1,17 +1,18 @@
-import type { Audit, VisibilityReport } from '@seo/api-client'
+import type { Audit, SiteProfile, VisibilityReport } from '@seo/api-client'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleCallbackNote } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
-import { EmptyState } from '@/components/ui/empty-state'
 import { Note, type NoteTone } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
 import { getClient, getSites } from '@/lib/session'
+import { setupSteps } from '@/lib/setup-progress'
 import { startAudit } from '../actions'
 import { AddSite } from '../add-site'
-import { SetupChecklist } from '../setup-checklist'
+import { SetupStrip } from '../setup-strip'
 import { Overview } from './overview'
 
 export const dynamic = 'force-dynamic'
@@ -71,6 +72,7 @@ export default async function Dashboard({
   let connections
   let audit: Audit | undefined
   let visibility: VisibilityReport | undefined
+  let profile: SiteProfile | null = null
   try {
     ;[sites, connections] = await Promise.all([getSites(), api.getConnections()])
 
@@ -85,17 +87,26 @@ export default async function Dashboard({
      */
     const active = siteId ? sites.find((site) => site.id === siteId) : sites[0]
     if (active) {
-      const [auditResult, visibilityResult] = await Promise.allSettled([
+      const [auditResult, visibilityResult, profileResult] = await Promise.allSettled([
         active.latestAudit ? api.getAudit(active.latestAudit.id) : Promise.resolve(undefined),
         api.getVisibilityReport(active.id),
+        api.getSiteProfile(active.id),
       ])
       if (auditResult.status === 'fulfilled') audit = auditResult.value
       if (visibilityResult.status === 'fulfilled') visibility = visibilityResult.value
+      if (profileResult.status === 'fulfilled') profile = profileResult.value
     }
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
   }
+
+  /**
+   * An account with no site has nothing to show here, so it goes to the guided setup instead of
+   * an empty dashboard with a form in one corner. Outside the `try`, because `redirect` works by
+   * throwing and the catch above would swallow it.
+   */
+  if (sites.length === 0) redirect('/onboarding')
 
   const activeSite = siteId ? sites.find((site) => site.id === siteId) : sites[0]
 
@@ -139,7 +150,12 @@ export default async function Dashboard({
         />
       )}
 
-      {activeSite && <SetupChecklist site={activeSite} google={connections.google} />}
+      {activeSite && (
+        <SetupStrip
+          siteId={activeSite.id}
+          steps={setupSteps(activeSite, connections.google, profile)}
+        />
+      )}
 
       <div
         className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b pb-4"
@@ -152,68 +168,58 @@ export default async function Dashboard({
         <AddSite />
       </div>
 
-      {sites.length === 0 ? (
-        <EmptyState figure="0" title="No sites yet">
-          Add one above to run your first audit. Everything else in RankWright hangs off a site.
-        </EmptyState>
-      ) : (
-        <div className="table-scroll">
-          <table className="table site-table">
-            <thead>
-              <tr>
-                <th>Site</th>
-                <th>Last audit</th>
-                <th>Pages</th>
-                <th className="num">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map((site) => {
-                const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
-                const isActive = site.id === activeSite?.id
-                return (
-                  <tr key={site.id}>
-                    <td className="break-words">
-                      {hostOf(site.url)}
-                      {isActive && (
-                        <span className="text-muted ml-2 text-[12px]">(shown above)</span>
+      <div className="table-scroll">
+        <table className="table site-table">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Last audit</th>
+              <th>Pages</th>
+              <th className="num">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sites.map((site) => {
+              const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
+              const isActive = site.id === activeSite?.id
+              return (
+                <tr key={site.id}>
+                  <td className="break-words">
+                    {hostOf(site.url)}
+                    {isActive && <span className="text-muted ml-2 text-[12px]">(shown above)</span>}
+                  </td>
+                  <td className="text-muted">
+                    {site.latestAudit
+                      ? `${site.latestAudit.status}, ${new Date(site.latestAudit.startedAt).toLocaleDateString()}`
+                      : 'Never audited'}
+                  </td>
+                  <td className="tnum text-muted">{site.latestAudit?.pagesCrawled ?? '\u2013'}</td>
+                  <td>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <Link href={`/site?siteId=${site.id}`}>Set up</Link>
+                      {site.latestAudit && (
+                        <Link href={`/audits/${site.latestAudit.id}?siteId=${site.id}`}>
+                          {running ? 'View progress' : 'View audit'}
+                        </Link>
                       )}
-                    </td>
-                    <td className="text-muted">
-                      {site.latestAudit
-                        ? `${site.latestAudit.status}, ${new Date(site.latestAudit.startedAt).toLocaleDateString()}`
-                        : 'Never audited'}
-                    </td>
-                    <td className="tnum text-muted">
-                      {site.latestAudit?.pagesCrawled ?? '\u2013'}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap items-center justify-end gap-3">
-                        {!isActive && <Link href={`/dashboard?siteId=${site.id}`}>Set up</Link>}
-                        {site.latestAudit && (
-                          <Link href={`/audits/${site.latestAudit.id}?siteId=${site.id}`}>
-                            {running ? 'View progress' : 'View audit'}
-                          </Link>
-                        )}
-                        <form action={startAudit}>
-                          <input type="hidden" name="siteId" value={site.id} />
-                          <SubmitButton
-                            className="btn btn-secondary btn-sm"
-                            pendingLabel="Queueing..."
-                            disabled={Boolean(running)}
-                          >
-                            {running ? 'Running...' : 'Run audit'}
-                          </SubmitButton>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      <form action={startAudit}>
+                        <input type="hidden" name="siteId" value={site.id} />
+                        <SubmitButton
+                          className="btn btn-secondary btn-sm"
+                          pendingLabel="Queueing..."
+                          disabled={Boolean(running)}
+                        >
+                          {running ? 'Running...' : 'Run audit'}
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </main>
   )
 }

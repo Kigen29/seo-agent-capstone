@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { startWithSite } from './onboarding/actions'
 
 const AXES = [
   'Crawl health',
@@ -57,10 +58,31 @@ export default function Home() {
             requests for supported fixes. You review and merge. We recheck the deployed change and
             report what we can measure. Some axes need connected accounts or paid data.
           </p>
+          {/*
+            The address is asked for here, before sign-in, and carried through it. Somebody who
+            has just typed their site arrives signed in with the first step of setup filled in,
+            not on an empty dashboard wondering where to begin.
+          */}
+          <form
+            action={startWithSite}
+            className="mb-3 flex max-w-[520px] flex-wrap gap-2"
+            aria-label="Start with your site"
+          >
+            <input
+              name="url"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              aria-label="Your website address"
+              placeholder="yourwebsite.com"
+              className="input"
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            <button type="submit" className="btn btn-primary">
+              Audit my site
+            </button>
+          </form>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <Link href="/login" className="btn btn-primary">
-              Run an audit
-            </Link>
             {/*
               The free check, second rather than first. It is the cheapest way to see whether any
               of this is true, and it is still not the product: the product opens the pull request.

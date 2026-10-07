@@ -12,6 +12,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Wrench,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -116,6 +117,13 @@ const GROUPS: {
         label: 'Outcomes',
         icon: GitPullRequest,
         match: (p) => p.startsWith('/outcomes'),
+      },
+      {
+        href: '/site',
+        label: 'Site setup',
+        icon: Wrench,
+        // Exact, because `/settings` is a different page that happens to share two letters.
+        match: (p) => p === '/site',
       },
     ],
   },

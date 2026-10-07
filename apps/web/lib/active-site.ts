@@ -17,6 +17,7 @@ const SITE_VIEWS = [
   '/competitors',
   '/topics',
   '/outcomes',
+  '/site',
 ]
 
 export function useActiveSite(sites: { id: string }[]) {
