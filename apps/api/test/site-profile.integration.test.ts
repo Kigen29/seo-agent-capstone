@@ -312,6 +312,34 @@ describe('POST /sites/:id/competitors/suggestions', () => {
     expect(response.json().message).toMatch(/monthly allowance/)
   })
 
+  it('says the shared allowance is the one used up, and does not blame the account', async () => {
+    const site = await addSite('named.example.com')
+    model.object.mockRejectedValueOnce(
+      new Error('Budget guard: Insufficient global budget including pending reservations.'),
+    )
+
+    const response = await call(app, 'POST', `/sites/${site.id}/competitors/suggestions`)
+
+    // Reported as the account's own cap, this sent an operator to raise the wrong number.
+    expect(response.statusCode).toBe(429)
+    expect(response.json().message).toMatch(/installation's shared monthly allowance/)
+    expect(response.json().message).toMatch(/GLOBAL_MONTHLY_BUDGET_MICROS/)
+    expect(response.json().message).not.toMatch(/This account has used/)
+    expect(response.json().message).toMatch(/still add competitors by typing/)
+  })
+
+  it('does not call an unreadable ledger a spent allowance', async () => {
+    const site = await addSite('named.example.com')
+    model.object.mockRejectedValueOnce(
+      new Error('Budget guard: The spend reservation could not be secured.'),
+    )
+
+    const response = await call(app, 'POST', `/sites/${site.id}/competitors/suggestions`)
+
+    expect(response.statusCode).toBe(502)
+    expect(response.json().message).toMatch(/Nothing has been used up/)
+  })
+
   it("does not find another tenant's site, and calls no model for it", async () => {
     const site = await addSite('named.example.com')
     model.object.mockClear()

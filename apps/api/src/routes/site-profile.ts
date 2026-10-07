@@ -15,6 +15,7 @@ import { NoProviderConfiguredError } from '@seo/llm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
+import { sendBudgetRefusal } from '../budget-refusal.js'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
 
@@ -136,16 +137,14 @@ export function siteProfileRoutes(app: FastifyInstance, deps: RouteDeps): void {
         })
       } catch (error) {
         if (error instanceof NoProviderConfiguredError) return unavailable()
+        const refused = sendBudgetRefusal(
+          reply,
+          error,
+          'competitors were suggested',
+          'You can still add competitors by typing their web addresses.',
+        )
+        if (refused) return refused
         const message = error instanceof Error ? error.message : String(error)
-        if (message.startsWith('Budget guard:')) {
-          return reply.status(429).send({
-            error: 'Too Many Requests',
-            message:
-              'This account has used its monthly allowance for paid features, so no competitors ' +
-              'were suggested. The cap is shown under Settings, Account. You can still add ' +
-              'competitors by typing their web addresses.',
-          })
-        }
         /*
           Named, and not rethrown. Rethrowing made this a bare 500, and the page could then only
           say "a fault on our side" for what is nearly always the provider: a key out of credit, a

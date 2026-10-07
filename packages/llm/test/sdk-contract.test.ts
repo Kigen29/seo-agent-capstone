@@ -46,4 +46,40 @@ describe('SDK transport contract', () => {
     expect(requests[0]?.url).toBe('https://fixture.invalid/v1/chat/completions')
     expect(requests[0]?.body).toMatchObject({ max_tokens: 32 })
   })
+
+  /**
+   * The client gives back the money held for a call when the provider refused it, and it knows a
+   * refusal by the status on the error the SDK throws. If a future SDK wrapped that error, or
+   * renamed the field, the release would silently stop and holds would pile up again with every
+   * test of the client still green, because those use a hand-made error. This uses the real SDK.
+   */
+  it.each([402, 413, 429])('reports a %i refusal with its status on the error', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: 'refused', type: 'invalid_request' } }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    )
+
+    const failure = await generateText({
+      model: languageModel({
+        provider: 'custom',
+        model: 'fixture-model',
+        baseUrl: 'https://fixture.invalid/v1',
+      }),
+      prompt: 'fixture request',
+      maxOutputTokens: 32,
+      maxRetries: 0,
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as { statusCode?: unknown }).statusCode).toBe(status)
+  })
 })

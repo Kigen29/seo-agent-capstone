@@ -87,6 +87,23 @@ class SpendPersistenceError extends Error {
   }
 }
 
+/**
+ * Did the provider turn the request away before doing any work?
+ *
+ * A 4xx is the provider saying no: the key is out of credit, the request is too large for the
+ * plan, the model does not exist, the rate limit is reached. Nothing was generated, so nothing
+ * was billed, and that is certain. Everything else is not certain. A timeout, a dropped
+ * connection or a 5xx can all happen after the provider started work and may be charged, and a
+ * failed write to our own ledger follows a call that definitely was.
+ *
+ * Only the status the SDK reports is trusted, never a number found in the message text: the
+ * message is for people and can say "429" about somebody else's request.
+ */
+function refusedBeforeBilling(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode
+  return typeof status === 'number' && status >= 400 && status < 500
+}
+
 export class LlmClient {
   constructor(
     private readonly recordSpend: SpendRecorder,
@@ -98,6 +115,42 @@ export class LlmClient {
       await this.recordSpend(tenantId, usage)
     } catch (error) {
       throw new SpendPersistenceError(error)
+    }
+  }
+
+  /**
+   * Give back the money held for a call the provider refused.
+   *
+   * Every call reserves its worst-case cost first, and a reservation that is never settled is
+   * held against the budget for good. That is deliberate for a failure that might have been
+   * billed (see `refusedBeforeBilling`). It was also happening for calls that plainly were not,
+   * such as a key out of credit, and each model tried in the chain left its own hold. On
+   * 7 October 2026 the deployment had 35 unsettled reservations holding 1.70 dollars, about a
+   * third of everything counted against its allowance, when paid features began reporting the
+   * allowance as used up.
+   *
+   * Settled at zero, which records the refused attempt in the ledger and frees the hold. If the
+   * release itself fails the hold simply stays, which is the safe direction, and the original
+   * error is the one worth reporting.
+   */
+  private async releaseIfRefused(
+    error: unknown,
+    tenantId: string,
+    target: ModelTarget,
+    reservationId: string | undefined,
+  ): Promise<void> {
+    if (!reservationId || !refusedBeforeBilling(error)) return
+    try {
+      await this.recordSpend(tenantId, {
+        reservationId,
+        inputTokens: 0,
+        outputTokens: 0,
+        provider: target.provider,
+        model: target.model,
+        estimatedUsd: 0,
+      })
+    } catch {
+      // Left held. An operator can still settle it; nothing is lost by waiting.
     }
   }
 
@@ -156,6 +209,7 @@ export class LlmClient {
         await this.persistUsage(opts.tenantId, usage)
         return { output: res.text, usage }
       } catch (err) {
+        await this.releaseIfRefused(err, opts.tenantId, target, reservation.reservationId)
         attempts.push({ target, error: String((err as Error).message) })
         if (!isRetriable(err)) throw err
         // else: fall through to the next target in the chain
@@ -203,6 +257,7 @@ export class LlmClient {
         await this.persistUsage(opts.tenantId, usage)
         return { output: res.object as T, usage }
       } catch (err) {
+        await this.releaseIfRefused(err, opts.tenantId, target, reservation.reservationId)
         attempts.push({ target, error: String((err as Error).message) })
         if (!isRetriable(err)) throw err
       }
@@ -233,6 +288,7 @@ export class LlmClient {
         })
         return res.embeddings
       } catch (error) {
+        await this.releaseIfRefused(error, tenantId, target, reservation.reservationId)
         attempts.push({ target, error: String((error as Error).message) })
         if (!isRetriable(error)) throw error
       }

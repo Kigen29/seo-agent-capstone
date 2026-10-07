@@ -6,6 +6,7 @@ import { NoProviderConfiguredError } from '@seo/llm'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import { sendBudgetRefusal } from '../budget-refusal.js'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
 
@@ -94,15 +95,9 @@ export function promptSuggestionRoutes(app: FastifyInstance, deps: RouteDeps): v
           }
         } catch (error) {
           if (error instanceof NoProviderConfiguredError) return unavailable()
+          const refused = sendBudgetRefusal(reply, error, 'questions were drafted')
+          if (refused) return refused
           const message = error instanceof Error ? error.message : String(error)
-          if (message.startsWith('Budget guard:')) {
-            return reply.status(429).send({
-              error: 'Too Many Requests',
-              message:
-                'This account has used its monthly budget for paid features, so no suggestions ' +
-                'were drafted. The cap is shown under Settings, Account.',
-            })
-          }
           request.log.warn({ err: message }, 'prompt suggestions failed')
           // Name the cause, briefly. A bare "did not answer" gave nobody anything to act on when a
           // real key first met a real provider; the provider's own sentence usually does.

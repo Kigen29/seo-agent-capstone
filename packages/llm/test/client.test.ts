@@ -128,6 +128,120 @@ describe('model spending reservations', () => {
       expect.objectContaining({ reservationId: 'second' }),
     )
   })
+  it('gives back the money held for a call the provider refused outright', async () => {
+    mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
+    // What the SDK throws when a key is out of credit: a status, and nothing was generated.
+    mock.object.mockRejectedValueOnce(
+      Object.assign(new Error('You have no credits remaining.'), { statusCode: 402 }),
+    )
+    const record = vi.fn()
+    const check = vi.fn().mockResolvedValue({ allowed: true, reservationId: 'held' })
+
+    await expect(
+      new LlmClient(record, check).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).rejects.toThrow('no credits remaining')
+
+    // Settled at zero. Left unsettled, the full estimate stayed held against the budget for good.
+    expect(record).toHaveBeenCalledTimes(1)
+    expect(record).toHaveBeenCalledWith(
+      'tenant',
+      expect.objectContaining({ reservationId: 'held', estimatedUsd: 0, inputTokens: 0 }),
+    )
+  })
+  it('gives back every hold when each model in the chain refuses', async () => {
+    mock.chain.mockReturnValue({
+      targets: [
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+        { provider: 'openai', model: 'gpt-4.1-mini' },
+      ],
+    })
+    const tooLarge = () =>
+      Object.assign(new Error('Request too large for model'), { statusCode: 413 })
+    mock.object.mockRejectedValueOnce(tooLarge()).mockRejectedValueOnce(tooLarge())
+    const record = vi.fn()
+    const check = vi
+      .fn()
+      .mockResolvedValueOnce({ allowed: true, reservationId: 'first' })
+      .mockResolvedValueOnce({ allowed: true, reservationId: 'second' })
+
+    await expect(
+      new LlmClient(record, check).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).rejects.toThrow()
+
+    expect(record.mock.calls.map(([, usage]) => usage.reservationId)).toEqual(['first', 'second'])
+  })
+  it('keeps the money held when the failure might have been billed', async () => {
+    mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
+    const record = vi.fn()
+    const check = vi.fn().mockResolvedValue({ allowed: true, reservationId: 'held' })
+    const ask = () =>
+      new LlmClient(record, check).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      })
+
+    // A server fault, a timeout with no status, and a 4xx that is only words in a message.
+    mock.object.mockRejectedValueOnce(Object.assign(new Error('upstream'), { statusCode: 500 }))
+    await expect(ask()).rejects.toThrow()
+    mock.object.mockRejectedValueOnce(new Error('socket hang up'))
+    await expect(ask()).rejects.toThrow()
+    mock.object.mockRejectedValueOnce(new Error('the proxy said 402 about something'))
+    await expect(ask()).rejects.toThrow()
+
+    expect(record).not.toHaveBeenCalled()
+  })
+  it('keeps the money held when the call worked and our own ledger write failed', async () => {
+    mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
+    mock.object.mockResolvedValueOnce({
+      object: { ok: true },
+      usage: { inputTokens: 10, outputTokens: 5 },
+    })
+    // The provider did the work and will bill for it. Releasing here would hide real spend.
+    const record = vi.fn().mockRejectedValue(new Error('database is down'))
+    const check = vi.fn().mockResolvedValue({ allowed: true, reservationId: 'held' })
+
+    await expect(
+      new LlmClient(record, check).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).rejects.toThrow(/could not be recorded/)
+
+    // Once, for the real usage. Never a second time with a zero.
+    expect(record).toHaveBeenCalledTimes(1)
+    expect(record.mock.calls[0]![1].estimatedUsd).toBeGreaterThan(0)
+  })
+  it('does not let a failed release hide the reason the call failed', async () => {
+    mock.chain.mockReturnValue({ targets: [{ provider: 'openai', model: 'gpt-4.1-mini' }] })
+    mock.object.mockRejectedValueOnce(
+      Object.assign(new Error('You have no credits remaining.'), { statusCode: 402 }),
+    )
+    const record = vi.fn().mockRejectedValue(new Error('database is down'))
+    const check = vi.fn().mockResolvedValue({ allowed: true, reservationId: 'held' })
+
+    await expect(
+      new LlmClient(record, check).object({
+        role: 'smart',
+        tenantId: 'tenant',
+        prompt: 'test',
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).rejects.toThrow('no credits remaining')
+  })
   it('tries the next target when one says the request is too large for it', async () => {
     mock.chain.mockReturnValue({
       targets: [
