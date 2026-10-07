@@ -32,7 +32,16 @@ export interface PerformanceResult {
  */
 export async function measurePerformance(
   siteId: string,
-  origin: string,
+  /**
+   * The origin to ask about, or several to try in order.
+   *
+   * Field data is filed under the origin a visitor's browser ends up on. A site entered as
+   * `example.com` that redirects to `www.example.com` has all of its data under the second, and
+   * asking about the first comes back empty. That read as "not enough traffic" on a real site
+   * that had plenty. So the caller passes the origin the crawl was actually served from first,
+   * and the one that was typed second.
+   */
+  origin: string | readonly string[],
   apiKey: string | undefined,
   fetchImpl?: typeof globalThis.fetch,
 ): Promise<PerformanceResult> {
@@ -51,7 +60,13 @@ export async function measurePerformance(
 
   try {
     const client = createCruxClient({ apiKey, fetch: fetchImpl })
-    const lookup = await client.origin(origin)
+
+    const candidates = [...new Set(typeof origin === 'string' ? [origin] : origin)]
+    let lookup = await client.origin(candidates[0] as string)
+    for (const next of candidates.slice(1)) {
+      if (lookup.found) break
+      lookup = await client.origin(next)
+    }
 
     if (!lookup.found) {
       return {

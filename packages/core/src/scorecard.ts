@@ -133,14 +133,41 @@ function statusFor(score: number): AxisStatus {
   return 'poor'
 }
 
+/**
+ * How much each further finding from the same rule counts, relative to the one before it.
+ *
+ * An axis score is meant to say how many things are wrong, and a rule that fires per page was
+ * making it say how many pages there are (ADR-0037). On a real site one hard-coded origin made
+ * the canonical rule fire on sixteen page records, each subtracting fourteen points, and crawl
+ * health read zero: the same number a site with a dozen unrelated serious faults would get, for
+ * what was one line in one file.
+ *
+ * So within a rule the worst finding counts in full, the next at half, the next at a quarter. The
+ * sum can never reach twice the worst one, however many pages share the cause. Findings from
+ * different rules are different problems and still add up in full.
+ */
+const REPEAT_DECAY = 0.5
+
 function scoreAxis(findings: readonly Finding[]): number {
-  let damage = 0
+  const byRule = new Map<string, number[]>()
   let ceiling = 100
 
   for (const finding of findings) {
-    damage +=
+    const damage =
       SEVERITY_DAMAGE[finding.severity] * finding.confidence * (finding.estimatedImpact / 100)
+    byRule.set(finding.ruleId, [...(byRule.get(finding.ruleId) ?? []), damage])
+    // The ceiling is untouched by this: one certain critical still caps the axis on its own.
     ceiling = Math.min(ceiling, ceilingFor(finding.severity, finding.confidence))
+  }
+
+  let damage = 0
+  for (const damages of byRule.values()) {
+    // Worst first, so which finding counts in full does not depend on the order they arrived in.
+    damages
+      .sort((a, b) => b - a)
+      .forEach((amount, position) => {
+        damage += amount * REPEAT_DECAY ** position
+      })
   }
 
   return Math.max(0, Math.min(ceiling, 100 - damage))
