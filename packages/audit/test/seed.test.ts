@@ -1,6 +1,8 @@
 import { canFixFinding } from '@seo/fixers'
 import { describe, expect, it } from 'vitest'
+import { fingerprintAll } from '../src/fingerprint.js'
 import { e2eDrafts } from '../src/seed.js'
+import { showcaseDrafts } from '../src/seed-showcase.js'
 
 /**
  * The seed fixtures, held to the standard the rules are held to.
@@ -51,5 +53,45 @@ describe('the e2e seed findings', () => {
     // The seeded inbox exists to show the loop: a finding, a fix, a pull request. All-unfixable
     // fixtures would satisfy every other assertion here and demonstrate nothing.
     expect(drafts.some((finding) => finding.fixable)).toBe(true)
+  })
+})
+
+describe('the showcase seed findings', () => {
+  const { earlier, latest } = showcaseDrafts(new Date('2026-10-07T00:00:00.000Z'))
+
+  it('derives fixable from the fixers, never by hand', () => {
+    for (const finding of [...earlier, ...latest]) {
+      expect(finding.fixable, `${finding.id}: ${finding.title}`).toBe(canFixFinding(finding))
+    }
+  })
+
+  it('only opened pull requests for findings a fixer accepts', () => {
+    const withPullRequest = earlier.filter((finding) => finding.status !== 'open')
+    expect(withPullRequest.map((finding) => finding.status).sort()).toEqual([
+      'merged',
+      'pr_open',
+      'rejected',
+      'verified',
+    ])
+    for (const finding of withPullRequest) {
+      expect(finding.fixable, `${finding.id} has a pull request no fixer could have written`).toBe(
+        true,
+      )
+    }
+  })
+
+  it('tells one story across the two audits', () => {
+    const before = new Set(fingerprintAll(earlier).values())
+    const after = new Set(fingerprintAll(latest).values())
+    const printOf = (finding: (typeof earlier)[number]) => fingerprintAll(earlier).get(finding)!
+
+    const verified = earlier.find((finding) => finding.status === 'verified')!
+    const rejected = earlier.find((finding) => finding.status === 'rejected')!
+
+    // A fix that worked is gone from the next audit; one that did not is still raised by it.
+    expect(after.has(printOf(verified))).toBe(false)
+    expect(after.has(printOf(rejected))).toBe(true)
+    // And the next audit found something new, so "since the audit before" has both columns.
+    expect([...after].some((print) => !before.has(print))).toBe(true)
   })
 })

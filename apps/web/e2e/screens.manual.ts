@@ -16,6 +16,7 @@ import { expect, test, type Page } from '@playwright/test'
  * see. Looking is a different test.
  */
 const TOKEN = 'seo_e2e_fixed_token_do_not_use_in_production'
+const SHOWCASE_TOKEN = 'seo_e2e_showcase_token_do_not_use_in_production'
 const AUDIT = '00000000-0000-4000-8000-000000000004'
 const FINDING = '00000000-0000-4000-8000-000000000005'
 const OUT = 'screens'
@@ -38,11 +39,11 @@ async function capture(page: Page, path: string, file: string) {
   await page.screenshot({ path: `${OUT}/${file}`, fullPage: true })
 }
 
-async function signIn(page: Page) {
+async function signIn(page: Page, token: string = TOKEN) {
   await page.context().addCookies([
     {
       name: 'seo_token',
-      value: TOKEN,
+      value: token,
       domain: '127.0.0.1',
       path: '/',
       httpOnly: true,
@@ -100,4 +101,16 @@ test('capture', async ({ page }) => {
   await capture(page, '/outcomes', '14-outcomes-dark.png')
   await capture(page, '/settings/account', '15-settings-account-dark.png')
   await capture(page, '/audits', '16-audits-dark.png')
+
+  // The same screens with something on them. The tenant above is deliberately sparse, so every
+  // capture so far is an empty or unmeasured state; this one has two audits, pull requests at
+  // each stage, citations, authority figures and spend. See packages/audit/src/seed-showcase.ts.
+  await signIn(page, SHOWCASE_TOKEN)
+  await capture(page, '/dashboard', '20-showcase-dashboard.png')
+  await capture(page, '/findings', '21-showcase-findings.png')
+  await capture(page, '/audits', '22-showcase-audits.png')
+  await capture(page, '/outcomes', '23-showcase-outcomes.png')
+  await capture(page, '/visibility', '24-showcase-visibility.png')
+  await capture(page, '/authority', '25-showcase-authority.png')
+  await capture(page, '/settings/account', '26-showcase-settings.png')
 })

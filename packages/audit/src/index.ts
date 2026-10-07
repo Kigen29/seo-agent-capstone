@@ -56,6 +56,7 @@ export {
 export type { MergedFindingRef, FixVerdict } from './verify-fixes.js'
 
 export { E2E, seedE2E } from './seed.js'
+export { SHOWCASE, seedShowcase, showcaseDrafts } from './seed-showcase.js'
 export {
   applyFixPrOutcome,
   applyFixPrRevert,
