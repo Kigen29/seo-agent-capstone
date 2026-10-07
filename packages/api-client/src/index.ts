@@ -15,6 +15,8 @@ export interface ApiError {
 }
 
 export interface HostingStatus {
+  /** Whether this deployment can connect to Vercel in one step, by consent. */
+  oneClick: boolean
   mode: 'vercel' | 'github'
   connection: {
     projectId: string
@@ -686,12 +688,17 @@ export function createApiClient(options: ApiClientOptions) {
     getHosting: async (siteId: string) => request<HostingStatus>(`/sites/${siteId}/hosting`),
     connectHosting: async (
       siteId: string,
-      input: { token: string; projectId: string; teamId?: string },
+      // Without a project id the project is found from the site's repository.
+      input: { token: string; projectId?: string; teamId?: string },
     ) =>
       request<{ connected: boolean }>(`/sites/${siteId}/hosting`, {
         method: 'PUT',
         body: JSON.stringify(input),
       }),
+
+    /** Begin connecting to Vercel by consent. Returns the URL to send the browser to. */
+    startVercelConnect: async (siteId: string) =>
+      (await request<{ url: string }>(`/sites/${siteId}/hosting/vercel`, { method: 'POST' })).url,
     disconnectHosting: async (siteId: string) =>
       request<{ connected: boolean }>(`/sites/${siteId}/hosting`, { method: 'DELETE' }),
 
