@@ -5,6 +5,7 @@ import { apiTokens, asOwner, audits, createDb, findings, sites, tenants, withTen
 import { ruleCoverage } from '@seo/rules'
 import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
+import { seedShowcase } from './seed-showcase.js'
 
 /**
  * A known tenant, token, site, audit, and findings, for the end-to-end test.
@@ -186,6 +187,9 @@ export async function seedE2E(): Promise<void> {
         })),
       )
     })
+
+    // A second tenant with history, for the screens the sparse one above cannot populate.
+    await seedShowcase(db)
   } finally {
     await pool.end()
   }
