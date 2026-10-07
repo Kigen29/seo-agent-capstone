@@ -44,6 +44,31 @@ export class CanonicalRedirectFixer implements Fixer {
       if (next !== content) files.push({ path, content: next })
     }
 
+    /**
+     * The root document had nothing to change, so look where a canonical is built in code.
+     *
+     * Found on a real site: `index.html` already named the serving origin, and the tag itself
+     * came from `src/components/SEO.tsx`, which joined a hard-coded apex origin to the current
+     * path. The fixer read the one file it knew about, found nothing, and reported that no fix
+     * could be generated for the most mechanical change in the product.
+     *
+     * Still a parser's job, with nothing guessed. Only files whose path says they are about the
+     * document head are opened, a file is changed only if it contains both the redirecting origin
+     * and the word "canonical", and the change is the same boundary-anchored origin rewrite as
+     * above. A file that mentions the origin for another reason is never touched.
+     */
+    if (files.length === 0 && ctx.tree) {
+      for (const path of headComponents(ctx.tree)) {
+        const content = await ctx.read(path)
+        if (content === null || !content.includes(fromOrigin) || !/canonical/i.test(content)) {
+          continue
+        }
+
+        const next = rewriteOrigin(content, fromOrigin, toOrigin)
+        if (next !== content) files.push({ path, content: next })
+      }
+    }
+
     if (files.length === 0) return null
 
     return {
@@ -56,6 +81,57 @@ export class CanonicalRedirectFixer implements Fixer {
       rollback: `Revert the merge commit; every URL returns to ${fromOrigin} and nothing else changes.`,
     }
   }
+}
+
+/** How many candidate files are opened. Each is a request to the repository host. */
+const MAX_HEAD_COMPONENTS = 12
+
+const SOURCE_FILE = /\.(tsx?|jsx?|mjs|vue|svelte|astro|html?|php|erb|njk|liquid)$/i
+
+/** Longest first, so `metadata` is tried before `meta`. */
+const HEAD_WORDS = ['canonical', 'metadata', 'document', 'helmet', 'layout', 'head', 'meta', 'seo']
+
+/**
+ * Whether a path has a whole word saying the file is about the document head or its metadata.
+ *
+ * A word, not a substring, and the edges are read the way a filename is written: a separator or a
+ * change of case. So `SEO.tsx`, `seoHelpers.ts` and `PageHead.tsx` match, and `Header.tsx` and
+ * `museum.ts` do not. A plain case-insensitive pattern cannot say that, because the capital that
+ * ends one word and starts the next is exactly what the flag throws away.
+ */
+function aboutTheHead(path: string): boolean {
+  const lower = path.toLowerCase()
+
+  return HEAD_WORDS.some((word) => {
+    for (let at = lower.indexOf(word); at !== -1; at = lower.indexOf(word, at + 1)) {
+      const before = at === 0 ? '/' : (path[at - 1] as string)
+      const first = path[at] as string
+      const after = path[at + word.length]
+
+      const starts = /[/._-]/.test(before) || (/[a-z]/.test(before) && /[A-Z]/.test(first))
+      const ends = after === undefined || /[A-Z/._-]/.test(after)
+      if (starts && ends) return true
+    }
+    return false
+  })
+}
+
+/** Never application code: dependencies, build output, tests, load tests, generated files. */
+const NOT_SOURCE =
+  /(^|\/)(node_modules|dist|build|out|coverage|\.next|\.nuxt|vendor|k6|e2e|tests?|__tests__)\/|\.(test|spec|stories|d)\.[a-z]+$/i
+
+/**
+ * The files worth opening, most specific name first and then by path, so the same repository
+ * always yields the same list and the cap cuts the least likely candidates.
+ */
+export function headComponents(tree: readonly string[]): string[] {
+  const rank = (path: string): number =>
+    /(seo|canonical)/i.test(path) ? 0 : /(head|meta|helmet)/i.test(path) ? 1 : 2
+
+  return tree
+    .filter((path) => SOURCE_FILE.test(path) && aboutTheHead(path) && !NOT_SOURCE.test(path))
+    .sort((a, b) => rank(a) - rank(b) || (a < b ? -1 : a > b ? 1 : 0))
+    .slice(0, MAX_HEAD_COMPONENTS)
 }
 
 interface OriginPlan {

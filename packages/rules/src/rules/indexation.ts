@@ -127,9 +127,22 @@ export const TECH_007: Rule = {
   evaluate: (context) => {
     const byUrl = new Map(context.pages.map((page) => [normaliseUrl(page.url) ?? page.url, page]))
 
+    /**
+     * One finding per document, not per address it was reached by.
+     *
+     * A site that redirects its apex to `www` is crawled at both: the sitemap lists one, links
+     * use the other, and each arrives as its own page record with the same final URL and the same
+     * canonical tag. Keyed on `page.url`, every affected page was raised twice, so eight pages
+     * with one cause filled sixteen rows of the inbox.
+     */
+    const seen = new Set<string>()
+
     return context.pages.flatMap((page) => {
       const canonical = page.extract.canonical
       if (page.status !== 200 || !canonical) return []
+
+      const document = normaliseUrl(page.finalUrl) ?? page.finalUrl
+      if (seen.has(document)) return []
 
       const target = byUrl.get(normaliseUrl(canonical) ?? canonical)
 
@@ -140,16 +153,20 @@ export const TECH_007: Rule = {
       const broken = target.status >= 300 || target.redirectChain.length > 0
       if (!broken) return []
 
-      const problem =
+      seen.add(document)
+
+      // Names the canonical as well as where it leads. "X declares a canonical that redirects to
+      // X" was a true sentence that read as nonsense, because the address in between was missing.
+      const title =
         target.redirectChain.length > 0
-          ? `redirects to ${target.finalUrl}`
-          : `returns ${target.status}`
+          ? `${page.finalUrl} declares the canonical ${canonical}, which redirects to ${target.finalUrl}`
+          : `${page.finalUrl} declares the canonical ${canonical}, which returns ${target.status}`
 
       return [
         {
-          title: `${page.url} declares a canonical that ${problem}`,
+          title,
           evidence: httpEvidence(target),
-          affectedUrls: [page.url, canonical],
+          affectedUrls: [page.finalUrl, canonical],
           confidence: 1,
           estimatedImpact: 70,
           falsification:
