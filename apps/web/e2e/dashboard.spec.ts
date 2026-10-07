@@ -357,6 +357,27 @@ test('the nav reaches every section, and keeps the site you picked', async ({ pa
   await expect(page).toHaveURL(/\/authority\?siteId=/)
 })
 
+/**
+ * The plan section (ADR-0036). The suite runs with no payment rail configured, which is also the
+ * state of the deployed product, so what is asserted is the honest off state: the account is on
+ * the free plan, the page says paid plans are not switched on, and there is nothing to buy.
+ */
+test('the account page shows the plan, and says when paid plans are switched off', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/settings/account')
+
+  const plan = page.getByRole('region', { name: 'Plan' })
+  await expect(plan.getByText('Your plan')).toBeVisible()
+  await expect(plan.getByText(/Paid plans are not switched on for this deployment/)).toBeVisible()
+  // Free on every plan, said where the prices are, so nobody reads the pull requests as paywalled.
+  await expect(
+    plan.getByText(/fix pull requests\s+and Search Console verification are free on every plan/),
+  ).toBeVisible()
+  await expect(plan.getByRole('button', { name: /^Choose / })).toHaveCount(0)
+})
+
 test('lists the sessions and tokens that can act as the account, never their values', async ({
   page,
 }) => {

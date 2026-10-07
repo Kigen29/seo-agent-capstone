@@ -71,6 +71,12 @@ export { classifyContributorPage, contributorQueries } from './authority/link-se
 export type { ContributorCheck, ContributorVerdict } from './authority/link-sellers.js'
 
 export { assertFetchable, publicFetch, UnsafeUrlError } from './http/public-fetch.js'
+
+// Billing (ADR-0036): the payment rail behind a seam, in test mode only.
+export { BillingSignatureError, LiveBillingRefusedError } from './billing/types.js'
+export type { BillingEvent, BillingProvider, CheckoutRequest } from './billing/types.js'
+export { billingFromEnv, StripeBilling } from './billing/stripe.js'
+export type { StripeOptions } from './billing/stripe.js'
 export type { PublicFetchOptions, PublicFetchResult } from './http/public-fetch.js'
 
 export { DEFAULT_QUESTION_LIMIT, mineQuestions } from './questions/mine.js'

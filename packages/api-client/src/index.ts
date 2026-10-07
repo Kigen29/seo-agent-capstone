@@ -492,6 +492,29 @@ export interface SiteOutcomes {
   rates: FixPrRates
 }
 
+/** A plan an account can be on. Matches `Plan` in `@seo/core`. */
+export interface BillingPlan {
+  id: 'free' | 'growth' | 'agency'
+  name: string
+  /** In the currency's minor unit. Zero is free. */
+  priceMinor: number
+  currency: string
+  /** The monthly cap on paid work this plan grants, or null for the deployment's default. */
+  monthlyBudgetMicros: number | null
+  summary: string
+}
+
+/** Matches the API's billing shape (ADR-0036). */
+export interface Billing {
+  /** False when no payment rail is configured, in which case every account is on the free plan. */
+  configured: boolean
+  provider: string | null
+  /** Always 'test': this deployment cannot take a real payment. */
+  mode: 'test'
+  plan: BillingPlan['id']
+  plans: BillingPlan[]
+}
+
 /** A competitor's AI citations over a span: how many checks named them, out of how many ran. */
 export interface CitationWindow {
   cited: number
@@ -972,6 +995,18 @@ export function createApiClient(options: ApiClientOptions) {
      */
     /** Every fix proposed for a site and whether it worked. */
     getOutcomes: async (siteId: string) => request<SiteOutcomes>(`/sites/${siteId}/outcomes`),
+
+    /** Which plan this account is on, and the plans there are. */
+    getBilling: async () => request<Billing>('/billing'),
+
+    /** Start a checkout for a paid plan. Returns the payment rail's address to send the browser to. */
+    startCheckout: async (planId: string) =>
+      (
+        await request<{ url: string }>('/billing/checkout', {
+          method: 'POST',
+          body: JSON.stringify({ planId }),
+        })
+      ).url,
 
     /** What a site's tracked competitors changed, beside their AI citations before and after. */
     getCompetitorWatch: async (siteId: string) =>

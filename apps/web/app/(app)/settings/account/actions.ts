@@ -40,6 +40,35 @@ export async function revokeCredential(formData: FormData): Promise<void> {
 }
 
 /** Sign out everywhere except this browser. */
+/**
+ * Start a checkout for a paid plan and send the browser to the payment page.
+ *
+ * Nothing here changes the plan. The account moves when the payment rail's signed webhook reaches
+ * the API, which is the only evidence that somebody actually paid; the browser arriving back on
+ * this page proves nothing, since anybody can type that address.
+ *
+ * Only an https address is followed. The address comes from our own API, which got it from the
+ * rail, and a redirect is still the last place to trust a string without looking at it.
+ */
+export async function choosePlan(formData: FormData): Promise<void> {
+  const planId = String(formData.get('planId') ?? '')
+  if (!planId) throw new Error('choosePlan called without a planId; the hidden field is missing.')
+
+  const api = await getClient()
+  if (!api) redirect('/login')
+
+  let url: string
+  try {
+    url = await api.startCheckout(planId)
+  } catch (error) {
+    handleApiError(error)
+    redirect(`${ACCOUNT}?billing=failed`)
+  }
+
+  if (!url.startsWith('https://')) redirect(`${ACCOUNT}?billing=failed`)
+  redirect(url)
+}
+
 export async function revokeOtherCredentials(): Promise<void> {
   const api = await getClient()
   if (!api) redirect('/login')

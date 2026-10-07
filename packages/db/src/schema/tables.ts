@@ -62,6 +62,13 @@ export const tenants = pgTable('tenants', {
    */
   monthlyBudgetMicros: bigint('monthly_budget_micros', { mode: 'number' }).notNull().default(0),
 
+  /**
+   * The plan this tenant is on (ADR-0036). A label beside the cap above, which is the one thing
+   * a plan changes. Only the billing webhook writes it, after the payment rail's signature has
+   * been verified; the browser returning from checkout never does.
+   */
+  plan: text('plan').$type<'free' | 'growth' | 'agency'>().notNull().default('free'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

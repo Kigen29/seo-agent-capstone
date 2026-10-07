@@ -203,7 +203,13 @@ returning instead. PRs closed unmerged before 0027 left no trace and are not cou
 - **#118 STORY-034**: the graded deliverables close. Re-verified 2026-09-16: the deployed link,
   the task board link, the design document and the `quantic-grader` share are all in place, so
   **the recorded demo is the only item left**, and it is yours rather than the code's.
-- **#117 STORY-033**: billing. Marked stretch, and the only one of the two that is code.
+- **#117 STORY-033**: billing. **Done (2026-10-07)** under ADR-0036, as far as code can take it.
+  A plan sets the monthly cap on paid work and nothing else; the rail is behind `BillingProvider`
+  with a Stripe adapter that refuses anything but a test key; only a signature-verified webhook
+  changes a plan. **It is off in production and stays off until an operator sets
+  `STRIPE_SECRET_KEY` (a test key) and `STRIPE_WEBHOOK_SECRET` on the API and points a Stripe
+  test webhook at `/webhooks/billing`.** Until then every account is on the free plan and the
+  account page says so. Going live is deliberately out of scope: see the ADR.
 
 ### 3. A researched roadmap, one item in
 
