@@ -86,10 +86,11 @@ describe('scoring a measured axis', () => {
   })
 
   it('lets volume drag a score down even with no critical', () => {
+    // Five different rules: several separate problems, which is the volume that should count.
     const one = build({ findings: [aFinding({ severity: 'medium', estimatedImpact: 100 })] })
     const many = build({
       findings: Array.from({ length: 5 }, (_, i) =>
-        aFinding({ id: `f_${i}`, severity: 'medium', estimatedImpact: 100 }),
+        aFinding({ id: `f_${i}`, ruleId: `TECH-70${i}`, severity: 'medium', estimatedImpact: 100 }),
       ),
     })
 
@@ -130,13 +131,68 @@ describe('scoring a measured axis', () => {
   })
 
   it('floors at 0 rather than going negative', () => {
+    // Four different rules, because four different critical problems is what zero is for.
     const scorecard = build({
       findings: Array.from({ length: 4 }, (_, i) =>
-        aFinding({ id: `f_${i}`, severity: 'critical', estimatedImpact: 100 }),
+        aFinding({
+          id: `f_${i}`,
+          ruleId: `TECH-90${i}`,
+          severity: 'critical',
+          estimatedImpact: 100,
+        }),
       ),
     })
 
     expect(axis(scorecard, 'crawl_health')?.score).toBe(0)
+  })
+
+  /**
+   * ADR-0037. Found on a real site: one hard-coded origin made one rule fire on sixteen page
+   * records, and crawl health read zero for what was one line in one file.
+   */
+  it('counts one cause repeated on many pages as less than that many separate problems', () => {
+    const repeated = build({
+      findings: Array.from({ length: 16 }, (_, i) =>
+        aFinding({ id: `same_${i}`, ruleId: 'TECH-007', severity: 'high', estimatedImpact: 70 }),
+      ),
+    })
+    const distinct = build({
+      findings: Array.from({ length: 16 }, (_, i) =>
+        aFinding({ id: `diff_${i}`, ruleId: `TECH-8${i}`, severity: 'high', estimatedImpact: 70 }),
+      ),
+    })
+
+    expect(axis(distinct, 'crawl_health')?.score).toBe(0)
+    // One high at impact 70 costs 14, and however often it repeats it costs less than 28. That
+    // leaves 72, and the ceiling a certain high puts on its axis brings it to 65: needs work,
+    // which is what one serious cause deserves, and not the zero of sixteen separate faults.
+    expect(axis(repeated, 'crawl_health')?.score).toBe(65)
+    expect(axis(repeated, 'crawl_health')?.status).toBe('needs_work')
+  })
+
+  it('still lets a repeated cause cost more than a single instance of it', () => {
+    // High at full impact, so the damage (20, then up to 40) is what moves the score and not
+    // the ceiling, which would hide the difference.
+    const once = build({ findings: [aFinding({ severity: 'high', estimatedImpact: 100 })] })
+    const tenTimes = build({
+      findings: Array.from({ length: 10 }, (_, i) =>
+        aFinding({ id: `f_${i}`, severity: 'high', estimatedImpact: 100 }),
+      ),
+    })
+
+    expect(axis(tenTimes, 'crawl_health')!.score!).toBeLessThan(axis(once, 'crawl_health')!.score!)
+  })
+
+  it('gives the same score whatever order the findings arrive in', () => {
+    const findings = [
+      aFinding({ id: 'a', ruleId: 'TECH-007', severity: 'high', estimatedImpact: 90 }),
+      aFinding({ id: 'b', ruleId: 'TECH-007', severity: 'low', estimatedImpact: 20 }),
+      aFinding({ id: 'c', ruleId: 'TECH-007', severity: 'medium', estimatedImpact: 60 }),
+    ]
+
+    expect(axis(build({ findings }), 'crawl_health')?.score).toBe(
+      axis(build({ findings: [...findings].reverse() }), 'crawl_health')?.score,
+    )
   })
 
   it('lets an info finding cost nothing at all', () => {
