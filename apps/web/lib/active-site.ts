@@ -15,6 +15,7 @@ const SITE_VIEWS = [
   '/authority',
   '/visibility',
   '/competitors',
+  '/topics',
   '/outcomes',
 ]
 

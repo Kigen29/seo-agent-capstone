@@ -113,6 +113,7 @@ test('capture', async ({ page }) => {
   await capture(page, '/visibility', '24-showcase-visibility.png')
   await capture(page, '/authority', '25-showcase-authority.png')
   await capture(page, '/competitors', '31-showcase-competitors.png')
+  await capture(page, '/topics', '32-showcase-topics.png')
   await capture(page, '/settings/account', '26-showcase-settings.png')
   await capture(page, '/settings', '27-settings-appearance.png')
   await capture(page, '/settings/connections', '28-settings-connections.png')

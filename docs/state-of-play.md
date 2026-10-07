@@ -265,6 +265,10 @@ fixable by a pull request. Each adds one check to its axis only when it could ru
 "tracked prompt with no matching cluster" became a word test on purpose: the clustering threshold
 is calibrated for page against page, not question against page.
 
+`/topics` (2026-10-07) shows the map and the advice it produced together: the groups from the
+last audit, the TOPIC findings that audit raised, and each group's pages on request. It measures
+nothing itself, and when the map was not measured it says why instead of drawing an empty one.
+
 **Done (2026-09-21):** Tier 3 item 8, the public check, under ADR-0025. `POST /check` and
 `GET /check/:id` are the only anonymous routes in the API and the only ones that run with no
 tenant. `/check` on the web app shows the eight-axis breakdown with the evidence for every

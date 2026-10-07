@@ -618,3 +618,32 @@ test('competitor watch with no competitors says where to name them', async ({ pa
     /\/visibility\?siteId=/,
   )
 })
+
+/**
+ * The topics page (ADR-0035): the map and the advice it produced, together. Two properties are
+ * worth an assertion. A map that was not measured says so instead of drawing an empty one, and the
+ * advice listed is the same findings the inbox holds, reachable from here.
+ */
+test('topics shows the measured groups and the advice they produced', async ({ page }) => {
+  await signIn(page, SHOWCASE_TOKEN)
+  await page.goto('/topics')
+
+  await expect(page.getByRole('heading', { name: /what is your site about/i })).toBeVisible()
+  await expect(page.getByText('48 of 48', { exact: true })).toBeVisible()
+
+  const advice = page.getByRole('region', { name: 'What this suggests' })
+  await expect(advice.getByText('TOPIC-001')).toBeVisible()
+  await expect(advice.getByText('TOPIC-002').first()).toBeVisible()
+
+  await advice.getByRole('link', { name: /pages on one subject have no page linking them/ }).click()
+  await expect(page).toHaveURL(/\/findings\//)
+  await expect(page.getByText('How you would know we were wrong')).toBeVisible()
+})
+
+test('topics that were not measured say so, and draw no map', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/topics')
+
+  await expect(page.getByText(/Topics were not measured on the last audit/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The map' })).toHaveCount(0)
+})
