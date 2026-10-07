@@ -253,6 +253,13 @@
       "when": 1791676800000,
       "tag": "0035_site_offering_and_market",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791763200000,
+      "tag": "0036_release_unbilled_holds",
+      "breakpoints": true
     }
   ]
 }
