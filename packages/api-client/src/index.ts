@@ -492,6 +492,46 @@ export interface SiteOutcomes {
   rates: FixPrRates
 }
 
+/** A competitor's AI citations over a span: how many checks named them, out of how many ran. */
+export interface CitationWindow {
+  cited: number
+  checks: number
+}
+
+/** One thing that differed between two weekly snapshots of a competitor's public pages. */
+export interface CompetitorChange {
+  kind: 'title' | 'description' | 'h1' | 'new_url'
+  url: string
+  before: string | null
+  after: string | null
+}
+
+/** Everything one snapshot found changed for one competitor, with the citations either side. */
+export interface CompetitorChangeBatch {
+  competitor: string
+  detectedAt: string
+  changes: CompetitorChange[]
+  citationsBefore: CitationWindow
+  citationsAfter: CitationWindow
+  /** False until a full window has passed since the change. */
+  afterComplete: boolean
+}
+
+/** Matches the API's competitor-watch shape (ADR-0034). */
+export interface CompetitorWatch {
+  competitors: {
+    domain: string
+    /** Null when the weekly sweep has not reached this competitor yet. */
+    lastSnapshotAt: string | null
+    pagesRead: number
+    /** Why the last snapshot read nothing, when it did not. */
+    note: string | null
+  }[]
+  batches: CompetitorChangeBatch[]
+  intervalDays: number
+  windowDays: number
+}
+
 /** A question the agent drafted for AI-visibility tracking, with why it fits the business. */
 export interface SuggestedPrompt {
   prompt: string
@@ -932,6 +972,10 @@ export function createApiClient(options: ApiClientOptions) {
      */
     /** Every fix proposed for a site and whether it worked. */
     getOutcomes: async (siteId: string) => request<SiteOutcomes>(`/sites/${siteId}/outcomes`),
+
+    /** What a site's tracked competitors changed, beside their AI citations before and after. */
+    getCompetitorWatch: async (siteId: string) =>
+      request<CompetitorWatch>(`/sites/${siteId}/competitor-watch`),
 
     /** Draft AI-visibility questions for a site from what it says about itself. One model call. */
     suggestPrompts: async (siteId: string) =>

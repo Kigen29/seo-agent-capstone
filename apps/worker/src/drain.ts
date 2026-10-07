@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs'
 import { drainScope } from './drain-scope.js'
 import { publishPendingJobs } from './outbox.js'
 import { nameTopics } from '@seo/agent'
-import { runAudit } from '@seo/audit'
+import { runAudit, watchCompetitors } from '@seo/audit'
 import { createDb } from '@seo/db'
 import {
   createQueue,
@@ -171,6 +171,25 @@ try {
     }),
   )
   console.log(`worker: polling done. ${polled.completed} completed, ${polled.failed} failed.`)
+  /**
+   * The weekly competitor watch (ADR-0034). A sweep, not a queue: it asks which tracked
+   * competitors have no snapshot newer than a week and reads a few of them, so a late run does the
+   * work late and an extra run finds nothing due. A failure here is logged and swallowed, because
+   * somebody else's site being down must not fail the run that also carries audits and fixes.
+   */
+  let watched = { snapshots: 0, changes: 0 }
+  if (scope.includes('watch-competitors')) {
+    try {
+      watched = await watchCompetitors(db)
+    } catch (error) {
+      console.error('worker: competitor watch failed', error)
+    }
+  }
+  console.log(
+    `worker: competitor watch read ${watched.snapshots} competitor(s), ` +
+      `${watched.changes} change(s) recorded.`,
+  )
+
   const lanes = {
     audits: result,
     fixes: fixed,

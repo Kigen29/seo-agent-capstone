@@ -9,7 +9,14 @@ import { usePathname, useSearchParams } from 'next/navigation'
  * site fall back to the first when it is absent, which is what those pages do themselves; the
  * inbox and the audit history do not, because for them no `siteId` means every site.
  */
-const SITE_VIEWS = ['/dashboard', '/keywords', '/authority', '/visibility', '/outcomes']
+const SITE_VIEWS = [
+  '/dashboard',
+  '/keywords',
+  '/authority',
+  '/visibility',
+  '/competitors',
+  '/outcomes',
+]
 
 export function useActiveSite(sites: { id: string }[]) {
   const pathname = usePathname() ?? ''

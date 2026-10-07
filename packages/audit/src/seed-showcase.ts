@@ -18,6 +18,8 @@ import { canFixFinding } from '@seo/fixers'
 import { ruleCoverage } from '@seo/rules'
 import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
+import type { CompetitorSnapshot } from './competitors/snapshot.js'
+import { watchCompetitors } from './competitors/watch.js'
 import { fingerprintAll } from './fingerprint.js'
 import { baselineFor, verificationFor } from './outcome-evidence.js'
 
@@ -305,6 +307,41 @@ const QUESTIONS: { prompt: string; citedPerDay: number[]; rival?: string }[] = [
 
 const ENGINES = ['chatgpt', 'perplexity'] as const
 
+/**
+ * What the first competitor's pages said a fortnight ago and a week ago.
+ *
+ * Fed to the real `watchCompetitors` in place of the network, so the rows the competitor page
+ * reads are the ones the sweep writes: the diff, the storage bound and the batch timestamps are
+ * all the product's own. The change lands three days ago, inside the days the citation checks
+ * above cover, so the page has counts on both sides of it and an after-window still running.
+ */
+const RIVAL = SHOWCASE.competitors[0]
+const rivalSnapshot = (week: 'earlier' | 'later'): CompetitorSnapshot => ({
+  pages: [
+    {
+      url: `https://${RIVAL}/`,
+      title: 'Rival One: guided walking tours',
+      description: 'Small-group walking tours with local guides.',
+      h1: 'Walk with people who live here',
+    },
+    {
+      url: `https://${RIVAL}/pricing`,
+      title: week === 'earlier' ? 'Pricing' : 'What a guided day costs, and what is included',
+      description:
+        week === 'earlier'
+          ? 'Our prices.'
+          : 'Day trips from 85 to 140 per person, with transport, lunch and park fees included.',
+      h1: week === 'earlier' ? 'Pricing' : 'What a guided day costs',
+    },
+  ],
+  sitemapUrls: [
+    `https://${RIVAL}/`,
+    `https://${RIVAL}/pricing`,
+    ...(week === 'later' ? [`https://${RIVAL}/packing-list`] : []),
+  ],
+  note: null,
+})
+
 export async function seedShowcase(db: Database, now: Date = new Date()): Promise<void> {
   const earlierAt = daysAgo(9, now)
   const latestAt = daysAgo(1, now)
@@ -553,4 +590,25 @@ export async function seedShowcase(db: Database, now: Date = new Date()): Promis
       .insert(schema.spendReservations)
       .values({ tenantId: SHOWCASE.tenantId, reservedMicros: 890_000, createdAt: now })
   })
+
+  // Two runs of the real sweep a week apart. The second competitor refuses the visit in its
+  // robots.txt, with the note `takeSnapshot` writes for that, so the page also shows what "looked
+  // and could not read" looks like beside one that was read.
+  for (const [week, daysBack] of [
+    ['earlier', 11],
+    ['later', 3],
+  ] as const) {
+    await watchCompetitors(db, {
+      now: daysAgo(daysBack, now),
+      siteId: SHOWCASE.siteId,
+      snapshot: async (competitor) =>
+        competitor === RIVAL
+          ? rivalSnapshot(week)
+          : {
+              pages: [],
+              sitemapUrls: [],
+              note: `${competitor}'s robots.txt asks crawlers like ours to stay out, so nothing was read.`,
+            },
+    })
+  }
 }

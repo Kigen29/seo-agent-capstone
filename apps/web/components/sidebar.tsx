@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Binoculars,
   GitPullRequest,
   History,
   LayoutDashboard,
@@ -84,6 +85,12 @@ const GROUPS: {
         label: 'AI visibility',
         icon: Sparkles,
         match: (p) => p.startsWith('/visibility'),
+      },
+      {
+        href: '/competitors',
+        label: 'Competitors',
+        icon: Binoculars,
+        match: (p) => p.startsWith('/competitors'),
       },
     ],
   },

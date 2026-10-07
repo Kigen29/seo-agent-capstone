@@ -20,6 +20,7 @@ import { keywordRoutes } from './routes/keywords.js'
 import { localRoutes } from './routes/local.js'
 import { questionRoutes } from './routes/questions.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
+import { competitorRoutes } from './routes/competitors.js'
 import { outcomeRoutes } from './routes/outcomes.js'
 import { promptSuggestionRoutes } from './routes/prompt-suggestions.js'
 import { outreachRoutes } from './routes/outreach.js'
@@ -178,6 +179,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     visibilityRoutes(protectedRoutes, deps)
     promptSuggestionRoutes(protectedRoutes, deps)
     outcomeRoutes(protectedRoutes, deps)
+    competitorRoutes(protectedRoutes, deps)
   })
 
   return app

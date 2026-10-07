@@ -17,6 +17,8 @@ export {
   fixAttempts,
   audits,
   authHandoffs,
+  competitorChanges,
+  competitorSnapshots,
   findings,
   oauthCredentials,
   hostingConnections,

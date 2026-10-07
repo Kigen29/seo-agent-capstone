@@ -86,3 +86,26 @@ export { fixPrRates } from './fix-pr-rates.js'
 export type { FixPrRates } from './fix-pr-rates.js'
 export { earlierFindings, earlierWorkOf, fingerprintAll, fingerprintOf } from './fingerprint.js'
 export type { EarlierFinding, EarlierWork } from './fingerprint.js'
+
+// Competitor watch (ADR-0034): weekly snapshots of tracked competitors, diffed, beside citations.
+export { MAX_WATCHED_PAGES, takeSnapshot } from './competitors/snapshot.js'
+export type { CompetitorSnapshot, WatchedPage } from './competitors/snapshot.js'
+export { diffSnapshots, MAX_NEW_URLS } from './competitors/diff.js'
+export type { ChangeKind, CompetitorChange } from './competitors/diff.js'
+export {
+  CHANGE_RETENTION_DAYS,
+  WATCH_INTERVAL_DAYS,
+  watchCompetitors,
+} from './competitors/watch.js'
+export {
+  CITATION_WINDOW_DAYS,
+  citationWindows,
+  competitorWatchReport,
+} from './competitors/report.js'
+export type {
+  ChangeBatch,
+  CitationWindow,
+  CompetitorWatchReport,
+  WatchedChange,
+  WatchedCompetitor,
+} from './competitors/report.js'

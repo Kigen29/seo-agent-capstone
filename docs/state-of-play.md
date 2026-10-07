@@ -6,6 +6,8 @@ Last reviewed: 2026-10-07.
 
 **What shipped on 2026-10-06 and 2026-10-07, from using the product on two real sites.** The agent opened its first real pull request (kenya-safari-architect #27) after three fixes to the model chain: a retired model and a busy one now fall through, and a "try again in N seconds" is waited out instead of failing. **Audits are a history** (`/audits`, `GET /sites/:id/audits`, `GET /audits/:id/changes`): every run is listed and each says what was resolved and what is new since the one before, by finding identity. **Several pull requests in one request** (`POST /sites/:id/fixes`, ten at a time, still one pull request per finding). **Connect to Vercel** by consent (ADR-0033): one button when the operator has registered an integration (`docs/vercel-integration.md`, four `VERCEL_INTEGRATION_*` variables on the API), and either way the project is found from the repository, so the token form no longer asks for a project id. Also fixed: the profile page crashed for every signed-in person (a helper exported from a client file), and topic names repeated (now made distinct in code). **Operator action outstanding: register the Vercel integration, or the button is not shown.**
 
+**Also on 2026-10-07: the interface was rebuilt on the Stitch structure, and the test database gained a tenant with history.** The palette and fonts are unchanged; `docs/DESIGN.md` describes the new shell (a top bar on every signed-in page, a carded sidebar) and components (`.frame`, `.panel-foot`, `.card-foot`, `<Stat tone>`). The Stitch mock-ups contain a single health score, version tags and sample figures; none of those were built, deliberately. `packages/audit/src/seed-showcase.ts` seeds a second tenant with two audits, pull requests at every stage, citation checks, authority figures, spend and competitor changes, all written by the real code paths, so populated screens can be looked at: `pnpm --filter @seo/web screens` captures them, and the token is `seo_e2e_showcase_token_do_not_use_in_production`. The original e2e tenant is untouched and stays sparse on purpose. **Competitor watch shipped the same day (ADR-0034), see Tier 3 item 10 below.**
+
 **The topic map runs on Google's embedding model (ADR-0032).** The OpenAI account is inactive, so every audit had been skipping the topic map. `LLM_EMBED` is now `google:gemini-embedding-001`, and `LLM_SMART` has `google:gemini-2.5-flash` after the first Groq model so an agent request Groq calls too large is retried there at full size. The grouping threshold is per embedding model (0.88 for Google, chosen from the `calibrate-topics` workflow's output); an uncalibrated model is flagged as provisional in the coverage note. The text embedded is now each page's own content (`extract.mainText`), because the opening of a body turned out to be the menu. Keep `LLM_EMBED` to one model. Render's copies of `LLM_SMART` and `LLM_EMBED` are set by hand and must match the GitHub variables.
 
 **The agent's context shrinks to fit the model (ADR-0031).** Running the agent's file selection against the two real repositories, with no model, showed the prompt was about 19,000 tokens while the free-plan `smart` models commonly accept about 8,000 a minute, so every agent fix would have been refused for size. The context now has three sizes and steps down when a provider says a request is too large; a size refusal also falls through the model chain; and the reason on the finding is the provider's own words. On a small plan the agent can fix what lives in short shared files and says plainly when a long page file is what it could not be shown. The remedy that keeps cost at zero, a Google model in the `smart` chain, was applied on 2026-10-06.
@@ -283,7 +285,26 @@ One thing it taught about this suite: **the anonymous check's rate limiter is st
 API tests were failing on their own leftovers from previous runs. The limits are now injectable,
 the tests clear only their own IP hash, and the per-IP refusal has a test of its own.
 
-**Not started:** Tier 3 item 10 (#172), competitor watch.
+**Done (2026-10-07):** Tier 3 item 10 (#172), competitor watch, under ADR-0034. A weekly sweep on
+the worker (scope `watch-competitors`) reads up to a dozen public pages per tracked competitor
+through the SSRF guard, honours their robots.txt, and records what differs from the reading
+before: titles, meta descriptions, first H1s and URLs new to their sitemap. `/competitors` shows
+each batch beside that competitor's AI citations in the seven days before and after.
+
+Three things about it worth knowing before changing anything:
+
+- **The page states an order of events and never a cause.** The sentence is written by one
+  function (`apps/web/lib/citation-sentence.ts`) whose test fails on any causal word or
+  percentage. That test is the story's falsification condition; do not route around it.
+- **Storage is bounded by what is tracked.** Two snapshots per competitor, enforced on every
+  write, and changes pruned at 180 days. Do not add a reader that needs an older snapshot.
+- **The read route fetches nothing, and there is no refresh button on purpose.** A request that
+  makes the API call a caller-chosen host on demand is request forgery with a nicer name.
+
+Not built: correlation per tracked question. It is the sharper claim and needs a weekly sample
+per question that a daily poll on two engines does not give yet.
+
+**Tier 3 is complete.**
 
 `docs/competitive-research-heytony.md` studies the HeyTony tool suite (link gap, question mining,
 keyword gap, CID finder, topic map, report card) and plans ten items in three tiers. Tier 1 is free
