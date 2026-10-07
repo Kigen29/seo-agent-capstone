@@ -25,7 +25,7 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
     {
       schema: {
         body: z.object({
-          url: z.string().url(),
+          url: z.string().url().max(2000),
         }),
       },
     },

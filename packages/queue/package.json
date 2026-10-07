@@ -25,7 +25,6 @@
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
-    "dotenv": "^17.4.2",
     "typescript": "^5.7.2",
     "vitest": "^2.0.0"
   }

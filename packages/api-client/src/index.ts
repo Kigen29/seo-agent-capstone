@@ -30,6 +30,12 @@ export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /**
+     * The API's short name for the failure, when it sent one. Two different refusals share the
+     * status 429: 'Rate Limited' means slow down, and anything else means the month's paid
+     * allowance is spent. The status alone cannot tell them apart and the words on screen differ.
+     */
+    readonly code?: string,
   ) {
     super(message)
     this.name = 'ApiRequestError'
@@ -767,8 +773,15 @@ export function createApiClient(options: ApiClientOptions) {
        * somebody else. The API refuses to distinguish those on purpose (a 403 would confirm
        * the row is real and let an attacker enumerate ids), so neither does the client.
        */
-      const body = (await response.json().catch(() => ({}))) as { message?: string }
-      throw new ApiRequestError(response.status, body.message ?? response.statusText)
+      const body = (await response.json().catch(() => ({}))) as {
+        message?: string
+        error?: string
+      }
+      throw new ApiRequestError(
+        response.status,
+        body.message ?? response.statusText,
+        typeof body.error === 'string' ? body.error : undefined,
+      )
     }
 
     // 204 has no body by definition, and parsing one throws. Sign-out hit this on every call and

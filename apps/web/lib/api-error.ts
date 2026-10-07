@@ -19,7 +19,12 @@ import { notFound, redirect } from 'next/navigation'
  * These three statuses are infrastructure, not our API refusing the request, so they get the
  * same graceful treatment as a dropped connection.
  */
-const GATEWAY_UNAVAILABLE = new Set([502, 503, 504])
+/**
+ * 429 is here too. A page load refused by the rate limiter is the same situation for the reader
+ * as an API that is starting: nothing is wrong with their account, and trying again in a moment
+ * works. Throwing it would replace the page with the error screen.
+ */
+const GATEWAY_UNAVAILABLE = new Set([429, 502, 503, 504])
 
 export function handleApiError(error: unknown): void {
   if (!(error instanceof ApiRequestError)) {

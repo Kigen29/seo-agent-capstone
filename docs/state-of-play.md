@@ -174,6 +174,11 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   a reply is, one action per row, and a single email composer in a `<dialog>` that remembers the
   fact between publications. It still cannot send; the draft is copied or opened in the person's
   own mail program.
+- **The API's outer defences** (ADR-0038, `apps/api/src/protect.ts`): rate limits counted per
+  account for signed-in requests and per address otherwise, security headers on every response,
+  CORS closed unless an origin is named, request size and time bounds. `RATE_LIMIT_SCALE`
+  tightens or widens every limit at once. The web app sends a content security policy from
+  `next.config.mjs`. `SECURITY.md` is the list of what is in place and what is knowingly not.
 - **The eval harness** (`packages/eval`): precision, recall, hallucination rate, judge-independence
   check, and a documented labelling method.
 - **MCP server** (`apps/mcp`): exposes the product to an external agent. Writes are off unless

@@ -57,7 +57,9 @@ export default defineConfig({
       url: `http://127.0.0.1:${API_PORT}/health`,
       timeout: 180_000,
       reuseExistingServer: false,
-      env: { PORT: String(API_PORT), DATABASE_URL },
+      // The limits stay on, so the suite runs against the server as deployed, and are widened
+      // because fifty tests drive one account from one address as fast as a machine can click.
+      env: { PORT: String(API_PORT), DATABASE_URL, RATE_LIMIT_SCALE: '100' },
       stdout: 'pipe',
       stderr: 'pipe',
     },
