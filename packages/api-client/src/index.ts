@@ -120,7 +120,6 @@ export interface FindingPage {
   pageSize: number
 }
 
-/** Two scalars, for the poll that runs while a crawl is in flight. */
 /** What became of each finding in a request for several pull requests. */
 export interface BulkFixResult {
   queued: { id: string; title: string }[]
@@ -129,6 +128,41 @@ export interface BulkFixResult {
   remaining: number
 }
 
+/** One audit in a site's history, with what changed since the completed audit before it. */
+export interface AuditHistoryEntry {
+  id: string
+  status: string
+  startedAt: string
+  completedAt: string | null
+  pagesCrawled: number
+  error: string | null
+  scores: { axis: Axis; score: number | null }[]
+  findings: number
+  changes: { resolved: number; added: number } | null
+}
+
+export interface ChangedFinding {
+  rowId: string
+  ruleId: string
+  title: string
+  severity: Severity
+  axis: Axis
+  status: FindingStatus
+  prUrl: string | null
+}
+
+/** One audit against the completed audit before it. */
+export interface AuditChanges {
+  previous: { id: string; startedAt: string } | null
+  next: { id: string; startedAt: string } | null
+  resolved: ChangedFinding[]
+  added: ChangedFinding[]
+  carried: number
+  scores: { axis: Axis; before: number | null; after: number | null }[]
+  pages: { before: number; after: number } | null
+}
+
+/** Two scalars, for the poll that runs while a crawl is in flight. */
 export interface AuditProgress {
   id: string
   status: string
@@ -700,6 +734,14 @@ export function createApiClient(options: ApiClientOptions) {
      * carries every finding with its evidence, which is not something to re-fetch twice a minute.
      */
     getAuditProgress: async (id: string) => request<AuditProgress>(`/audits/${id}/progress`),
+
+    /** Every audit of a site, newest first. Earlier audits are kept, never replaced. */
+    listSiteAudits: async (siteId: string) =>
+      (await request<{ audits: AuditHistoryEntry[] }>(`/sites/${siteId}/audits`)).audits,
+
+    /** What this audit resolved and raised, against the completed audit before it. */
+    getAuditChanges: async (id: string) =>
+      (await request<{ changes: AuditChanges }>(`/audits/${id}/changes`)).changes,
 
     /** The account behind the session: who owns it, and what it may spend this month. */
     getAccount: async () => request<Account>('/account'),

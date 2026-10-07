@@ -5,7 +5,8 @@ import { LogOut, Moon, Settings, Sun, User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { signOut } from '@/app/auth/actions'
-import { Avatar, AvatarFallback, AvatarImage, initials } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { initials } from '@/lib/initials'
 import {
   DropdownMenu,
   DropdownMenuContent,

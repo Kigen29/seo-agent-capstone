@@ -174,15 +174,34 @@ test('one click offers a pull request for every finding the agent can fix on a s
   const siteId = new URL(page.url()).searchParams.get('siteId')
 
   await page.goto(`/findings?siteId=${siteId}`)
-  const offer = page.locator('.card', { hasText: 'The agent can open a pull request for' })
+  const offer = page.getByRole('region', { name: 'Open several pull requests' })
   await expect(offer).toContainText('Each gets its own pull request')
   await expect(offer.getByRole('button', { name: /Open \d+ pull requests?/ })).toBeVisible()
 
   // Without a site chosen there is no single repository to open them against, so no offer.
   await page.goto('/findings')
-  await expect(
-    page.locator('.card', { hasText: 'The agent can open a pull request for' }),
-  ).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Open several pull requests' })).toHaveCount(0)
+})
+
+test('audits are a history: every run is listed, and an audit says what changed since the last', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/audits')
+
+  await expect(page.getByRole('heading', { name: 'Audit history' })).toBeVisible()
+  const row = page.locator('main table tbody tr').first()
+  await expect(row).toContainText('complete')
+  // One seeded audit, so it is the first and says so instead of showing a comparison.
+  await expect(row).toContainText('First audit')
+  await row.getByRole('link', { name: /View/ }).click()
+
+  const since = page.getByRole('region', { name: 'Since the previous audit' })
+  await expect(since).toContainText('first completed audit of this site')
+  await expect(page.getByRole('link', { name: 'Audit history' })).toHaveAttribute(
+    'href',
+    /\/audits\?siteId=/,
+  )
 })
 
 test('every finding says who fixes it: the agent, or a named reason it is left to a person', async ({

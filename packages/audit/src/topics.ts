@@ -151,14 +151,30 @@ export async function measureTopics(
     threshold,
   )
 
-  const names = nameClusters
-    ? await nameClusters(
-        clusters.map((cluster, id) => ({
-          id,
-          titles: cluster.members.map((page) => page.extract.title ?? page.finalUrl),
-        })),
-      ).catch(() => new Map<number, string>())
-    : new Map<number, string>()
+  /**
+   * Only groups of two or more go to the model. A page on its own is named by its own heading,
+   * which is exact, free, and cannot collide with the name a model gives a neighbouring group.
+   * What the model is shown is each page's heading and path, not only its title: on a real site
+   * forty pages shared one default title, and every group came back with the same name.
+   */
+  const toName = clusters
+    .map((cluster, id) => ({ id, members: cluster.members }))
+    .filter((cluster) => cluster.members.length > 1)
+  const modelNames =
+    nameClusters && toName.length > 0
+      ? await nameClusters(
+          toName.map((cluster) => ({ id: cluster.id, titles: cluster.members.map(describePage) })),
+        ).catch(() => new Map<number, string>())
+      : new Map<number, string>()
+
+  const names = distinctNames(
+    clusters.map((cluster, id) =>
+      cluster.members.length === 1
+        ? ownName(cluster.members[0] as CrawledPage)
+        : (modelNames.get(id) ?? fallbackName(cluster.members)),
+    ),
+    clusters.map((cluster) => cluster.members),
+  )
 
   const map: TopicMap = {
     pagesEmbedded: embedded.length,
@@ -167,7 +183,7 @@ export async function measureTopics(
     clusters: clusters.map((cluster, id) => ({
       // A cluster with no name is not a failure worth hiding: the fallback says what it is made
       // of, which is what a name would have told the reader anyway.
-      name: names.get(id) ?? fallbackName(cluster.members),
+      name: names[id] as string,
       share: cluster.members.length / embedded.length,
       pages: cluster.members.map((page) => page.finalUrl),
     })),
@@ -186,11 +202,116 @@ export async function measureTopics(
         (calibrated
           ? ''
           : ' That threshold has not been calibrated for this embedding model, so treat the grouping as provisional.') +
-        (names.size === 0
+        (toName.length > 0 && modelNames.size === 0
           ? ' The naming call did not return, so each topic is labelled with its own most common words.'
           : ''),
     },
   }
+}
+
+/** Longest name the map can show. */
+const MAX_NAME = 40
+
+const pathOf = (url: string): string => {
+  try {
+    return decodeURIComponent(new URL(url).pathname)
+  } catch {
+    return url
+  }
+}
+
+/** `/hotels-and-lodges/Mara%20Simba` -> `Mara Simba`. Empty for the homepage. */
+function humanise(segment: string): string {
+  const words = segment.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+  // A record id names a row, not a subject.
+  if (!words || /^[0-9a-f ]{16,}$/i.test(words) || /^\d+$/.test(words)) return ''
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+const clip = (text: string): string =>
+  text.length <= MAX_NAME ? text : `${text.slice(0, MAX_NAME - 1).trimEnd()}\u2026`
+
+/** What the naming model is shown for one page: its heading, and where it lives. */
+export function describePage(page: CrawledPage): string {
+  const heading = page.extract.h1s[0]?.trim() || page.extract.title?.trim() || ''
+  const path = pathOf(page.finalUrl)
+  return heading ? `${heading} (${path})` : path
+}
+
+/** The name of a page that is a topic by itself: its heading, else its address, else its title. */
+export function ownName(page: CrawledPage): string {
+  const heading = page.extract.h1s[0]?.replace(/\s+/g, ' ').trim() ?? ''
+  if (heading && heading.length <= MAX_NAME) return heading
+
+  const segments = pathOf(page.finalUrl).split('/').filter(Boolean)
+  const fromPath = humanise(segments[segments.length - 1] ?? '')
+  if (fromPath) return clip(fromPath)
+  if (segments.length === 0) return 'Homepage'
+
+  return clip(heading || page.extract.title?.replace(/\s+/g, ' ').trim() || 'Unnamed topic')
+}
+
+/** The section most of a group's pages live under, as words. Empty when there is no majority. */
+function commonSection(pages: readonly CrawledPage[]): string {
+  const counts = new Map<string, number>()
+  for (const page of pages) {
+    // A section is a folder with pages in it. A top-level page is not its own section.
+    const segments = pathOf(page.finalUrl).split('/').filter(Boolean)
+    const first = segments.length > 1 ? (segments[0] as string) : ''
+    counts.set(first, (counts.get(first) ?? 0) + 1)
+  }
+  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  return top && top[1] * 2 > pages.length ? humanise(top[0]) : ''
+}
+
+/**
+ * Make every topic's name different from every other's.
+ *
+ * Two groups with one name read as a mistake, and on a site about one subject a model will
+ * happily call every group by that subject. Nothing depends on a name (ADR-0024), so telling them
+ * apart is done here, in code, the same way every run: first by the section of the site a group's
+ * pages mostly live under, and if that does not separate them, by a number in size order.
+ */
+export function distinctNames(
+  names: readonly string[],
+  members: readonly (readonly CrawledPage[])[],
+): string[] {
+  const result = [...names]
+  const key = (name: string): string => name.toLowerCase()
+
+  const groups = new Map<string, number[]>()
+  result.forEach((name, index) => {
+    groups.set(key(name), [...(groups.get(key(name)) ?? []), index])
+  })
+
+  for (const indexes of groups.values()) {
+    if (indexes.length < 2) continue
+    for (const index of indexes) {
+      const section = commonSection(members[index] ?? [])
+      const base = result[index] as string
+      if (section && key(section) !== key(base)) result[index] = clip(`${base}: ${section}`)
+    }
+  }
+
+  // Whatever still collides is numbered, largest group first, ties by position.
+  const seen = new Map<string, number>()
+  const order = result
+    .map((_, index) => index)
+    .sort((a, b) => (members[b]?.length ?? 0) - (members[a]?.length ?? 0) || a - b)
+  const taken = new Set<string>()
+  for (const index of order) {
+    const base = result[index] as string
+    let name = base
+    while (taken.has(key(name))) {
+      const next = (seen.get(key(base)) ?? 1) + 1
+      seen.set(key(base), next)
+      name = `${base} (${next})`
+    }
+    taken.add(key(name))
+    result[index] = name
+  }
+
+  return result
 }
 
 /**

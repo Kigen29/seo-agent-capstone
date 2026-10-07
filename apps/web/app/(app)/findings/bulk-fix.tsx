@@ -18,7 +18,8 @@ export function BulkFix({ siteId, fixable }: { siteId: string; fixable: number }
   const count = Math.min(fixable, BULK_FIX_LIMIT)
 
   return (
-    <div
+    <section
+      aria-label="Open several pull requests"
       className="card elev-sm mb-5 flex flex-wrap items-center gap-3"
       style={{ padding: 'var(--space-4)' }}
     >
@@ -36,7 +37,7 @@ export function BulkFix({ siteId, fixable }: { siteId: string; fixable: number }
           Open {count} pull {count === 1 ? 'request' : 'requests'}
         </SubmitButton>
       </form>
-    </div>
+    </section>
   )
 }
 
