@@ -408,6 +408,37 @@ export async function seedShowcase(db: Database, now: Date = new Date()): Promis
       comparedWith: [...SHOWCASE.competitors],
     },
   }
+  /**
+   * The topic map of the latest audit, in the shape `measureTopics` writes. All 48 crawled pages
+   * are grouped, and the Guides group is the three pages TOPIC-001 is raised about above, so the
+   * map and the advice on the topics page describe the same site.
+   */
+  const numbered = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, i) => `${URL}${prefix}-${String(i + 1).padStart(2, '0')}`)
+  const grouped: [string, string[]][] = [
+    ['Walking tours', [`${URL}/tours`, ...numbered('/tours/route', 17)]],
+    ['Destinations', numbered('/destinations/place', 12)],
+    ['Trip reports', numbered('/journal/entry', 9)],
+    ['Guides', GUIDES],
+    // Pages that resemble no other are groups of one, named for themselves.
+    ...['Home', 'About', 'Contact', 'Pricing', 'Terms', 'Privacy'].map(
+      (name): [string, string[]] => [
+        name,
+        [name === 'Home' ? `${URL}/` : `${URL}/${name.toLowerCase()}`],
+      ],
+    ),
+  ]
+  const embeddedCount = grouped.reduce((sum, [, pages]) => sum + pages.length, 0)
+  const topics = {
+    pagesEmbedded: embeddedCount,
+    pagesCrawled: embeddedCount,
+    clusters: grouped.map(([name, pages]) => ({
+      name,
+      share: pages.length / embeddedCount,
+      pages,
+    })),
+  }
+
   const day = (date: Date) => date.toISOString().slice(0, 10)
   const search = {
     clicks: 1_240,
@@ -469,7 +500,7 @@ export async function seedShowcase(db: Database, now: Date = new Date()): Promis
         completedAt: latestAt,
         pagesCrawled: 48,
         scorecard: latestScorecard,
-        metrics: { authority, search },
+        metrics: { authority, search, topics },
       },
     ])
 

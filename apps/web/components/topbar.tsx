@@ -30,6 +30,7 @@ const SECTIONS: { prefix: string; label: string }[] = [
   { prefix: '/authority', label: 'Authority' },
   { prefix: '/visibility', label: 'AI visibility' },
   { prefix: '/competitors', label: 'Competitors' },
+  { prefix: '/topics', label: 'Topics' },
   { prefix: '/findings', label: 'Findings' },
   { prefix: '/audits', label: 'Audits' },
   { prefix: '/outcomes', label: 'Outcomes' },
