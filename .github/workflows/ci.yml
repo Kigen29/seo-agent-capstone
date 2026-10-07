@@ -66,8 +66,29 @@ jobs:
       # the dashboard's e2e drives one against the real app. The falsification conditions for
       # both are about behaviour against a live origin, and no mock can falsify that, so the
       # ~1 minute this costs is the price of the tests meaning anything.
+      # Cached, like the worker's. The download is about 170 MB from a CDN that sometimes stalls,
+      # and with no cache and no limit of its own a stalled download used the whole 15-minute job
+      # and failed a pull request that had nothing wrong with it. That happened twice in one day.
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Bounded and tried twice. A stall now costs four minutes and a retry, not the job.
       - name: Install Chromium
-        run: pnpm --filter @seo/crawler exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 9
+        run: |
+          timeout 240 pnpm --filter @seo/crawler exec playwright install --with-deps chromium \
+            || timeout 240 pnpm --filter @seo/crawler exec playwright install --with-deps chromium
+
+      # A cached browser still needs its system libraries, which the cache does not hold.
+      - name: Install Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+        run: pnpm --filter @seo/crawler exec playwright install-deps chromium
 
       - name: Format check
         run: pnpm format:check
