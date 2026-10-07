@@ -152,3 +152,31 @@ test('capture setup', async ({ page }) => {
   await capture(page, `/site?siteId=${site}`, '48-site-setup-mobile.png')
   await capture(page, `/onboarding?siteId=${site}&step=business`, '49-onboarding-mobile.png')
 })
+
+/** Authority: the lists as tabs, and the one composer. Run alone with `-g authority`. */
+test('capture authority', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signIn(page, SHOWCASE_TOKEN)
+  await capture(page, '/authority', '50-authority.png')
+
+  await page
+    .getByRole('button', { name: /Write email to / })
+    .first()
+    .click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.screenshot({ path: `${OUT}/51-authority-composer.png` })
+  await page.getByRole('dialog').getByRole('button', { name: 'Write the draft' }).click()
+  await page.screenshot({ path: `${OUT}/52-authority-composer-error.png` })
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+
+  await page.getByRole('tab', { name: /Find publications/ }).click()
+  await page.screenshot({ path: `${OUT}/53-authority-find.png`, fullPage: true })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await capture(page, '/authority', '54-authority-mobile.png')
+  await page
+    .getByRole('button', { name: /Write email to / })
+    .first()
+    .click()
+  await page.screenshot({ path: `${OUT}/55-authority-composer-mobile.png` })
+})

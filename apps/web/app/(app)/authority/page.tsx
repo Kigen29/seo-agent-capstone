@@ -1,14 +1,14 @@
-import type { Audit, Site } from '@seo/api-client'
+import type { Audit, Site, SiteProfile } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
+import { InfoHint } from '@/components/ui/info-hint'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
-import { ContributorSearchPanel } from './contributor-search'
-import { OutreachPitch } from './outreach-pitch'
+import { OutreachWorkbench } from './outreach-workbench'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +23,10 @@ export const dynamic = 'force-dynamic'
  * The most useful thing on the page is neither of those. It is the list of domains that already
  * wrote about you and did not link, which is only computable because both signals exist, and
  * which is a morning of email rather than a campaign.
+ *
+ * So the page is two parts and no more: four figures that say where the site stands, and one
+ * "who to contact" section that holds every list an email could come out of. The lists and the
+ * email composer are in `outreach-workbench.tsx`.
  */
 export default async function AuthorityPage({
   searchParams,
@@ -39,10 +43,18 @@ export default async function AuthorityPage({
   // Kept out of the try, because the drafting control below needs to know which site it is
   // pitching for, and the resolved site used to be scoped to the block that fetched the audit.
   let site: Site | undefined
+  // Only used to start the publication search from the site's market, so its failure costs a
+  // prefilled field and nothing else.
+  let profile: SiteProfile | null = null
   try {
     sites = await api.listSites()
     site = siteId ? sites.find((candidate) => candidate.id === siteId) : sites[0]
-    if (site?.latestAudit) audit = await api.getAudit(site.latestAudit.id)
+    if (site) {
+      ;[audit, profile] = await Promise.all([
+        site.latestAudit ? api.getAudit(site.latestAudit.id) : Promise.resolve(undefined),
+        api.getSiteProfile(site.id).catch(() => null),
+      ])
+    }
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
@@ -75,7 +87,7 @@ export default async function AuthorityPage({
       <PageHeader
         kicker="Research"
         title="Who mentions you, and who links to you"
-        description="Other sites writing about your business, and linking to it. For showing up in AI answers, being mentioned matters more than being linked, so both are measured."
+        description="Other sites that write about your business, and the ones that link to it. For showing up in AI answers, being written about counts for more than being linked to, so mentions come first."
       />
 
       {!audit && (
@@ -107,15 +119,23 @@ export default async function AuthorityPage({
       {audit && authority && (
         <>
           <StatRow>
-            <Stat label="Earned-media domains" value={countOrDash(authority.earnedDomains)} />
-            <Stat label="Self-published" value={countOrDash(authority.selfPublishedDomains)} />
+            <Stat
+              label="Wrote about you"
+              value={countOrDash(authority.earnedDomains)}
+              hint="Independent sites, counted once each"
+            />
+            <Stat
+              label="Your own channels"
+              value={countOrDash(authority.selfPublishedDomains)}
+              hint="Profiles and pages you control"
+            />
             {/*
               A dash, never a zero. Null here means no backlink index is configured, and a zero
               would read as "nobody links to you", which is the opposite claim. ADR-0018 spends a
               page on this and a dashboard is the easiest place to undo it.
             */}
             <Stat
-              label="Referring domains"
+              label="Link to you"
               value={
                 authority.referringDomains === null ? (
                   <span className="text-subtle">
@@ -127,16 +147,21 @@ export default async function AuthorityPage({
                   authority.referringDomains.toLocaleString('en-US')
                 )
               }
+              hint={authority.referringDomains === null ? 'Not measured' : 'Separate sites'}
             />
             <Stat
-              label="Mention, no link"
+              label="Wrote about you, no link"
+              tone={authority.unlinkedMentions?.length ? 'accent' : undefined}
               value={
                 authority.unlinkedMentions ? (
                   authority.unlinkedMentions.length.toLocaleString('en-US')
                 ) : (
-                  <span className="text-subtle">&mdash;</span>
+                  <span className="text-subtle">
+                    &mdash;<span className="sr-only">Not measured</span>
+                  </span>
                 )
               }
+              hint="The quickest emails to win"
             />
           </StatRow>
 
@@ -148,113 +173,41 @@ export default async function AuthorityPage({
 
           {authority.referringDomains === null && (
             <Note tone="info" className="mb-6">
-              Referring domains are not measured: no backlink index is configured. That is an
-              absence of data, not a zero, and the two mean opposite things. Mentions carry this
-              axis meanwhile, which the evidence says is the better signal anyway.
+              Links to you were not counted, because no backlink index is switched on. The dash
+              means &ldquo;not measured&rdquo;, not &ldquo;none&rdquo;. Mentions carry this page in
+              the meantime, and they are the stronger signal.
             </Note>
           )}
 
-          {authority.unlinkedMentions && authority.unlinkedMentions.length > 0 && (
-            <section className="mb-6">
-              <h2 className="h-section mb-1">Already wrote about you, did not link</h2>
-              <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-                The cheapest link work available. These publications have covered you, so the ask is
-                small and the hit rate is far better than cold outreach. Check each one before you
-                write: the comparison covers the top {authority.referringDomainsSampled ?? 'N'}{' '}
-                referring domains by authority, so a link from outside that slice would look like an
-                absence here.
-              </p>
-              <div className="frame">
-                {authority.unlinkedMentions.map((domain, index) => (
-                  <div
-                    key={domain}
-                    className="px-4 py-3"
-                    style={{
-                      borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)',
-                    }}
-                  >
-                    <a
-                      href={`https://${domain}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[13px] break-all"
-                    >
-                      {domain}
-                    </a>
-                    {/*
-                      The ask is small and the hit rate is good, and the reason it goes undone is
-                      that twelve individual emails is a morning nobody has. So the agent writes
-                      them one at a time, and a person sends them.
-                    */}
-                    {site && <OutreachPitch siteId={site.id} domain={domain} />}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {authority.unlinkedMentions?.length === 0 && (
-            <Note tone="ok" className="mb-6">
-              Every earned-media domain that mentions you already links to you. There is no
-              unlinked-mention work to do here.
-            </Note>
-          )}
-
-          {authority.linkGap && (
-            <section className="mb-6">
-              <h2 className="h-section mb-1">Links your competitors have and you do not</h2>
-              <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-                Sites linking to every one of {authority.linkGap.comparedWith.join(', ')} and not to
-                you. Only publications are listed: {authority.linkGap.refusedAsSpam} domain(s) were
-                refused as link farms, and {authority.linkGap.directoryDomains.length} are
-                directories, which belong on the local axis as listings rather than as pitches.
-              </p>
-
-              {authority.linkGap.editorialDomains.length > 0 ? (
-                <div className="frame">
-                  {authority.linkGap.editorialDomains.map((domain, index) => (
-                    <div
-                      key={domain}
-                      className="px-4 py-3"
-                      style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-                    >
-                      <a
-                        href={`https://${domain}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[13px] break-all"
-                      >
-                        {domain}
-                      </a>
-                      {site && <OutreachPitch siteId={site.id} domain={domain} />}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /*
-                  The honest empty state, and on a small site it is the common one. The first real
-                  query against two Kenyan tile retailers returned fifteen domains, every one of
-                  them a link farm. A tool that printed them as opportunities would be pointing a
-                  client at exactly the links Google's spam policy exists to discount.
-                */
-                <Note tone="info">
-                  Nothing worth pitching. Every domain linking to all of your competitors and not to
-                  you was a link farm or a directory, so there is no outreach list here. That is a
-                  finding about your competitors&rsquo; links rather than about your site.
-                </Note>
-              )}
-            </section>
-          )}
-
-          {site && <ContributorSearchPanel siteId={site.id} />}
+          <section className="mt-8">
+            <div className="mb-3 flex items-center gap-1">
+              <h2 className="h-section m-0">Who to contact</h2>
+              <InfoHint label="how these lists are ordered">
+                Three lists, ordered by how likely a reply is. First, sites that already wrote about
+                you. Second, sites that link to your competitors. Third, publications found by
+                search. Every email is written here and sent by you, from your own address. We never
+                send anything.
+              </InfoHint>
+            </div>
+            {site && (
+              <OutreachWorkbench
+                key={site.id}
+                siteId={site.id}
+                unlinked={authority.unlinkedMentions}
+                sampled={authority.referringDomainsSampled}
+                gap={authority.linkGap}
+                market={profile?.market}
+              />
+            )}
+          </section>
 
           {/* A div: a paragraph here takes the stylesheet margin and ignores the utility. */}
-          <div className="text-muted mt-6 text-[13px]">
+          <div className="text-muted mt-8 text-[13px]">
             Measured on the audit of{' '}
             {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(
               new Date(audit.startedAt),
             )}
-            . Counted by domain rather than by result, because ten pages on one news site is one
+            . Sites are counted once each, because ten pages on one news site is still one
             publication that covered you.
           </div>
         </>
