@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Pagination } from '@/components/ui/pagination'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { BulkFix, BulkFixOutcome } from './bulk-fix'
 import { FilterBar } from './filter-bar'
 import { AXIS_LABEL, STATUS_LABEL } from './labels'
 
@@ -29,6 +30,9 @@ function hostOf(url: string): string {
     return url
   }
 }
+
+/** What the last bulk request did. Shown once, not carried onto sort and paging links. */
+const OUTCOME_KEYS = new Set(['bulk', 'queued', 'skipped', 'remaining', 'why'])
 
 export default async function FindingsPage({
   searchParams,
@@ -72,11 +76,20 @@ export default async function FindingsPage({
     return <ApiAsleep />
   }
 
+  // How many of this site's open findings the agent can take, for the one-click action. Asked
+  // separately because the page above may be filtered to something else. One row, for the count.
+  const fixableOpen = params.siteId
+    ? await api
+        .listFindings({ siteId: params.siteId, fixable: true, status: 'open', pageSize: 1 })
+        .then((page) => page.total)
+        .catch(() => 0)
+    : 0
+
   /** Keeps every active filter when changing sort or page. Only the named key moves. */
   const urlWith = (changes: Record<string, string | number | undefined>): string => {
     const search = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {
-      if (value) search.set(key, value)
+      if (value && !OUTCOME_KEYS.has(key)) search.set(key, value)
     }
     for (const [key, value] of Object.entries(changes)) {
       if (value === undefined) search.delete(key)
@@ -98,6 +111,9 @@ export default async function FindingsPage({
       />
 
       <FilterBar siteOptions={sites.map((site) => ({ id: site.id, url: site.url }))} />
+
+      <BulkFixOutcome params={params} />
+      {params.siteId && <BulkFix siteId={params.siteId} fixable={fixableOpen} />}
 
       {result.findings.length === 0 ? (
         <EmptyState

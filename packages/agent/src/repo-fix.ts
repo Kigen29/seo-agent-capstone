@@ -352,6 +352,8 @@ export interface RepoFixInput {
 export interface RepoFixDeps {
   llm: RepoFixLlm
   tenantId: string
+  /** How a wait is spent. Injected so a test does not sleep for a minute. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 export type RepoFixOutcome =
@@ -392,7 +394,30 @@ function errorLine(error: unknown): string {
 
 /** A provider refusing the request for its size, as opposed to failing for any other reason. */
 const TOO_LARGE =
-  /too large|\b413\b|context.?length|context window|maximum context|tokens per minute|reduce (your|the) (message|prompt|input)/i
+  /too large|\b413\b|context.?length|context window|maximum context|reduce (your|the) (message|prompt|input)/i
+
+/**
+ * A provider saying "not now", as opposed to "not this". The request is fine and the minute's
+ * allowance is spent, or the model is busy. Several fixes asked for at once reach this on a small
+ * plan as a matter of course, since each one is most of a minute's tokens.
+ */
+const NOT_NOW = /rate limit|\b429\b|try again in|high demand|try again later|overloaded/i
+
+/** How long to wait before asking again, and how many times. Bounded so a job cannot hang. */
+const MAX_WAITS = 2
+const DEFAULT_WAIT_MS = 30_000
+const LONGEST_WAIT_MS = 65_000
+
+/** "Please try again in 12.3s" or "in 1m4s": what the provider asked for, plus a margin. */
+export function waitFor(message: string): number {
+  const asked = /try again in\s+(?:(\d+)m(?!s))?\s*(\d+(?:\.\d+)?)?\s*(ms|s)?/i.exec(message)
+  if (!asked || (asked[1] === undefined && asked[2] === undefined)) return DEFAULT_WAIT_MS
+
+  const minutes = Number(asked[1] ?? 0)
+  const amount = Number(asked[2] ?? 0)
+  const ms = minutes * 60_000 + (asked[3] === 'ms' ? amount : amount * 1000)
+  return Math.min(LONGEST_WAIT_MS, Math.ceil(ms) + 2_000)
+}
 
 /** The smallest size leaves less room for the answer too: both count against the same limit. */
 const outputTokensFor = (size: number): number => (size === CONTEXT_SIZES.length - 1 ? 3000 : 4096)
@@ -441,6 +466,9 @@ export async function generateRepoFix(
     }
   }
 
+  const sleep =
+    deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  let waits = 0
   let proposal: Proposal | undefined
   // Two answers at most: a proposal, and one more if the model asked to see other files. A request
   // a provider refused for its size was never answered, so trying again smaller is not a third.
@@ -475,6 +503,15 @@ export async function generateRepoFix(
       if (TOO_LARGE.test(message) && smaller && smaller.files.length > 0) {
         size += 1
         context = smaller
+        continue
+      }
+      // Too large is answered by asking for less. Not now is answered by asking again later, at
+      // the same size: nothing about the request was wrong.
+      if (!TOO_LARGE.test(message) && NOT_NOW.test(message) && waits < MAX_WAITS) {
+        waits += 1
+        const ms = waitFor(message)
+        console.warn(`agent: waiting ${Math.round(ms / 1000)}s before asking again`)
+        await sleep(ms)
         continue
       }
       return {
