@@ -4,6 +4,7 @@ import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { Credentials } from './credentials'
+import { PlanSection } from './plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,19 +40,26 @@ const money = (micros: number): string =>
 export default async function AccountSettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ revoked?: string }>
+  searchParams: Promise<{ revoked?: string; billing?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { revoked: revokedParam } = await searchParams
+  const { revoked: revokedParam, billing: returned } = await searchParams
   const revokedCount = Number(revokedParam)
   const revoked = Number.isInteger(revokedCount) && revokedCount >= 0 ? revokedCount : null
 
   let account
   let credentials
+  let billing
   try {
-    ;[account, credentials] = await Promise.all([api.getAccount(), api.listCredentials()])
+    ;[account, credentials, billing] = await Promise.all([
+      api.getAccount(),
+      api.listCredentials(),
+      // The plan is one section of this page. If it cannot be read, the spend and the sessions
+      // still can, so its failure costs that section and not the screen.
+      api.getBilling().catch(() => null),
+    ])
   } catch (error) {
     handleApiError(error)
     return <ApiAsleep />
@@ -92,6 +100,8 @@ export default async function AccountSettingsPage({
           </dl>
         </div>
       </section>
+
+      {billing && <PlanSection billing={billing} {...(returned ? { returned } : {})} />}
 
       <section>
         <h2 className="h-section mb-1">Spend this month</h2>

@@ -126,6 +126,8 @@ export interface AppOptions {
    * render. That is the same posture every connector takes: missing configuration degrades the
    * feature honestly rather than erroring.
    */
+  /** The payment rail, when one is configured. Absent means every account is on the free plan. */
+  billing?: { provider: import('@seo/connectors').BillingProvider }
   identityProviders?: Record<string, IdentityProvider>
   /**
    * What a tenant created by a social sign-in may spend per month, in micro-dollars.

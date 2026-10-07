@@ -1,5 +1,6 @@
 import { createBudgetGuard, recordSpend } from '@seo/budget'
 import {
+  billingFromEnv,
   budgeted,
   budgetedKeywords,
   createDataForSeoKeywords,
@@ -193,6 +194,13 @@ const trustProxyHops = (() => {
   return Number(raw.trim())
 })()
 
+/**
+ * The payment rail (ADR-0036). Off unless both Stripe variables are set, and off with a logged
+ * reason if the key is a live one: this deployment runs billing in test mode only.
+ */
+const billing = billingFromEnv()
+if (!billing.provider) console.log(billing.reason)
+
 /** See AppOptions.newTenantBudgetMicros. Undefined leaves the column default alone. */
 const newTenantBudgetMicros = (() => {
   const raw = process.env.NEW_TENANT_BUDGET_MICROS
@@ -253,6 +261,7 @@ const app = await buildApp({
   github,
   identityProviders,
   ...(newTenantBudgetMicros === undefined ? {} : { newTenantBudgetMicros }),
+  ...(billing.provider ? { billing: { provider: billing.provider } } : {}),
   keywords: keywordCredentials
     ? (tenantId, db) => {
         const guard = createBudgetGuard(db)

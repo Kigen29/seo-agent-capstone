@@ -20,6 +20,7 @@ import { keywordRoutes } from './routes/keywords.js'
 import { localRoutes } from './routes/local.js'
 import { questionRoutes } from './routes/questions.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
+import { billingRoutes, billingWebhookRoutes } from './routes/billing.js'
 import { competitorRoutes } from './routes/competitors.js'
 import { outcomeRoutes } from './routes/outcomes.js'
 import { promptSuggestionRoutes } from './routes/prompt-suggestions.js'
@@ -133,6 +134,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   // Unauthenticated by necessity: somebody signing in has no session yet. See the file.
   signinRoutes(app, deps)
   await githubWebhookRoutes(app, deps)
+  await billingWebhookRoutes(app, deps)
 
   await app.register(async (protectedRoutes) => {
     /**
@@ -180,6 +182,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     promptSuggestionRoutes(protectedRoutes, deps)
     outcomeRoutes(protectedRoutes, deps)
     competitorRoutes(protectedRoutes, deps)
+    billingRoutes(protectedRoutes, deps)
   })
 
   return app

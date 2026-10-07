@@ -76,3 +76,7 @@ export { isPrivateAddress } from './network.js'
 
 export { countryFromUrl, countryName, countryOptions, isCountryCode } from './country.js'
 export type { CountryOption } from './country.js'
+
+// The plans a tenant can be on (ADR-0036).
+export { isPaidPlan, planById, PLANS } from './plans.js'
+export type { Plan, PlanId } from './plans.js'
