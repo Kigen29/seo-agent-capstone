@@ -164,6 +164,27 @@ test('an audit says how many findings there are and how many the agent can fix, 
   await expect(page.locator('main table')).toHaveCount(0)
 })
 
+test('one click offers a pull request for every finding the agent can fix on a site', async ({
+  page,
+}) => {
+  await signIn(page)
+  // The audit page redirects to carry its site, which is the cheapest way to learn the site id.
+  await page.goto(`/audits/${AUDIT}`)
+  await page.waitForURL(/siteId=/)
+  const siteId = new URL(page.url()).searchParams.get('siteId')
+
+  await page.goto(`/findings?siteId=${siteId}`)
+  const offer = page.locator('.card', { hasText: 'The agent can open a pull request for' })
+  await expect(offer).toContainText('Each gets its own pull request')
+  await expect(offer.getByRole('button', { name: /Open \d+ pull requests?/ })).toBeVisible()
+
+  // Without a site chosen there is no single repository to open them against, so no offer.
+  await page.goto('/findings')
+  await expect(
+    page.locator('.card', { hasText: 'The agent can open a pull request for' }),
+  ).toHaveCount(0)
+})
+
 test('every finding says who fixes it: the agent, or a named reason it is left to a person', async ({
   page,
 }) => {

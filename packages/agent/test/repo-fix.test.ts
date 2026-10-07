@@ -6,6 +6,7 @@ import {
   AGENT_FIXABLE_RULE_IDS,
   generateRepoFix,
   validateProposal,
+  waitFor,
   type Proposal,
   type RepoFixLlm,
 } from '../src/repo-fix.js'
@@ -129,7 +130,8 @@ const run = (llm: RepoFixLlm, over: Partial<Finding> = {}) =>
       tree: TREE,
       read,
     },
-    { llm, tenantId: 'tenant-1' },
+    // No real waiting in tests: a provider saying "not now" would otherwise cost half a minute.
+    { llm, tenantId: 'tenant-1', sleep: async () => {} },
   )
 
 const shown: ContextFile[] = ['index.html', 'src/components/SEO.tsx', 'src/pages/About.tsx'].map(
@@ -635,7 +637,7 @@ describe('generateRepoFix: the reason shown when every model in the chain failed
       fakeLlm(
         new Error(
           'Every target in the chain for role "smart" failed:\n' +
-            '  - groq:a -> 429 rate limit\n' +
+            '  - groq:a -> Invalid API key\n' +
             '  - groq:b -> The model is decommissioned.\n    at stack',
         ),
       ),
@@ -676,5 +678,87 @@ describe('generateRepoFix: an honest reason when the model limit is what stopped
 
     expect(outcome.kind).toBe('declined')
     if (outcome.kind === 'declined') expect(outcome.reason).not.toContain('small requests')
+  })
+})
+
+/**
+ * Several pull requests asked for at once, on a plan that allows one request's worth of tokens a
+ * minute. The second fix is not too large and is not broken; it is early.
+ */
+describe('generateRepoFix: when the provider says not now', () => {
+  const RATE_LIMITED = new Error(
+    'Every target in the chain for role "smart" failed:\n' +
+      '  - groq:big -> Rate limit reached for model `big` on tokens per minute (TPM): Limit 8000, Used 6100, Requested 4400. Please try again in 18.75s.\n' +
+      '  - google:flash -> This model is currently experiencing high demand. Please try again later.',
+  )
+  const paced = (llm: RepoFixLlm) => {
+    const slept: number[] = []
+    const outcome = generateRepoFix(
+      {
+        finding: finding(),
+        framework: 'react_spa',
+        siteUrl: 'https://www.example.com/',
+        tree: TREE,
+        read,
+      },
+      {
+        llm,
+        tenantId: 'tenant-1',
+        sleep: async (ms) => {
+          slept.push(ms)
+        },
+      },
+    )
+    return { outcome, slept }
+  }
+
+  it('waits as long as it was asked to, then asks again at the same size', async () => {
+    const llm = fakeLlm(RATE_LIMITED, proposal({ edits: [REMOVE_STATIC_CANONICAL] }))
+    const { outcome, slept } = paced(llm)
+
+    expect((await outcome).kind).toBe('fix')
+    expect(slept).toEqual([20_750])
+    // Not a smaller request: nothing about the first one was wrong.
+    expect(llm.prompts[1]).toBe(llm.prompts[0])
+  })
+
+  it("gives up after two waits, with the provider's own words", async () => {
+    const llm = fakeLlm(RATE_LIMITED, RATE_LIMITED, RATE_LIMITED)
+    const { outcome, slept } = paced(llm)
+
+    const result = await outcome
+    expect(result.kind).toBe('declined')
+    if (result.kind === 'declined') expect(result.reason).toContain('high demand')
+    expect(slept).toHaveLength(2)
+    expect(llm.prompts).toHaveLength(3)
+  })
+
+  it('does not wait for a request that was refused for its size', async () => {
+    const llm = fakeLlm(
+      new Error(
+        'Request too large for model on tokens per minute (TPM): Limit 8000, Requested 19000',
+      ),
+      proposal({ edits: [REMOVE_STATIC_CANONICAL] }),
+    )
+    const { outcome, slept } = paced(llm)
+
+    await outcome
+    expect(slept).toEqual([])
+  })
+})
+
+describe('waitFor', () => {
+  it('reads seconds, minutes and milliseconds, and adds a margin', () => {
+    expect(waitFor('Please try again in 12.3s.')).toBe(14_300)
+    expect(waitFor('Please try again in 450ms.')).toBe(2_450)
+    expect(waitFor('try again in 1m4s')).toBe(65_000)
+  })
+
+  it('never waits longer than a little over a minute', () => {
+    expect(waitFor('Please try again in 9m0s')).toBe(65_000)
+  })
+
+  it('falls back to half a minute when no time was given', () => {
+    expect(waitFor('This model is currently experiencing high demand.')).toBe(30_000)
   })
 })

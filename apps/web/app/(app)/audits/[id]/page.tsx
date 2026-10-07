@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { openFixPrs } from '@/app/(app)/findings/actions'
+import { BULK_FIX_LIMIT } from '@/app/(app)/findings/bulk-fix'
 import { ApiAsleep } from '@/components/api-asleep'
+import { SubmitButton } from '@/components/ui/submit-button'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
 import { TopicMapFigure } from '@/components/topic-map'
@@ -48,6 +51,9 @@ export default async function AuditPage({
   if (siteId !== audit.siteId) redirect(`/audits/${id}?siteId=${audit.siteId}`)
 
   const fixableCount = audit.findings.filter((finding) => finding.fixable).length
+  const openFixable = audit.findings.filter(
+    (finding) => finding.fixable && finding.status === 'open',
+  ).length
 
   return (
     <main id="main" className="wrap">
@@ -154,6 +160,18 @@ export default async function AuditPage({
                   >
                     Review what the agent can fix
                   </Link>
+                  {openFixable > 0 && (
+                    <form action={openFixPrs}>
+                      <input type="hidden" name="siteId" value={audit.siteId} />
+                      <SubmitButton
+                        pendingLabel="Asking the agent..."
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Open {Math.min(openFixable, BULK_FIX_LIMIT)} pull{' '}
+                        {Math.min(openFixable, BULK_FIX_LIMIT) === 1 ? 'request' : 'requests'} now
+                      </SubmitButton>
+                    </form>
+                  )}
                 </div>
               </div>
             )}
