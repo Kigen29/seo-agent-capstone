@@ -210,6 +210,33 @@ describe('TECH-007: canonical points at a broken page', () => {
     expect(findings[0]?.severity).toBe('high')
   })
 
+  it('raises a page once when it was crawled at two addresses, and names the canonical', () => {
+    // Found on a real site that redirects its apex to www: the same document arrived as two page
+    // records, one per address, and each raised its own finding. Eight pages, sixteen rows.
+    const canonical = html.withCanonical(u('/about-old'))
+    const findings = fire(
+      'TECH-007',
+      context({
+        pages: [
+          page({ path: '/about', html: canonical }),
+          page({
+            path: '/about-old',
+            redirectChain: ['/about-old'],
+            finalPath: '/about',
+            html: canonical,
+          }),
+        ],
+      }),
+    )
+
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.title).toBe(
+      `${u('/about')} declares the canonical ${u('/about-old')}, which redirects to ${u('/about')}`,
+    )
+    // The page first, then the declared canonical: the fixer reads the origin to change from here.
+    expect(findings[0]?.affectedUrls).toEqual([u('/about'), u('/about-old')])
+  })
+
   it('stays silent when the canonical target is a live page', () => {
     expect(
       fire(

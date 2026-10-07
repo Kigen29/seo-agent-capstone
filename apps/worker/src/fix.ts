@@ -174,8 +174,18 @@ async function attemptFix(
   // none applies does the LLM content fixer get a turn, and it makes exactly one schema-validated
   // call for text and nothing more. If the LLM chain is unconfigured it returns null, and this
   // falls through to the honest "no fix" error rather than opening an empty PR.
+  // Listed once and shared: a registered fixer may need to find where something is built, and
+  // the agent below ranks the same list. A provider that cannot list yields an empty tree, and
+  // every fixer then behaves as it did before it could see one.
+  const tree = (await provider.listFiles?.(repo)) ?? []
+
   let fix =
-    (await registry.generate({ finding, framework, read })) ??
+    (await registry.generate({
+      finding,
+      framework,
+      read,
+      tree: tree.map((entry) => entry.path),
+    })) ??
     (await generateContentFix(
       { finding, framework, read, siteUrl: site.url },
       { llm, tenantId: job.tenantId },
@@ -184,7 +194,6 @@ async function attemptFix(
   // Last, the agent that reads the repository (ADR-0030). It is tried only when nothing more
   // constrained applies, and its "no" carries a reason written for the person who clicked.
   if (!fix) {
-    const tree = (await provider.listFiles?.(repo)) ?? []
     const outcome = await generateRepoFix(
       { finding, framework, siteUrl: site.url, tree, read },
       { llm: deps.llm ?? llm, tenantId: job.tenantId },

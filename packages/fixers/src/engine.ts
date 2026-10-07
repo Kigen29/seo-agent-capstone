@@ -21,6 +21,14 @@ export interface FileChange {
 export interface FixContext {
   finding: Finding
   framework: Framework
+  /**
+   * Every file path in the repository, when the caller could list them.
+   *
+   * Optional, and most fixers never need it: they know which file holds what they change. It is
+   * for the fixer whose target has no fixed home, such as a canonical tag built by a component.
+   * A fixer given no tree must behave exactly as it did before there was one.
+   */
+  tree?: readonly string[]
   /** Read a current repo file, so a fixer edits existing content rather than clobbering it. */
   read: ReadRepoFile
 }
