@@ -11,9 +11,9 @@ import { cn } from '@/lib/utils'
  * "on", and a div with an onClick announces nothing at all. Radix gives the right role, the space
  * and enter keys, and a disabled state that is actually inert.
  *
- * The track is the only rounded-full thing in the product, and it is deliberate: a switch that is
- * not pill-shaped does not read as a switch. `DESIGN.md` bans pills for buttons and tags, where
- * the shape carries no meaning; here it does.
+ * The track is rounded-full, and it is deliberate: a switch that is not pill-shaped does not read
+ * as a switch. The only other pill in the product is a live-status tag (`.tag-dot`); `DESIGN.md`
+ * keeps buttons and ordinary tags rectangular so the shapes cannot be confused.
  */
 export function Switch({ className, ...props }: ComponentProps<typeof Primitive.Root>) {
   return (

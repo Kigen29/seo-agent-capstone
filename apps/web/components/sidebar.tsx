@@ -1,10 +1,21 @@
 'use client'
 
+import {
+  GitPullRequest,
+  History,
+  LayoutDashboard,
+  Link2,
+  ListChecks,
+  type LucideIcon,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+} from 'lucide-react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import type { SignedInIdentity } from '@seo/api-client'
 import { AccountMenu } from '@/components/account-menu'
+import { useActiveSite } from '@/lib/active-site'
 
 /**
  * The app shell: where you are, what else there is, and which site you are looking at.
@@ -40,26 +51,69 @@ export interface SidebarSite {
  */
 const GROUPS: {
   label: string
-  links: { href: string; label: string; match: (p: string) => boolean }[]
+  links: { href: string; label: string; icon: LucideIcon; match: (p: string) => boolean }[]
 }[] = [
   {
     label: 'Overview',
-    links: [{ href: '/dashboard', label: 'Dashboard', match: (p) => p === '/dashboard' }],
+    links: [
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        match: (p) => p === '/dashboard',
+      },
+    ],
   },
   {
     label: 'Research',
     links: [
-      { href: '/keywords', label: 'Keywords', match: (p) => p.startsWith('/keywords') },
-      { href: '/authority', label: 'Authority', match: (p) => p.startsWith('/authority') },
-      { href: '/visibility', label: 'AI visibility', match: (p) => p.startsWith('/visibility') },
+      {
+        href: '/keywords',
+        label: 'Keywords',
+        icon: Search,
+        match: (p) => p.startsWith('/keywords'),
+      },
+      {
+        href: '/authority',
+        label: 'Authority',
+        icon: Link2,
+        match: (p) => p.startsWith('/authority'),
+      },
+      {
+        href: '/visibility',
+        label: 'AI visibility',
+        icon: Sparkles,
+        match: (p) => p.startsWith('/visibility'),
+      },
     ],
   },
   {
     label: 'This site',
     links: [
-      { href: '/findings', label: 'Findings', match: (p) => p.startsWith('/findings') },
-      { href: '/audits', label: 'Audits', match: (p) => p.startsWith('/audits') },
-      { href: '/outcomes', label: 'Outcomes', match: (p) => p.startsWith('/outcomes') },
+      {
+        href: '/findings',
+        label: 'Findings',
+        icon: ListChecks,
+        match: (p) => p.startsWith('/findings'),
+      },
+      { href: '/audits', label: 'Audits', icon: History, match: (p) => p.startsWith('/audits') },
+      {
+        href: '/outcomes',
+        label: 'Outcomes',
+        icon: GitPullRequest,
+        match: (p) => p.startsWith('/outcomes'),
+      },
+    ],
+  },
+  {
+    label: 'Account',
+    links: [
+      {
+        href: '/settings',
+        label: 'Settings',
+        icon: SlidersHorizontal,
+        match: (p) => p.startsWith('/settings'),
+      },
     ],
   },
 ]
@@ -80,8 +134,7 @@ export function Sidebar({
   /** Null for a session minted by hand for the CLI, which has no person behind it. */
   identity: SignedInIdentity | null
 }) {
-  const pathname = usePathname() ?? ''
-  const params = useSearchParams()
+  const { pathname, isSiteView, activeSite } = useActiveSite(sites)
   const [open, setOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -95,11 +148,6 @@ export function Sidebar({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
-
-  const isSiteView = ['/dashboard', '/keywords', '/authority', '/visibility', '/outcomes'].includes(
-    pathname,
-  )
-  const activeSite = params.get('siteId') ?? (isSiteView ? sites[0]?.id : undefined)
 
   /** Keeps the chosen site when moving between sections, so context survives navigation. */
   const withSite = (href: string): string => (activeSite ? `${href}?siteId=${activeSite}` : href)
@@ -141,20 +189,22 @@ export function Sidebar({
 
       <div
         id="app-sidebar"
-        className={`${open ? 'flex' : 'hidden'} w-full shrink-0 flex-col gap-6 border-b p-4 md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:self-start md:overflow-y-auto md:border-r md:border-b-0`}
-        style={{ borderColor: 'var(--color-divider)' }}
+        className={`${open ? 'flex' : 'hidden'} w-full shrink-0 flex-col border-b md:sticky md:top-0 md:flex md:h-dvh md:w-65 md:self-start md:overflow-y-auto md:border-r md:border-b-0`}
+        style={{ borderColor: 'var(--color-divider)', background: 'var(--color-surface)' }}
       >
-        <Link
-          href={withSite('/dashboard')}
-          className="nav-brand hidden md:block"
-          style={{ color: 'inherit' }}
+        {/* The same 56px as the top bar beside it, so the two rules meet in one line. */}
+        <div
+          className="hidden h-14 shrink-0 items-center border-b px-5 md:flex"
+          style={{ borderColor: 'var(--color-divider)' }}
         >
-          RankWright
-        </Link>
+          <Link href={withSite('/dashboard')} className="nav-brand" style={{ color: 'inherit' }}>
+            RankWright
+          </Link>
+        </div>
 
         {sites.length > 0 && (
-          <label className="flex flex-col gap-1">
-            <span className="card-kicker">Site</span>
+          <label className="flex flex-col gap-1.5 px-3 pt-4">
+            <span className="side-label">Site</span>
             <select
               className="input"
               aria-label="Which site to show"
@@ -179,28 +229,26 @@ export function Sidebar({
           </label>
         )}
 
-        <nav aria-label="Main" className="flex flex-col gap-4">
+        <nav aria-label="Main" className="flex flex-col gap-5 px-3 py-4">
           {GROUPS.map((group) => (
             <div key={group.label} className="flex flex-col gap-1">
               {/*
                 A real heading rather than a styled div, so the group is a landmark a screen reader
                 can jump between and not just a smaller font.
               */}
-              <h2 className="card-kicker m-0 px-2">{group.label}</h2>
+              <h2 className="side-label mb-1">{group.label}</h2>
               {group.links.map((link) => {
                 const active = link.match(pathname)
+                const Icon = link.icon
                 return (
                   <Link
                     key={link.href}
                     href={withSite(link.href)}
                     onClick={() => setOpen(false)}
                     aria-current={active ? 'page' : undefined}
-                    className="rounded px-2 py-1.5 text-sm"
-                    style={{
-                      color: active ? 'var(--color-accent-700)' : 'inherit',
-                      background: active ? 'var(--color-accent-100)' : undefined,
-                    }}
+                    className="side-link"
                   >
+                    <Icon size={16} aria-hidden="true" />
                     {link.label}
                   </Link>
                 )
@@ -216,10 +264,7 @@ export function Sidebar({
           signed in, which is the first thing anyone looks for once there is more than one way to
           be signed in.
         */}
-        <div
-          className="mt-auto"
-          style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 'var(--space-3)' }}
-        >
+        <div className="mt-auto p-3" style={{ borderTop: '1px solid var(--color-divider)' }}>
           <AccountMenu identity={identity} />
         </div>
       </div>

@@ -82,7 +82,7 @@ export function FilterBar({ siteOptions }: { siteOptions: { id: string; url: str
   )
 
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-2">
+    <div className="mb-4 flex flex-wrap items-center gap-2">
       <label className="flex min-w-50 flex-1 flex-col gap-1">
         <span className="sr-only">Search findings</span>
         <input
@@ -124,7 +124,7 @@ export function FilterBar({ siteOptions }: { siteOptions: { id: string; url: str
       {hasFilters && (
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm ml-auto"
           onClick={() => router.push(pathname)}
         >
           Clear

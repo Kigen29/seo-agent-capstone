@@ -127,7 +127,11 @@ export default async function OutcomesPage({
 
       <StatRow>
         <Stat label="Waiting for review" value={String(counts.pr_open)} />
-        <Stat label="Merged, checking" value={String(counts.merged)} />
+        <Stat
+          label="Merged, checking"
+          value={String(counts.merged)}
+          tone={counts.merged > 0 ? 'accent' : undefined}
+        />
         <Stat label="Worked" value={String(counts.verified)} />
         <Stat label="Did not work" value={String(counts.rejected)} />
       </StatRow>
@@ -161,12 +165,14 @@ export default async function OutcomesPage({
             return (
               <li
                 key={outcome.rowId}
-                className="card elev-sm"
-                style={{ padding: 'var(--space-4)' }}
+                className="card"
+                style={{ padding: 'var(--space-5)', gap: 'var(--space-3)' }}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={status.tag}>{status.label}</span>
-                  <span className="card-kicker">{outcome.ruleId}</span>
+                  <span className="tag tag-neutral" style={{ fontFamily: 'var(--font-mono)' }}>
+                    {outcome.ruleId}
+                  </span>
                 </div>
                 <Link href={`/findings/${outcome.rowId}`} className="card-title">
                   {outcome.title}
@@ -177,7 +183,18 @@ export default async function OutcomesPage({
                     ` Checked ${day.format(new Date(outcome.verification.verifiedAt))}.`}
                 </p>
                 {outcome.note && <p className="text-muted m-0 text-[13px]">{outcome.note}</p>}
-                {line && <p className="tnum m-0 text-sm">{line}</p>}
+                {line && (
+                  <div
+                    className="mono tnum"
+                    style={{
+                      padding: 'var(--space-2) var(--space-3)',
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {line}
+                  </div>
+                )}
                 {trafficLine(outcome) && (
                   <p className="tnum m-0 text-sm">
                     {trafficLine(outcome)}
@@ -191,20 +208,17 @@ export default async function OutcomesPage({
                     )}
                   </p>
                 )}
-                <details className="text-[13px]">
-                  <summary className="cursor-pointer">How we check it worked</summary>
-                  <p className="text-muted mt-2 mb-0">{outcome.falsification}</p>
-                </details>
-                {outcome.prUrl && (
-                  <a
-                    href={outcome.prUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="self-start text-sm"
-                  >
-                    View the pull request &rarr;
-                  </a>
-                )}
+                <div className="card-foot">
+                  <details className="min-w-0 flex-1">
+                    <summary className="cursor-pointer">How we check it worked</summary>
+                    <div className="mt-2 max-w-[68ch]">{outcome.falsification}</div>
+                  </details>
+                  {outcome.prUrl && (
+                    <a href={outcome.prUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                      View the pull request &rarr;
+                    </a>
+                  )}
+                </div>
               </li>
             )
           })}

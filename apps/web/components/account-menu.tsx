@@ -1,7 +1,7 @@
 'use client'
 
 import type { SignedInIdentity } from '@seo/api-client'
-import { LogOut, Moon, Settings, Sun, User } from 'lucide-react'
+import { LogOut, Moon, MoreVertical, Settings, Sun, User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { signOut } from '@/app/auth/actions'
@@ -83,16 +83,16 @@ export function AccountMenu({ identity }: { identity: SignedInIdentity | null })
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
-          style={{ background: 'transparent' }}
+          className="flex w-full items-center gap-2.5 rounded-lg border p-2 text-left"
+          style={{ background: 'var(--color-raised)', borderColor: 'var(--color-divider)' }}
         >
-          <Avatar className="size-7">
+          <Avatar className="size-8">
             {identity?.avatarUrl && (
               <AvatarImage
                 src={identity.avatarUrl}
                 alt=""
-                width={28}
-                height={28}
+                width={32}
+                height={32}
                 referrerPolicy="no-referrer"
               />
             )}
@@ -100,7 +100,15 @@ export function AccountMenu({ identity }: { identity: SignedInIdentity | null })
           </Avatar>
 
           {/* min-w-0 before truncate, or a long email pushes the sidebar wider instead of eliding. */}
-          <span className="min-w-0 flex-1 truncate">{name}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[13px] font-semibold">{name}</span>
+            {/* Only when it adds something: a session with no name already shows the email above. */}
+            {identity?.name && identity.email && (
+              <span className="text-subtle truncate text-[11px]">{identity.email}</span>
+            )}
+          </span>
+
+          <MoreVertical size={16} aria-hidden="true" className="text-subtle shrink-0" />
         </button>
       </DropdownMenuTrigger>
 

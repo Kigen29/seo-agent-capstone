@@ -165,8 +165,12 @@ export default async function FindingsPage({
               </article>
             ))}
           </div>
-          <div className="hidden md:block">
-            <div className="table-scroll">
+          {/*
+            One object: the table and the paging that belongs to it. Below `md` the table is
+            replaced by the cards above, and the frame is just the paging strip.
+          */}
+          <div className="frame mt-3 md:mt-0">
+            <div className="table-scroll hidden md:block">
               <table className="table">
                 <thead>
                   <tr>
@@ -194,7 +198,7 @@ export default async function FindingsPage({
                       />
                     </th>
                     <th>Pages</th>
-                    <th />
+                    <th className="num">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -217,6 +221,7 @@ export default async function FindingsPage({
                           <SeverityBadge severity={finding.severity} />
                         </td>
                         <td>
+                          <span className="rule-id">{finding.ruleId}</span>
                           <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
                             {finding.title}
                           </Link>
@@ -260,7 +265,7 @@ export default async function FindingsPage({
                         </td>
                         <td className="tnum text-muted">{finding.estimatedImpact}</td>
                         <td className="tnum text-muted">{finding.affectedUrlCount}</td>
-                        <td className="whitespace-nowrap">
+                        <td className="num whitespace-nowrap">
                           <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
                             View &rarr;
                           </Link>
@@ -271,14 +276,15 @@ export default async function FindingsPage({
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <Pagination
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            hrefFor={(next) => urlWith({ page: next })}
-          />
+            <Pagination
+              page={result.page}
+              pageSize={result.pageSize}
+              total={result.total}
+              hrefFor={(next) => urlWith({ page: next })}
+              inFrame
+            />
+          </div>
         </>
       )}
     </main>

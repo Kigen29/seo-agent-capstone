@@ -25,14 +25,16 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="card elev-sm mx-auto mt-8 max-w-[520px] items-center p-8 text-center">
+    <div className="card mt-8 items-center px-6 py-12 text-center">
       {figure !== undefined && (
         <div
-          className="mb-3"
+          className="mb-3 flex size-10 items-center justify-center rounded-full"
           style={{
-            fontFamily: 'var(--font-heading)',
-            fontSize: 40,
+            fontSize: 17,
+            fontWeight: 600,
+            fontVariantNumeric: 'lining-nums',
             color: 'var(--color-accent-700)',
+            background: 'var(--color-accent-100)',
           }}
         >
           {figure}

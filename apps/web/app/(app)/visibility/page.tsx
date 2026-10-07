@@ -161,15 +161,18 @@ export default async function VisibilityPage({
 
           {report.prompts.length > 0 && (
             <section className="mb-6">
-              <h2 className="h-section mb-3">Per prompt</h2>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="h-section m-0">Per prompt</h2>
+                <span className="text-muted text-[12px]">Last {report.windowDays} days</span>
+              </div>
               <div className="table-scroll">
                 <table className="table">
                   <thead>
                     <tr>
                       <th>Question we asked</th>
-                      <th>Cited</th>
-                      <th>Over</th>
-                      <th>Verdict</th>
+                      <th className="num">Cited</th>
+                      <th className="num">Over</th>
+                      <th className="num">Verdict</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -182,13 +185,13 @@ export default async function VisibilityPage({
                             "2 of 6", never "33%". The sample is what makes the number checkable,
                             and a percentage hides whether it rests on three polls or thirty.
                           */}
-                          <td className="tnum whitespace-nowrap">
+                          <td className="num tnum text-muted whitespace-nowrap">
                             {prompt.citedCount} of {prompt.pollsRun}
                           </td>
-                          <td className="tnum whitespace-nowrap">
+                          <td className="num tnum text-muted whitespace-nowrap">
                             {prompt.daysPolled} day{prompt.daysPolled === 1 ? '' : 's'}
                           </td>
-                          <td className="whitespace-nowrap">
+                          <td className="num whitespace-nowrap">
                             <span className={verdict.className}>{verdict.label}</span>
                           </td>
                         </tr>
@@ -217,16 +220,23 @@ export default async function VisibilityPage({
 
           {report.share && (
             <section className="mb-6">
-              <h2 className="h-section mb-3">Share of voice</h2>
-              <div className="card elev-sm gap-3 p-4">
-                <p className="text-muted m-0 text-sm">
-                  Citations across every check in the window, yours against the competitors this
-                  site is configured to watch.
-                </p>
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  <li className="flex items-baseline justify-between gap-4">
-                    <span className="font-[600]">You</span>
-                    <span className="tnum">
+              <h2 className="h-section mb-1">Share of voice</h2>
+              <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
+                Citations across every check in the window, yours against the competitors this site
+                is configured to watch.
+              </p>
+              <div className="frame">
+                <ul className="m-0 list-none p-0">
+                  <li className="flex items-baseline justify-between gap-4 px-4 py-3">
+                    <span className="flex min-w-0 items-baseline gap-3">
+                      <span className="card-kicker shrink-0">You</span>
+                      <span className="truncate">
+                        {site
+                          ? site.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
+                          : ''}
+                      </span>
+                    </span>
+                    <span className="tnum text-muted shrink-0 text-[13px]">
                       {report.share.client} citation{report.share.client === 1 ? '' : 's'} ·{' '}
                       {percent(report.share.clientShare)}
                     </span>
@@ -234,10 +244,14 @@ export default async function VisibilityPage({
                   {report.share.competitors.map((competitor) => (
                     <li
                       key={competitor.domain}
-                      className="flex items-baseline justify-between gap-4"
+                      className="flex items-baseline justify-between gap-4 px-4 py-3"
+                      style={{ borderTop: '1px solid var(--color-divider)' }}
                     >
-                      <span className="min-w-0 truncate">{competitor.domain}</span>
-                      <span className="tnum shrink-0">
+                      <span className="flex min-w-0 items-baseline gap-3">
+                        <span className="stat-label shrink-0">Rival</span>
+                        <span className="truncate">{competitor.domain}</span>
+                      </span>
+                      <span className="tnum text-muted shrink-0 text-[13px]">
                         {competitor.citations} citation{competitor.citations === 1 ? '' : 's'}
                       </span>
                     </li>

@@ -143,8 +143,11 @@ export function SetupChecklist({
   const done = rows.filter((row) => row.status.tone === 'success').length
 
   return (
-    <details className="mt-6 mb-8">
-      <summary className="mb-3 cursor-pointer">
+    <details
+      className="mt-6 mb-8 rounded-lg border px-5 py-3"
+      style={{ borderColor: 'var(--color-divider)', background: 'var(--color-raised)' }}
+    >
+      <summary className="cursor-pointer">
         <h2 id="setup-heading" className="h-section m-0" style={{ display: 'inline' }}>
           Connections and optional setup
         </h2>
@@ -152,17 +155,17 @@ export function SetupChecklist({
           {done} of {rows.length} done
         </span>
       </summary>
-      <p className="text-muted text-sm">
+      <p className="text-muted mt-3 text-sm">
         Audits work without connections. Connect a repository for pull requests; Search Console adds
         traffic measurement. Business Profile and AI questions are optional.
       </p>
-      {/* Padding set inline: .card's own padding outranks the p-0 utility (DESIGN.md, Layout). */}
-      <ul className="card elev-sm m-0 list-none gap-0" style={{ padding: 0 }}>
-        {rows.map((row, index) => (
+      {/* Rows on the strip's own surface. A card here would be a card inside a card. */}
+      <ul className="m-0 list-none p-0">
+        {rows.map((row) => (
           <li
             key={row.name}
-            className="flex flex-wrap items-start justify-between gap-3 p-4"
-            style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
+            className="flex flex-wrap items-start justify-between gap-3 py-4"
+            style={{ borderTop: '1px solid var(--color-divider)' }}
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">

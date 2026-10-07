@@ -7,16 +7,29 @@ import type { ReactNode } from 'react'
  * `tnum` matters more than it looks: without tabular figures a row of numbers jitters sideways
  * as values change, which is exactly what the audit page does while a crawl is running.
  */
-export function Stat({ label, value }: { label: string; value: ReactNode }) {
+export function Stat({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string
+  value: ReactNode
+  /** One line of context under the figure: what it is out of, or since when. */
+  hint?: ReactNode
+  /** `accent` for the one figure in a row that is in motion; `success` for money still free. */
+  tone?: 'accent' | 'success' | undefined
+}) {
   return (
-    <div className="card gap-1 p-3">
-      <div className="card-kicker">{label}</div>
-      <div className="tnum text-[15px]">{value}</div>
+    <div className={tone ? `stat stat-${tone}` : 'stat'}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      {hint && <div className="stat-hint">{hint}</div>}
     </div>
   )
 }
 
 /** A responsive row of them. Two up on a phone, four across from md. */
 export function StatRow({ children }: { children: ReactNode }) {
-  return <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">{children}</div>
+  return <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">{children}</div>
 }
