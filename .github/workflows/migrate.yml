@@ -45,6 +45,12 @@ concurrency:
   group: migrate-production
   cancel-in-progress: false
 
+# The workflow token can read the repository and nothing else. Nothing here pushes, comments or
+# releases, and on a public repository a token that can write is what a compromised dependency
+# would use first.
+permissions:
+  contents: read
+
 jobs:
   migrate:
     runs-on: ubuntu-latest

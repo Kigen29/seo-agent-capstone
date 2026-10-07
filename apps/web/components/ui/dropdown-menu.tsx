@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils'
  */
 export const DropdownMenu = Primitive.Root
 export const DropdownMenuTrigger = Primitive.Trigger
-export const DropdownMenuGroup = Primitive.Group
 
 export function DropdownMenuContent({
   className,

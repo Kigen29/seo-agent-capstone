@@ -32,6 +32,9 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+# This job only sends one HTTP request. It needs no access to the repository at all.
+permissions: {}
+
 jobs:
   ping:
     runs-on: ubuntu-latest

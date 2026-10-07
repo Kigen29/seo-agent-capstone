@@ -49,9 +49,9 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
     {
       schema: {
         querystring: z.object({
-          code: z.string().optional(),
-          state: z.string().optional(),
-          error: z.string().optional(),
+          code: z.string().max(4096).optional(),
+          state: z.string().max(4096).optional(),
+          error: z.string().max(4096).optional(),
         }),
       },
     },
@@ -118,9 +118,9 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
       schema: {
         querystring: z.object({
           installation_id: z.coerce.number().int().positive().optional(),
-          code: z.string().optional(),
-          setup_action: z.string().optional(),
-          state: z.string().optional(),
+          code: z.string().max(4096).optional(),
+          setup_action: z.string().max(4096).optional(),
+          state: z.string().max(4096).optional(),
         }),
       },
     },
@@ -250,12 +250,12 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
     {
       schema: {
         querystring: z.object({
-          code: z.string().optional(),
-          state: z.string().optional(),
-          teamId: z.string().optional(),
-          configurationId: z.string().optional(),
-          next: z.string().optional(),
-          source: z.string().optional(),
+          code: z.string().max(4096).optional(),
+          state: z.string().max(4096).optional(),
+          teamId: z.string().max(4096).optional(),
+          configurationId: z.string().max(4096).optional(),
+          next: z.string().max(4096).optional(),
+          source: z.string().max(4096).optional(),
         }),
       },
     },

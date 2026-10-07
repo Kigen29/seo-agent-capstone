@@ -9,6 +9,7 @@ import {
 } from 'fastify-type-provider-zod'
 import { bearerToken, tenantForToken } from './auth.js'
 import type { AppOptions, RouteDeps } from './options.js'
+import { installRateLimits, installSecurityHeaders } from './protect.js'
 import { trustedProxy } from './proxy.js'
 import { auditRoutes } from './routes/audits.js'
 import { checkRoutes } from './routes/check.js'
@@ -60,6 +61,21 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     // Never `true`: trusting every hop takes the leftmost X-Forwarded-For entry, which is whatever
     // the client typed. See trustedProxy and AppOptions.trustProxyHops.
     trustProxy: trustedProxy(options.trustProxyHops ?? 0),
+    /*
+      A quarter of a megabyte. The largest thing a caller legitimately sends is twenty tracked
+      questions, which is a few kilobytes; Fastify's default of one megabyte is four times more
+      than anything here needs, and every byte accepted is parsed before a route can refuse it.
+      The webhook scopes set their own, larger limit, because a provider's payload is not ours
+      to size.
+    */
+    bodyLimit: 256 * 1024,
+    /*
+      How long a client has to finish sending a request. Without it a connection can be opened
+      and fed a byte at a time, holding a socket for as long as the sender likes; enough of those
+      and nobody else gets one. Thirty seconds is far longer than any real request body takes.
+      This bounds the sending, not the handler: a model call may still take its time to answer.
+    */
+    requestTimeout: 30_000,
     logger:
       process.env.NODE_ENV === 'production'
         ? {
@@ -74,10 +90,20 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
 
+  /*
+    No origin is allowed unless one is named. This used to fall back to `true`, which reflects
+    whatever origin asks, and with credentials on that is every site on the internet being told
+    it may read this API's responses from a visitor's browser. Nothing depended on it: the web
+    app calls the API from its own server, where CORS does not apply at all.
+  */
   await app.register(cors, {
-    origin: options.corsOrigins ?? true,
+    origin: options.corsOrigins ?? false,
     credentials: true,
   })
+
+  // Before any route, so a refusal, a 404 and a 500 carry them too.
+  installSecurityHeaders(app, process.env.NODE_ENV === 'production')
+  const rateLimiting = options.rateLimits ? installRateLimits(app, options.rateLimits) : null
 
   /**
    * A validation failure is a 400, and it says which field, because a caller who cannot see
@@ -165,6 +191,10 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       }
 
       request.tenantId = tenantId
+
+      // Counted per account, now that there is one. Only a request with a real session reaches
+      // here, so nobody can spend an account's allowance by guessing at its identity.
+      if (rateLimiting?.account(request, reply)) return reply
     })
 
     siteRoutes(protectedRoutes, deps)

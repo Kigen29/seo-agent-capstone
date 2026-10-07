@@ -31,6 +31,17 @@ describe('toUserError', () => {
     expect(error.detail).toMatch(/Everything free still works/)
   })
 
+  it('tells "slow down" from "the allowance is spent", which share a status', () => {
+    const limited = toUserError(
+      new ApiRequestError(429, 'Too many requests. Try again in 30 seconds.', 'Rate Limited'),
+      'run that search',
+    )
+
+    expect(limited.kind).toBe('busy')
+    expect(limited.detail).toMatch(/30 seconds/)
+    expect(limited.title).not.toMatch(/allowance/)
+  })
+
   it('tells a feature that is switched off from a service that is starting', () => {
     const off = toUserError(
       new ApiRequestError(503, 'Suggestions need a language model, and none is switched on.'),

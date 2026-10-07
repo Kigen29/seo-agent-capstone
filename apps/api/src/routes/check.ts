@@ -1,5 +1,5 @@
 import { runQuickCheck, type QuickCheckResult } from '@seo/audit'
-import { UnsafeUrlError } from '@seo/connectors'
+import { safeEqual, UnsafeUrlError } from '@seo/connectors'
 import { asOwner, publicChecks } from '@seo/db'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { createHash } from 'node:crypto'
@@ -179,7 +179,9 @@ export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
       { schema: { headers: z.object({ 'x-prune-token': z.string().min(8) }).passthrough() } },
       async (request, reply) => {
         const expected = process.env.PRUNE_TOKEN
-        if (!expected || request.headers['x-prune-token'] !== expected) {
+        // Compared in constant time. `!==` stops at the first differing character, and how long
+        // that takes tells a patient caller how much of the secret they have right.
+        if (!expected || !safeEqual(request.headers['x-prune-token'], expected)) {
           return reply.status(404).send({ error: 'Not Found', message: 'No such route.' })
         }
 

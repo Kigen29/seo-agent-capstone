@@ -104,9 +104,9 @@ export function signinRoutes(app: FastifyInstance, deps: RouteDeps): void {
     {
       schema: {
         querystring: z.object({
-          code: z.string().optional(),
-          state: z.string().optional(),
-          error: z.string().optional(),
+          code: z.string().max(4096).optional(),
+          state: z.string().max(4096).optional(),
+          error: z.string().max(4096).optional(),
         }),
       },
     },

@@ -11,7 +11,8 @@ import { ApiRequestError } from '@seo/api-client'
  * Each has two parts because they answer two questions: what happened, and what to do about it.
  * A message that only says what happened leaves somebody staring at it.
  */
-export type UserErrorKind = 'waking' | 'invalid' | 'budget' | 'unavailable' | 'not_found' | 'failed'
+export type UserErrorKind =
+  'waking' | 'invalid' | 'budget' | 'busy' | 'unavailable' | 'not_found' | 'failed'
 
 export interface UserError {
   kind: UserErrorKind
@@ -47,6 +48,15 @@ export function toUserError(error: unknown, doing: string): UserError {
         detail:
           said ||
           'Something in what was entered is not in the shape expected. Check it and try again.',
+      }
+    }
+
+    // The rate limiter, not the budget: nothing is spent, it only needs a moment.
+    if (error.status === 429 && error.code === 'Rate Limited') {
+      return {
+        kind: 'busy',
+        title: 'That was too many requests at once',
+        detail: said || 'Wait a minute and try again. Nothing was lost.',
       }
     }
 

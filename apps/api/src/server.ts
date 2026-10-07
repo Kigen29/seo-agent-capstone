@@ -22,6 +22,7 @@ import {
 } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
+import { DEFAULT_RATE_LIMITS, scaleRateLimits } from './protect.js'
 import { LlmClient } from '@seo/llm'
 import { makeDispatcher } from './dispatch.js'
 
@@ -195,6 +196,19 @@ const trustProxyHops = (() => {
 })()
 
 /**
+ * See scaleRateLimits. Unset means the defaults. Anything that is not a positive number stops
+ * the process, for the same reason as above: a typo must not quietly switch the limits off.
+ */
+const rateLimits = (() => {
+  const raw = process.env.RATE_LIMIT_SCALE
+  if (raw === undefined || raw.trim() === '') return DEFAULT_RATE_LIMITS
+  if (!/^\d+(\.\d+)?$/.test(raw.trim()) || Number(raw) <= 0) {
+    throw new Error(`RATE_LIMIT_SCALE must be a number greater than zero, got "${raw}".`)
+  }
+  return scaleRateLimits(DEFAULT_RATE_LIMITS, Number(raw))
+})()
+
+/**
  * The payment rail (ADR-0036). Off unless both Stripe variables are set, and off with a logged
  * reason if the key is a live one: this deployment runs billing in test mode only.
  */
@@ -257,6 +271,7 @@ const app = await buildApp({
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   trustProxyHops,
+  rateLimits,
   google,
   github,
   identityProviders,

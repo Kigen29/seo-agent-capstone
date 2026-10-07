@@ -30,6 +30,14 @@ export interface AppOptions {
   /** Origins allowed to call the API from a browser. The web app, and nothing else. */
   corsOrigins?: string[]
   /**
+   * How fast the API may be called. See `protect.ts` for who each limit is counted against.
+   *
+   * Absent means unlimited, which is what a test wants: a suite adds forty sites in a second
+   * and is not an attack. The server always passes the defaults, so a deployment is never
+   * without them.
+   */
+  rateLimits?: import('./protect.js').RateLimits
+  /**
    * Puts an audit on the queue and nudges the worker. Injected rather than built here, so the
    * route knows nothing about pg-boss or GitHub, and a test can pass a spy. When absent,
    * `POST /audits` reports 503 rather than creating a queued row that nothing will ever run.

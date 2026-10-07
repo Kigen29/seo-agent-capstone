@@ -100,8 +100,8 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | An on/off control | `<Switch>` |
 | A profile picture | `<Avatar>` + `<AvatarFallback>`, and `initials()` |
 | A form label | `<Label>` |
-| A rule between sections | `<Separator>` |
-| A link that looks like a button | `<Button asChild>` wrapping a `<Link>` |
+| A rule between sections | A top border in `--color-divider` on the section that follows |
+| A button, or a link that looks like one | `.btn` with `.btn-primary`, `.btn-secondary` or `.btn-ghost`, on a `<button>` or a `<Link>`. `.btn-sm` for a row action |
 
 `.card` is a flex column and its default `align-items: stretch` makes every child full width. A
 button inside a card needs its width constrained or it becomes a full-width bar. This has caused
@@ -110,9 +110,12 @@ four separate visual bugs; check it every time.
 ## shadcn, and what we took from it
 
 `components/ui/` holds shadcn-shaped components built on Radix. What was taken is the
-**architecture**: a typed variant API through `cva`, `asChild` so a link can wear a button's
-appearance without duplicating its classes, a `className` that genuinely overrides through `cn()`,
-and Radix's keyboard, focus and ARIA behaviour for the things that are genuinely hard.
+**architecture**: a `className` that genuinely overrides through `cn()`, and Radix's keyboard,
+focus and ARIA behaviour for the things that are genuinely hard.
+
+A `<Button>` and a `<Separator>` component were copied in at the start and removed in October
+2026 with no caller left: every button in the app is the `.btn` class on a real element, which is
+one fewer layer between the markup and the stylesheet that decides how it looks.
 
 What was **not** taken is the look. shadcn is copy-in components you own, not a theme you adopt, so
 every one of these is restyled onto the tokens above. There is no Inter, no violet primary, no
@@ -120,8 +123,8 @@ every one of these is restyled onto the tokens above. There is no Inter, no viol
 
 Two rules follow, and they are the ones to hold the line on:
 
-- **A component that has a Classical class uses it.** `<Button>` renders `.btn .btn-primary`; it
-  does not re-declare gold in Tailwind utilities. Primary is a filled gold button with
+- **A component that has a Classical class uses it.** A button is `.btn .btn-primary`; nothing
+  re-declares gold in Tailwind utilities. Primary is a filled gold button with
   `--color-on-accent` text, secondary is a bordered surface, and a view gets one primary. There is still exactly one place that decides
   what a primary button looks like, and it is `classical.css`.
 - **Reach for Radix when the behaviour is hard, not when the markup is.** A menu, a switch, a

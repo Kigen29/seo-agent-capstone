@@ -80,7 +80,9 @@ export async function billingWebhookRoutes(app: FastifyInstance, deps: RouteDeps
     // The signature is over the exact bytes sent, so the raw body is kept beside the parsed one.
     webhookRoutes.addContentTypeParser(
       'application/json',
-      { parseAs: 'string' },
+      // Larger than the API's own limit: the provider decides how big a delivery is, and a
+      // refused delivery is retried for days. Still bounded, and read only to check a signature.
+      { parseAs: 'string', bodyLimit: 5 * 1024 * 1024 },
       (req, body, done) => {
         req.rawBody = typeof body === 'string' ? body : body.toString('utf8')
         done(null, {})

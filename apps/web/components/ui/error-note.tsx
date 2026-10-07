@@ -12,6 +12,7 @@ import type { UserError } from '@/lib/user-error'
 const TONE: Record<UserError['kind'], 'warn' | 'info' | 'error'> = {
   invalid: 'warn',
   budget: 'warn',
+  busy: 'info',
   not_found: 'warn',
   unavailable: 'info',
   waking: 'info',
