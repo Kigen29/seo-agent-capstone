@@ -3660,7 +3660,9 @@ describe.skipIf(!shouldRun)('the API', () => {
       try {
         const res = await suggest(instance, siteId)
         expect(res.statusCode).toBe(429)
-        expect((res.json() as { message: string }).message).toMatch(/monthly budget/)
+        expect((res.json() as { message: string }).message).toMatch(
+          /This account has used its monthly allowance/,
+        )
       } finally {
         await instance.close()
       }

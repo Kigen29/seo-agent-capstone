@@ -364,6 +364,19 @@ a pull request, and product page rules. The public `/check` page is approved in 
 
 Each of these cost real time in a previous session.
 
+- **There are two monthly caps, and "allowance used up" can mean either.** Each account has its
+  own (`tenants.monthly_budget_micros`, shown under Settings, Account), and the whole deployment
+  shares one (`GLOBAL_MONTHLY_BUDGET_MICROS`, set on Render and again as a GitHub Actions variable
+  for the worker). On 8 October raising every account by ten dollars changed nothing, because the
+  shared cap was the one reached: spent plus held across all accounts was 4.997 dollars. The
+  refusal now says which cap it was. Raising the shared one is an environment change, not a
+  migration.
+- **A failed model call holds its reserved cost until somebody settles it.** That is deliberate
+  for a failure that might have been billed (a timeout, a 5xx). A call the provider refused
+  outright with a 4xx is now released automatically, since nothing ran. The paid search
+  providers (`serp`, `keywords`, `backlinks`) reserve the same way and were not changed. Holds
+  from before the fix stay until an operator settles them at zero through `recordSpend`.
+
 - **A green test suite can mean less than it looks like.** `vitest` does not typecheck. Adding a
   method to an interface broke a test fake and the suite still passed; `pnpm typecheck` caught it.
   Run both.
