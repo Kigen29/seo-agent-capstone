@@ -24,6 +24,9 @@ export interface UserError {
 /** Gateways answer with these while the free API instance is starting. */
 const WAKING = new Set([502, 504])
 
+/** What a proxy says on its own, as opposed to a message the API wrote. */
+const GATEWAY_TEXT = /^(bad gateway|gateway time-?out|service unavailable)$/i
+
 /**
  * Describe a failure. `doing` finishes the sentence "We could not ...", for example
  * "save your competitors".
@@ -69,6 +72,16 @@ export function toUserError(error: unknown, doing: string): UserError {
     // A 503 with words in it is the API saying a feature is off; without, it is still starting.
     if (error.status === 503 && said && said !== 'Service Unavailable') {
       return { kind: 'unavailable', title: 'This is not switched on', detail: said }
+    }
+
+    /*
+      A 502 with a sentence in it is the API reporting that something it depends on failed, a
+      language model nearly always, in words chosen for a person. A gateway's own 502 carries only
+      the status text. The first is shown as it came; treating both as "starting up" hid the one
+      message that says what to fix.
+    */
+    if (error.status === 502 && said && !GATEWAY_TEXT.test(said)) {
+      return { kind: 'unavailable', title: `We could not ${doing}`, detail: said }
     }
 
     if (WAKING.has(error.status) || error.status === 503) {
