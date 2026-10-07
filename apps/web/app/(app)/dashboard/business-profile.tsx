@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { ErrorNote, SavedNote } from '@/components/ui/error-note'
+import type { UserError } from '@/lib/user-error'
 import { loadBusinessProfile, saveBusinessProfile } from './actions'
 
 /**
@@ -31,7 +33,7 @@ export function BusinessProfile({
   const [link, setLink] = useState('')
   const [mapsUrl, setMapsUrl] = useState<string | null>(null)
   const [reviewUrl, setReviewUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<UserError | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
 
   function toggle() {
@@ -43,11 +45,12 @@ export function BusinessProfile({
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await loadBusinessProfile(siteId)
-      if ('error' in result) {
-        setError(result.error)
+      const answer = await loadBusinessProfile(siteId)
+      if (!answer.ok) {
+        setError(answer.error)
         return
       }
+      const result = answer.data
       setMapsUrl(result.mapsUrl)
       setReviewUrl(result.reviewUrl)
       // The stored profile link doubles as the field's value, so re-saving is a no-op rather
@@ -61,21 +64,22 @@ export function BusinessProfile({
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await saveBusinessProfile(siteId, value)
-      if ('error' in result) {
-        setError(result.error)
+      const answer = await saveBusinessProfile(siteId, value)
+      if (!answer.ok) {
+        setError(answer.error)
         return
       }
+      const result = answer.data
 
       setMapsUrl(result.mapsUrl)
       setReviewUrl(result.reviewUrl)
       setLink(result.mapsUrl ?? '')
       setSaved(
         result.cid === null && result.placeId === null
-          ? 'Disconnected. The local axis will report the profile as not connected.'
+          ? 'Disconnected. Local checks will show the profile as not connected.'
           : result.placeId === null
-            ? 'Connected. The review link needs a Place ID, which this link did not carry; the ' +
-              'profile link did.'
+            ? 'Connected. This link identifies your listing but not its review page, so only ' +
+              'the map link is available.'
             : 'Connected.',
       )
     })
@@ -87,11 +91,7 @@ export function BusinessProfile({
         <button type="button" className="btn btn-ghost btn-sm" onClick={toggle} disabled={pending}>
           {pending ? 'Loading...' : label}
         </button>
-        {error && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {error}
-          </span>
-        )}
+        <ErrorNote error={error} />
       </div>
     )
   }
@@ -111,12 +111,12 @@ export function BusinessProfile({
     >
       <div>
         <div className="card-kicker">Google Business Profile for {siteUrl}</div>
-        <p style={{ margin: 'var(--space-2) 0 0', fontSize: 13, lineHeight: 1.6, opacity: 0.75 }}>
-          Open your business in Google Maps, press Share, and paste the link. We read the profile
-          and place identifiers out of it, which is what lets the agent put a real map link and a
-          review link into your structured data. A link to a search results page usually carries
-          neither; the one behind the Share button does.
-        </p>
+        <div className="text-muted mt-2 text-[13px]" style={{ lineHeight: 1.6 }}>
+          Open your business in Google Maps, press Share, and paste the link here. It tells us
+          exactly which listing is yours, so the agent can add a real map link and a leave-a-review
+          link to your site. Use the link from the Share button; a link copied from a search results
+          page usually does not work.
+        </div>
       </div>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
@@ -173,14 +173,10 @@ export function BusinessProfile({
         >
           Close
         </button>
-
-        {error && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {error}
-          </span>
-        )}
-        {saved && <span style={{ fontSize: 12, opacity: 0.75 }}>{saved}</span>}
       </div>
+
+      <ErrorNote error={error} />
+      {saved && !error && <SavedNote>{saved}</SavedNote>}
     </div>
   )
 }

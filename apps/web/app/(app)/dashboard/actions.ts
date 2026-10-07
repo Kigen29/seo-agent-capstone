@@ -7,7 +7,7 @@ import {
 } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { act } from '@/lib/action'
+import { act, type ActionResult } from '@/lib/action'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { invalid, type UserError } from '@/lib/user-error'
@@ -88,53 +88,49 @@ export async function connectGoogle(): Promise<void> {
 }
 
 /**
- * What the picker component gets back when it begins connecting a repo: the API's own result
- * (install or pick), reused so the shape cannot drift, plus an error branch for a failed call.
- */
-export type BeginConnectRepo = ConnectRepoResult | { mode: 'error'; message: string }
-
-/**
  * Begin connecting a repository to a site.
  *
  * Returns rather than redirects, because the outcome is a fork the client has to handle: a fresh
  * install (send the browser to GitHub) or a pick (show the accessible repos). The token stays in
  * the httpOnly cookie; only the install URL or the repo names cross to the browser.
  */
-export async function beginConnectRepo(siteId: string): Promise<BeginConnectRepo> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
-    return await api.connectRepo(siteId)
-  } catch (error) {
-    handleApiError(error)
-    return {
-      mode: 'error',
-      message: 'Could not reach GitHub. It may be waking up; try again shortly.',
-    }
-  }
+export async function beginConnectRepo(siteId: string): Promise<ActionResult<ConnectRepoResult>> {
+  return act('reach GitHub', (api) => api.connectRepo(siteId))
 }
 
 /** Bind a repository the user picked to a site. */
 export async function chooseRepo(
   siteId: string,
   repoFullName: string,
-): Promise<{ ok: true } | { error: string }> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
-    await api.setSiteRepo(siteId, repoFullName)
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 409) {
-      return { error: 'The app cannot access that repository. Grant it on GitHub, then retry.' }
+): Promise<ActionResult<true>> {
+  // A 409 is GitHub saying the app was never granted this repository. That has a specific cure,
+  // so it gets its own words rather than the general "could not".
+  let noAccess = false
+  const result = await act('connect that repository', async (api) => {
+    try {
+      await api.setSiteRepo(siteId, repoFullName)
+    } catch (error) {
+      if (!(error instanceof ApiRequestError && error.status === 409)) throw error
+      noAccess = true
     }
-    handleApiError(error)
-    return { error: 'Could not connect the repository. Try again shortly.' }
+    return true as const
+  })
+
+  if (noAccess) {
+    return {
+      ok: false,
+      error: invalid(
+        'The app cannot see that repository',
+        'Grant it access on GitHub using the link below the list, then choose it again.',
+      ),
+    }
   }
 
-  revalidatePath('/dashboard')
-  return { ok: true }
+  if (result.ok) {
+    revalidatePath('/dashboard')
+    revalidatePath('/site')
+  }
+  return result
 }
 
 /**
@@ -166,43 +162,24 @@ export async function verifySite(formData: FormData): Promise<void> {
 /** The Google Business Profile connected to a site, for the panel that edits it. */
 export async function loadBusinessProfile(
   siteId: string,
-): Promise<BusinessProfileSettings | { error: string }> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
-    return await api.getBusinessProfile(siteId)
-  } catch (error) {
-    handleApiError(error)
-    return { error: 'Could not load the profile. The API may be waking up; try again shortly.' }
-  }
+): Promise<ActionResult<BusinessProfileSettings>> {
+  return act('load the profile', (api) => api.getBusinessProfile(siteId))
 }
 
 /**
  * Connect a business profile from a Maps share link, or clear it with null.
  *
- * A 400 is returned as its own message rather than swallowed, because the API's refusals are the
- * useful half of this feature: "that link carries no business identifier" tells somebody exactly
- * what to do next, and a generic failure would not.
+ * The API's refusals are the useful half of this feature: "that link carries no business
+ * identifier" tells somebody exactly what to do next, so its own words are what is shown.
  */
 export async function saveBusinessProfile(
   siteId: string,
   mapsUrl: string | null,
-): Promise<BusinessProfileSettings | { error: string }> {
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  let saved: BusinessProfileSettings
-  try {
-    saved = await api.setBusinessProfile(siteId, mapsUrl)
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 400) {
-      return { error: error.message }
-    }
-    handleApiError(error)
-    return { error: 'Could not save the profile. Try again shortly.' }
+): Promise<ActionResult<BusinessProfileSettings>> {
+  const result = await act('save the profile', (api) => api.setBusinessProfile(siteId, mapsUrl))
+  if (result.ok) {
+    revalidatePath('/dashboard')
+    revalidatePath('/site')
   }
-
-  revalidatePath('/dashboard')
-  return saved
+  return result
 }

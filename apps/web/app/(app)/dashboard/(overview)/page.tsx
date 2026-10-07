@@ -115,7 +115,7 @@ export default async function Dashboard({
       <PageHeader
         kicker="Overview"
         title={activeSite ? hostOf(activeSite.url) : 'Your sites'}
-        description="Where this site stands across the axes we can measure, and what is honestly unmeasured."
+        description="How this site is doing in each area we measure. Anything we could not measure says why, and never shows a zero."
         actions={<Link href="/findings">All findings &rarr;</Link>}
       />
 

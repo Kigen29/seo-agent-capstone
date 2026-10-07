@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import { ErrorNote } from '@/components/ui/error-note'
 import { runCheck, type CheckState } from './actions'
 
 /**
@@ -51,12 +52,12 @@ export function CheckForm() {
         </p>
       </form>
 
-      {state.error && (
-        <div className="note note-error mt-4" role="alert">
-          {state.error}{' '}
-          {state.error.includes('limit') && (
-            <Link href="/login">Sign in to audit a whole site</Link>
-          )}
+      <ErrorNote error={state.error} className="mt-4" />
+      {state.limited && (
+        <div className="mt-3">
+          <Link href="/login" className="btn btn-primary">
+            Sign in to audit a whole site
+          </Link>
         </div>
       )}
     </div>

@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useRef } from 'react'
 import type { HostingStatus } from '@seo/api-client'
+import { ErrorNote, SavedNote } from '@/components/ui/error-note'
 import { Note } from '@/components/ui/note'
-import { saveHosting } from './actions'
+import { saveHosting, type HostingState } from './actions'
 
 /**
  * Connect, replace or remove one site's Vercel project.
@@ -13,7 +14,7 @@ import { saveHosting } from './actions'
  * not leave a credential sitting in the page.
  */
 export function HostingForm({ siteId, status }: { siteId: string; status: HostingStatus }) {
-  const [state, action, pending] = useActionState(saveHosting, { message: '', ok: false })
+  const [state, action, pending] = useActionState<HostingState, FormData>(saveHosting, {})
   const token = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (token.current) token.current.value = ''
@@ -99,11 +100,8 @@ export function HostingForm({ siteId, status }: { siteId: string; status: Hostin
         )}
       </div>
 
-      {state.message && (
-        <Note tone={state.ok ? 'ok' : 'error'} role={state.ok ? 'status' : 'alert'}>
-          {state.message}
-        </Note>
-      )}
+      <ErrorNote error={state.error} />
+      {state.saved && <SavedNote>{state.saved}</SavedNote>}
     </form>
   )
 }

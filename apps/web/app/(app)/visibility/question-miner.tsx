@@ -2,6 +2,8 @@
 
 import type { MinedQuestion } from '@seo/api-client'
 import { useState, useTransition } from 'react'
+import { ErrorNote, SavedNote } from '@/components/ui/error-note'
+import type { UserError } from '@/lib/user-error'
 import { addPrompts, mineQuestions, suggestPrompts } from './actions'
 
 /** One row in the list: a mined question, or one the agent drafted with its reason. */
@@ -34,18 +36,19 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
   const [questions, setQuestions] = useState<Candidate[] | null>(null)
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [note, setNote] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<UserError | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
 
   function draft() {
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await suggestPrompts(siteId)
-      if ('error' in result) {
-        setError(result.error)
+      const answer = await suggestPrompts(siteId)
+      if (!answer.ok) {
+        setError(answer.error)
         return
       }
+      const result = answer.data
       setQuestions(
         result.suggestions.map((entry) => ({
           question: entry.prompt,
@@ -64,11 +67,12 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await mineQuestions(siteId, seed.trim())
-      if ('error' in result) {
-        setError(result.error)
+      const answer = await mineQuestions(siteId, seed.trim())
+      if (!answer.ok) {
+        setError(answer.error)
         return
       }
+      const result = answer.data
       setQuestions(result.questions)
       setNote(result.note ?? null)
       setChosen(new Set())
@@ -88,15 +92,16 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await addPrompts(siteId, [...chosen])
-      if ('error' in result) {
-        setError(result.error)
+      const answer = await addPrompts(siteId, [...chosen])
+      if (!answer.ok) {
+        setError(answer.error)
         return
       }
+      const result = answer.data
       setChosen(new Set())
       setSaved(
-        `Now tracking ${result.prompts.length} question(s). Polling runs once a day, and the ` +
-          'first verdict lands after three days.',
+        `Now tracking ${result.prompts.length} ${result.prompts.length === 1 ? 'question' : 'questions'}. ` +
+          'Each is asked once a day, and the first verdict arrives after three days.',
       )
     })
   }
@@ -104,22 +109,21 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
   return (
     <section id="questions" className="mt-8 scroll-mt-6">
       <h2 className="h-section mb-1">Which questions should we track?</h2>
-      <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-        AI visibility checks whether assistants like ChatGPT and Google&apos;s AI answers mention
-        your site when a customer asks about what you offer. Let the agent draft those questions
-        from your site, then keep the ones that fit.
-      </p>
+      <div className="text-muted mb-3 max-w-[68ch] text-sm">
+        We ask AI assistants the questions your customers would, and report whether your site is
+        mentioned in the answer. Start with the suggestions, then keep the ones that fit.
+      </div>
 
       <div className="card elev-sm mb-3 flex flex-wrap items-center gap-3 p-4">
         <button type="button" className="btn btn-primary" onClick={draft} disabled={pending}>
           {pending ? 'Working…' : 'Suggest questions for me'}
         </button>
         <span className="text-muted text-[13px]">
-          Reads your homepage and latest audit. One small model call against your monthly budget.
+          Drafted from your homepage and latest audit. Uses a little of your monthly allowance.
         </span>
       </div>
 
-      <p className="text-muted mt-0 mb-2 text-[13px]">Or find the questions people already ask:</p>
+      <div className="text-muted mb-2 text-[13px]">Or find the questions people already ask:</div>
       <div className="card elev-sm gap-3 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-0 flex-1 flex-col gap-1">
@@ -144,16 +148,13 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
           </button>
         </div>
 
-        <p className="text-muted m-0 text-[13px]">
-          Leave the subject blank to use Search Console alone, which costs nothing.
-        </p>
+        <div className="text-muted text-[13px]">
+          Leave the subject blank to use your Search Console data alone, which is free. With a
+          subject, we also look up the related questions Google shows.
+        </div>
       </div>
 
-      {error && (
-        <p className="mt-3 text-[13px]" role="alert" style={{ color: 'var(--color-neutral-800)' }}>
-          {error}
-        </p>
-      )}
+      <ErrorNote error={error} className="mt-3" />
 
       {note && <p className="text-muted mt-3 mb-0 text-[13px]">{note}</p>}
 
@@ -218,10 +219,11 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
                 ? 'Saving…'
                 : `Track ${chosen.size || ''} question${chosen.size === 1 ? '' : 's'}`}
             </button>
-            {saved && <span className="text-muted text-[13px]">{saved}</span>}
           </div>
         </>
       )}
+
+      {saved && <SavedNote className="mt-3">{saved}</SavedNote>}
     </section>
   )
 }

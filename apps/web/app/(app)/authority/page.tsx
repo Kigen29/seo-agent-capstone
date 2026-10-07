@@ -106,11 +106,11 @@ export default async function AuthorityPage({
 
       {audit && !authority && (
         <Note tone="warn">
-          {coverage?.coverage.note ??
-            'This axis was not measured on the last audit. It needs a SERP data source, which is a paid dependency and off by default.'}
+          {coverage?.coverage.note ?? 'Mentions and links were not measured on the last audit.'}
           <span className="mt-2 block">
-            This data source is not enabled for this deployment. Contact the application operator to
-            enable authority measurement, then run another audit.
+            Counting who writes about you needs a paid search-data source, and it is switched off
+            here. Whoever runs this installation can switch it on; the figures appear after the next
+            audit.
           </span>
         </Note>
       )}

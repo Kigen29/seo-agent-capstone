@@ -75,7 +75,7 @@ export function VisibilityPrompts({ siteId }: { siteId: string }) {
       setPrompts(result.data.join('\n'))
       setSaved(
         result.data.length === 0
-          ? 'Saved. With no questions, this axis stays unmeasured, and says so.'
+          ? 'Saved. With no questions, AI visibility is not measured, and the page says so.'
           : `Saved ${result.data.length} ${result.data.length === 1 ? 'question' : 'questions'}. ` +
               'Each is asked once a day, and the first verdict arrives after three days.',
       )

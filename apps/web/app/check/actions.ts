@@ -1,6 +1,7 @@
 'use server'
 
 import { apiUrl } from '@/lib/session'
+import { invalid, type UserError } from '@/lib/user-error'
 
 /**
  * Run the anonymous check, from the server, for a visitor with no account.
@@ -17,12 +18,16 @@ import { apiUrl } from '@/lib/session'
 
 export interface CheckState {
   id?: string
-  error?: string
+  error?: UserError
+  /** The daily limit for visitors was reached, so the page offers signing in. */
+  limited?: boolean
 }
 
 export async function runCheck(_prev: CheckState, formData: FormData): Promise<CheckState> {
   const raw = String(formData.get('url') ?? '').trim()
-  if (!raw) return { error: 'Paste a URL first.' }
+  if (!raw) {
+    return { error: invalid('Enter a web address', 'Type the page to check, like example.com.') }
+  }
 
   // A visitor types example.com, not https://example.com. The guard refuses anything that is not
   // https, so the scheme is added here rather than rejecting a reasonable thing to type.
@@ -40,17 +45,42 @@ export async function runCheck(_prev: CheckState, formData: FormData): Promise<C
     })
   } catch {
     return {
-      error:
-        'The checker did not answer. It sleeps when nobody is using it and can take a minute to ' +
-        'wake up, so this is usually worth one retry.',
+      error: {
+        kind: 'waking',
+        title: 'The checker did not answer in time',
+        detail:
+          'It sleeps when nobody is using it and takes up to a minute to start. Nothing is wrong with your site. Try again in a moment.',
+      },
     }
   }
 
   const body = (await response.json().catch(() => ({}))) as { id?: string; message?: string }
 
   if (!response.ok) {
-    return { error: body.message ?? 'That check could not be run.' }
+    // The API's refusals here are written for a visitor: a site that did not answer, an address
+    // that is not https, a daily limit reached. They are shown as they came.
+    const limited = response.status === 429
+    return {
+      limited,
+      error: {
+        kind: limited ? 'budget' : response.status >= 500 ? 'failed' : 'invalid',
+        title: limited ? 'Today’s free checks are used up' : 'That page could not be checked',
+        detail:
+          body.message ??
+          (response.status >= 500
+            ? 'That is a fault on our side, not something you did. Try again in a moment.'
+            : 'Check the address and try again.'),
+      },
+    }
   }
 
-  return body.id ? { id: body.id } : { error: 'The check ran but could not be saved.' }
+  return body.id
+    ? { id: body.id }
+    : {
+        error: {
+          kind: 'failed',
+          title: 'The check ran, and the result could not be saved',
+          detail: 'That is a fault on our side. Run it again.',
+        },
+      }
 }
