@@ -473,6 +473,59 @@
   color: var(--color-text-muted);
 }
 
+/*
+ * The helper icon and its panel. See `<InfoHint>`. The panel floats over what follows instead of
+ * pushing it down, so opening one does not make the page jump.
+ */
+.classical .hint {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.classical .hint > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-subtle);
+}
+.classical .hint > summary::-webkit-details-marker {
+  display: none;
+}
+.classical .hint > summary:hover,
+.classical .hint[open] > summary {
+  color: var(--color-accent-700);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.classical .hint-body {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(320px, 78vw);
+  padding: var(--space-3);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--color-text);
+}
+.classical .hint-body.hint-end {
+  left: auto;
+  right: 0;
+}
+
 /* A rule id beside the title it belongs to: monospace, small, and out of the way. */
 .classical .rule-id {
   margin-right: 6px;

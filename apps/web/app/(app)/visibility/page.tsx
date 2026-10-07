@@ -276,14 +276,19 @@ export default async function VisibilityPage({
       */}
       {site && <QuestionMiner siteId={site.id} />}
 
-      {/* Edit or remove tracked questions, and set competitors and the brand name. */}
+      {/*
+        Questions only. The brand name and the competitors used to be edited here too, behind a
+        button labelled for questions; they are facts about the site that three other pages read,
+        so they live on the site setup page and this links to it.
+      */}
       {site && (
         <section className="mt-8">
-          <h2 className="h-section mb-1">Tracked questions, competitors and brand</h2>
-          <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-            Remove a question, add your own, or list the competitors to compare against.
-          </p>
-          <VisibilityPrompts siteId={site.id} siteUrl={site.url} />
+          <h2 className="h-section mb-1">Tracked questions</h2>
+          <div className="text-muted mb-3 max-w-[68ch] text-sm">
+            Remove a question or add your own. Competitors and your brand name are on{' '}
+            <Link href={`/site?siteId=${site.id}`}>site setup</Link>.
+          </div>
+          <VisibilityPrompts siteId={site.id} />
         </section>
       )}
     </main>

@@ -112,3 +112,15 @@ export type {
 
 // What the topic map advises (ADR-0035).
 export { evaluateClusterHubs, evaluateQuestionCoverage, HUB_MIN_PAGES } from './topic-findings.js'
+
+// A site's own details: its name, what it offers, where its customers are, and its competitors.
+export {
+  captureBrand,
+  getSiteProfile,
+  MAX_BRAND,
+  MAX_MARKET,
+  MAX_OFFERING,
+  saveCompetitors,
+  saveSiteProfile,
+} from './site-profile.js'
+export type { SiteProfile } from './site-profile.js'

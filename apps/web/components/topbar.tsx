@@ -34,6 +34,7 @@ const SECTIONS: { prefix: string; label: string }[] = [
   { prefix: '/findings', label: 'Findings' },
   { prefix: '/audits', label: 'Audits' },
   { prefix: '/outcomes', label: 'Outcomes' },
+  { prefix: '/site', label: 'Site setup' },
   { prefix: '/settings', label: 'Settings' },
   { prefix: '/profile', label: 'Profile' },
 ]

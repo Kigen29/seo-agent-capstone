@@ -121,3 +121,34 @@ test('capture', async ({ page }) => {
   await page.context().clearCookies()
   await capture(page, '/login', '30-login.png')
 })
+
+/**
+ * Setup: the guided flow a new account lands in, and the page the same details live on after.
+ *
+ * Separate from the capture above so it can be run alone with `-g setup`.
+ */
+test('capture setup', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const site = '00000000-0000-4000-8000-000000000007'
+
+  await signIn(page)
+  await capture(page, '/onboarding', '40-onboarding-site.png')
+  await capture(page, `/onboarding?siteId=${site}&step=business`, '41-onboarding-business.png')
+  await capture(
+    page,
+    `/onboarding?siteId=${site}&step=competitors`,
+    '42-onboarding-competitors.png',
+  )
+  await capture(page, `/onboarding?siteId=${site}&step=questions`, '43-onboarding-questions.png')
+  await capture(page, `/onboarding?siteId=${site}&step=finish`, '44-onboarding-finish.png')
+  await capture(page, `/site?siteId=${site}`, '45-site-setup.png')
+
+  await page.getByLabel('About how competitors are used').click()
+  await page.screenshot({ path: `${OUT}/46-site-setup-hint.png` })
+
+  await capture(page, '/dashboard', '47-dashboard-setup-strip.png')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await capture(page, `/site?siteId=${site}`, '48-site-setup-mobile.png')
+  await capture(page, `/onboarding?siteId=${site}&step=business`, '49-onboarding-mobile.png')
+})

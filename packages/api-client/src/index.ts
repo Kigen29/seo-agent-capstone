@@ -492,6 +492,32 @@ export interface SiteOutcomes {
   rates: FixPrRates
 }
 
+/** A site's own details: its name, what it offers, where its customers are, its competitors. */
+export interface SiteProfile {
+  url: string
+  /** Captured from the homepage title when it plainly states the name; otherwise typed. */
+  brand: string | null
+  offering: string | null
+  market: string | null
+  competitors: string[]
+}
+
+/** A competitor offered for a person to accept. It has been fetched and it answered. */
+export interface CompetitorSuggestion {
+  domain: string
+  /** Why it was suggested, in a sentence. */
+  reason: string
+  /** The title of its own homepage, so the choice does not rest on the model's word alone. */
+  title: string | null
+}
+
+export interface CompetitorSuggestions {
+  suggestions: CompetitorSuggestion[]
+  /** Candidates that were named and did not answer when fetched. */
+  dropped: number
+  basedOn: { offering: boolean; market: boolean; homepage: boolean }
+}
+
 /** A plan an account can be on. Matches `Plan` in `@seo/core`. */
 export interface BillingPlan {
   id: 'free' | 'growth' | 'agency'
@@ -995,6 +1021,32 @@ export function createApiClient(options: ApiClientOptions) {
      */
     /** Every fix proposed for a site and whether it worked. */
     getOutcomes: async (siteId: string) => request<SiteOutcomes>(`/sites/${siteId}/outcomes`),
+
+    getSiteProfile: async (siteId: string) => request<SiteProfile>(`/sites/${siteId}/profile`),
+
+    saveSiteProfile: async (
+      siteId: string,
+      profile: { brand?: string | null; offering?: string | null; market?: string | null },
+    ) =>
+      request<SiteProfile>(`/sites/${siteId}/profile`, {
+        method: 'PUT',
+        body: JSON.stringify(profile),
+      }),
+
+    /** Replace the tracked competitors, and nothing else. */
+    saveCompetitors: async (siteId: string, competitors: string[]) =>
+      (
+        await request<{ competitors: string[] }>(`/sites/${siteId}/competitors`, {
+          method: 'PUT',
+          body: JSON.stringify({ competitors }),
+        })
+      ).competitors,
+
+    /** Draft competitors from what the site offers and where. One model call; nothing is saved. */
+    suggestCompetitors: async (siteId: string) =>
+      request<CompetitorSuggestions>(`/sites/${siteId}/competitors/suggestions`, {
+        method: 'POST',
+      }),
 
     /** Which plan this account is on, and the plans there are. */
     getBilling: async () => request<Billing>('/billing'),

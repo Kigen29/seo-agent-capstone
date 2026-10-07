@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState } from 'react'
+import { ErrorNote } from '@/components/ui/error-note'
 import { addSite } from './actions'
 
 export function AddSite() {
@@ -17,15 +18,11 @@ export function AddSite() {
         className="input"
         style={{ flex: 1, minWidth: 220, maxWidth: 320 }}
       />
-      <button type="submit" disabled={pending} className="btn btn-primary">
+      <button type="submit" disabled={pending} className="btn btn-secondary">
         {pending ? 'Adding...' : 'Add site'}
       </button>
 
-      {state.error && (
-        <p role="alert" className="note note-error" style={{ width: '100%' }}>
-          {state.error}
-        </p>
-      )}
+      <ErrorNote error={state.error} className="w-full" />
     </form>
   )
 }

@@ -158,6 +158,17 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   disagree.
 - **The web app**: 6 grouped nav sections, findings inbox filtered and paginated in SQL, eight-axis
   scorecard, keywords, authority, AI visibility.
+- **Onboarding and site setup**: a new account lands on `/onboarding`, five steps ending in the
+  first audit, and an address typed on the landing page is carried through sign-in in a one-hour
+  cookie. The brand name is read from the homepage title when the site is added
+  (`brandFromTitle`, which returns nothing when the title does not plainly state it). Competitors
+  are suggested by one `smart` call from the offering and market, and every candidate is fetched
+  before it is shown, so a domain the model invented never reaches the screen. The same forms
+  live on `/site`, which is now the one place for brand, offering, market, competitors and
+  connections; the dashboard carries a one-line count that links there.
+- **One shape for errors**: `act()` in `apps/web/lib/action.ts` returns `ActionResult`, and
+  `<ErrorNote>` shows it. New actions use it. The older actions (question miner, contributor
+  search, outreach pitch, keyword forms) still return `{ error: string }` and are being moved over.
 - **The eval harness** (`packages/eval`): precision, recall, hallucination rate, judge-independence
   check, and a documented labelling method.
 - **MCP server** (`apps/mcp`): exposes the product to an external agent. Writes are off unless

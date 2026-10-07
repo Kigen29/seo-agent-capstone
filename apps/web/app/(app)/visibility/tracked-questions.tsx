@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { loadVisibility, saveVisibility } from '../dashboard/actions'
+import { useId, useState, useTransition } from 'react'
+import { ErrorNote, SavedNote } from '@/components/ui/error-note'
+import { Field } from '@/components/ui/field'
+import type { UserError } from '@/lib/user-error'
+import { loadQuestions, saveQuestions } from './actions'
 
 /**
  * The questions we ask the answer engines on this site's behalf.
@@ -14,6 +17,9 @@ import { loadVisibility, saveVisibility } from '../dashboard/actions'
  * A textarea of one question per line, rather than a repeating row of inputs, because that is
  * what a list of twenty sentences wants to be: it pastes, it reorders, and it does not make a
  * user click "add" twenty times.
+ *
+ * Questions and nothing else. The brand name and the competitors were edited here once; they are
+ * on the site setup page now, and saving here leaves them exactly as they are.
  */
 
 /** Matches the API's cap. Enforced there; repeated here so the user is told before they submit. */
@@ -25,20 +31,13 @@ const linesOf = (value: string): string[] =>
     .map((line) => line.trim())
     .filter(Boolean)
 
-const commasOf = (value: string): string[] =>
-  value
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-
-export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl: string }) {
+export function VisibilityPrompts({ siteId }: { siteId: string }) {
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
   const [prompts, setPrompts] = useState('')
-  const [competitors, setCompetitors] = useState('')
-  const [brand, setBrand] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<UserError | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+  const id = useId()
 
   const count = linesOf(prompts).length
   const tooMany = count > MAX_PROMPTS
@@ -52,14 +51,12 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await loadVisibility(siteId)
-      if ('error' in result) {
+      const result = await loadQuestions(siteId)
+      if (!result.ok) {
         setError(result.error)
         return
       }
-      setPrompts(result.prompts.join('\n'))
-      setCompetitors(result.competitors.join(', '))
-      setBrand(result.brand ?? '')
+      setPrompts(result.data.join('\n'))
       setOpen(true)
     })
   }
@@ -68,123 +65,83 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
     setError(null)
     setSaved(null)
     start(async () => {
-      const result = await saveVisibility(siteId, {
-        prompts: linesOf(prompts),
-        competitors: commasOf(competitors),
-        brand: brand.trim() || null,
-      })
-
-      if ('error' in result) {
+      const result = await saveQuestions(siteId, linesOf(prompts))
+      if (!result.ok) {
         setError(result.error)
         return
       }
 
-      // Render what was stored, not what was typed. The two differ often enough to matter:
-      // competitors come back as bare hosts, and duplicates are gone.
-      setPrompts(result.prompts.join('\n'))
-      setCompetitors(result.competitors.join(', '))
-      setBrand(result.brand ?? '')
+      // Render what was stored, not what was typed: duplicates are gone and lines are trimmed.
+      setPrompts(result.data.join('\n'))
       setSaved(
-        result.prompts.length === 0
+        result.data.length === 0
           ? 'Saved. With no questions, this axis stays unmeasured, and says so.'
-          : `Saved ${result.prompts.length} question(s). Polling runs once a day; the first ` +
-              'verdict lands after three days.',
+          : `Saved ${result.data.length} ${result.data.length === 1 ? 'question' : 'questions'}. ` +
+              'Each is asked once a day, and the first verdict arrives after three days.',
       )
     })
   }
 
   if (!open) {
     /**
-     * `items-start`, so the trigger is the width of its own label. Inside the site card, which is
-     * itself a flex column, a stretched child made this button span the whole card and centre its
-     * text, so it read as a heading rather than a control.
+     * `items-start`, so the trigger is the width of its own label. Inside a flex column a
+     * stretched child made this button span the whole card and centre its text, so it read as a
+     * heading rather than a control.
      */
     return (
-      <div className="flex flex-col items-start gap-1">
-        <button type="button" className="btn btn-ghost" onClick={toggle} disabled={pending}>
-          {pending ? 'Loading...' : 'Edit questions and competitors'}
+      <div className="flex flex-col items-start gap-2">
+        <button type="button" className="btn btn-secondary" onClick={toggle} disabled={pending}>
+          {pending ? 'Loading...' : 'Edit tracked questions'}
         </button>
-        {error && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {error}
-          </span>
-        )}
+        <ErrorNote error={error} />
       </div>
     )
   }
 
   return (
-    <div
-      className="card"
-      style={{
-        padding: 'var(--space-4)',
-        marginTop: 'var(--space-3)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-3)',
-      }}
-    >
-      <div>
-        <div className="card-kicker">AI visibility for {siteUrl}</div>
-        <p style={{ margin: 'var(--space-2) 0 0', fontSize: 13, lineHeight: 1.6, opacity: 0.75 }}>
-          One customer question per line, the way somebody would actually type it into ChatGPT. Real
-          questions, not keywords: &ldquo;how much does a Kenyan safari cost&rdquo; rather than
-          &ldquo;safari kenya price&rdquo;. Each one is polled once a day, and a citation is only
-          reported once it holds across at least three checks over at least three days, because
-          roughly 45% of citations show up in only one of three.
-        </p>
-      </div>
-
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>
-          Questions ({count}/{MAX_PROMPTS})
-        </span>
+    <div className="card" style={{ padding: 'var(--space-5)', gap: 'var(--space-3)' }}>
+      <Field
+        id={id}
+        label={`Questions (${count} of ${MAX_PROMPTS})`}
+        hint={{
+          about: 'how questions are checked',
+          body: `Each question is put to the AI engines once a day. A citation is only reported once it holds across at least three checks on three different days, because about 45% of citations show up in just one check out of three. The limit of ${MAX_PROMPTS} is there because every question is a paid check, every day.`,
+        }}
+        help={
+          <>
+            One per line, the way somebody would type it into ChatGPT: &ldquo;how much does a Kenyan
+            safari cost&rdquo;, not &ldquo;safari kenya price&rdquo;.
+          </>
+        }
+      >
         <textarea
+          id={id}
           className="input"
-          rows={6}
+          rows={7}
           value={prompts}
           onChange={(event) => setPrompts(event.target.value)}
           placeholder={'how much does a kenyan safari cost\nbest safari operator in nairobi'}
           style={{ resize: 'vertical', fontFamily: 'inherit' }}
         />
-      </label>
+      </Field>
 
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>
-          Brand name, exactly as the press writes it. Used to find who mentions you, which is the
-          authority axis&rsquo;s lead signal: mentions correlate 0.664 with AI Overview visibility,
-          backlinks 0.218.
-        </span>
-        <input
-          className="input"
-          value={brand}
-          onChange={(event) => setBrand(event.target.value)}
-          placeholder="Heartbeest Safaris"
-        />
-      </label>
+      {tooMany && (
+        <div role="alert" className="note note-warn">
+          {count} questions is over the limit of {MAX_PROMPTS}. Remove {count - MAX_PROMPTS} to
+          save.
+        </div>
+      )}
+      <ErrorNote error={error} />
+      {saved && !error && <SavedNote>{saved}</SavedNote>}
 
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>
-          Competitor domains, comma separated. Share of voice is measured against these.
-        </span>
-        <input
-          className="input"
-          value={competitors}
-          onChange={(event) => setCompetitors(event.target.value)}
-          placeholder="rivalsafaris.com, anothertour.co.ke"
-        />
-      </label>
-
-      <div
-        style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}
-      >
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="btn btn-primary"
           onClick={save}
           disabled={pending || tooMany}
         >
-          {pending ? 'Saving...' : 'Save'}
+          {pending ? 'Saving...' : 'Save questions'}
         </button>
         <button
           type="button"
@@ -194,23 +151,6 @@ export function VisibilityPrompts({ siteId, siteUrl }: { siteId: string; siteUrl
         >
           Close
         </button>
-
-        {tooMany && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {count} questions is over the limit of {MAX_PROMPTS}. Each one is a poll a day, forever,
-            so the cap is a cost ceiling.
-          </span>
-        )}
-        {error && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {error}
-          </span>
-        )}
-        {saved && !error && (
-          <span style={{ fontSize: 12, opacity: 0.7 }} role="status">
-            {saved}
-          </span>
-        )}
       </div>
     </div>
   )

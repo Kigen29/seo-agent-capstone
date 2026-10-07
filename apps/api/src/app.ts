@@ -22,6 +22,7 @@ import { questionRoutes } from './routes/questions.js'
 import { oauthCallbackRoutes } from './routes/oauth-callbacks.js'
 import { billingRoutes, billingWebhookRoutes } from './routes/billing.js'
 import { competitorRoutes } from './routes/competitors.js'
+import { siteProfileRoutes } from './routes/site-profile.js'
 import { outcomeRoutes } from './routes/outcomes.js'
 import { promptSuggestionRoutes } from './routes/prompt-suggestions.js'
 import { outreachRoutes } from './routes/outreach.js'
@@ -183,6 +184,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     outcomeRoutes(protectedRoutes, deps)
     competitorRoutes(protectedRoutes, deps)
     billingRoutes(protectedRoutes, deps)
+    siteProfileRoutes(protectedRoutes, deps)
   })
 
   return app

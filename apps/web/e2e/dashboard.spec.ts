@@ -261,8 +261,11 @@ test('gives another tenant a 404, not a permission error', async ({ page }) => {
   // `signIn` sets a cookie and nothing else, so this has to navigate. It used to be implicit:
   // the old helper drove the login form and therefore left the browser on the dashboard, and
   // this assertion was quietly relying on that side effect.
+  // This tenant has no site of its own, so its dashboard is the first step of setup. That it is
+  // offered a blank first step, and not the other tenant's site, is the first half of the proof.
   await page.goto('/dashboard')
-  await expect(page.getByText('No sites yet')).toBeVisible()
+  await expect(page).toHaveURL(/\/onboarding/)
+  await expect(page.getByRole('textbox', { name: 'Your website' })).toHaveValue('')
 
   const response = await page.goto(`/audits/${AUDIT}`)
 
@@ -461,12 +464,13 @@ test('AI visibility offers to draft the questions, and says why when it cannot',
   await expect(page.getByText(/need a model/)).toBeVisible()
 })
 
-test('the dashboard says what is connected for the site, in words', async ({ page }) => {
+test('site setup says what is connected for the site, in words', async ({ page }) => {
   await signIn(page)
-  await page.goto('/dashboard')
+  await page.goto('/site')
 
-  await page.getByText('Connections and optional setup', { exact: true }).click()
-  const setup = page.locator('details').filter({ hasText: 'Connections and optional setup' })
+  const setup = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Connections', exact: true }),
+  })
   await expect(setup).toBeVisible()
   for (const name of [
     'Google Search Console',
@@ -634,9 +638,9 @@ test('competitor watch with no competitors says where to name them', async ({ pa
   await page.goto('/competitors')
 
   await expect(page.getByText('No competitors tracked yet')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Name your competitors' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Choose your competitors' })).toHaveAttribute(
     'href',
-    /\/visibility\?siteId=/,
+    /\/site\?siteId=/,
   )
 })
 

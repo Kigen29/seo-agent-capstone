@@ -80,3 +80,6 @@ export type { CountryOption } from './country.js'
 // The plans a tenant can be on (ADR-0036).
 export { isPaidPlan, planById, PLANS } from './plans.js'
 export type { Plan, PlanId } from './plans.js'
+
+// The brand, read from a homepage title when the title plainly states it (ADR-0018).
+export { brandFromTitle } from './brand.js'

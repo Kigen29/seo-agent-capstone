@@ -16,13 +16,16 @@ const TAG: Record<Status['tone'], string> = {
 }
 
 /**
- * What is set up for this site, what is missing, and the one thing to do about each.
+ * What is connected for this site, what is missing, and the one thing to do about each.
  *
  * The dashboard used to scatter these across the page: a Search Console panel with only a
  * "Reconnect" button, repository and verification tags in one row, and a Business Profile that
  * showed its state only after it was clicked. A person could not tell at a glance whether anything
  * was connected. Each row here names the connection, says its state in words, and offers exactly
  * one action, labelled for what it does.
+ *
+ * It lives on the site setup page. The dashboard carries a one-line count that links here, since
+ * a dashboard is for where the site stands and not for wiring it up.
  */
 export function SetupChecklist({
   site,
@@ -143,29 +146,26 @@ export function SetupChecklist({
   const done = rows.filter((row) => row.status.tone === 'success').length
 
   return (
-    <details
-      className="mt-6 mb-8 rounded-lg border px-5 py-3"
-      style={{ borderColor: 'var(--color-divider)', background: 'var(--color-raised)' }}
-    >
-      <summary className="cursor-pointer">
-        <h2 id="setup-heading" className="h-section m-0" style={{ display: 'inline' }}>
-          Connections and optional setup
+    <section className="mb-8" aria-labelledby="setup-heading">
+      <div className="mb-1 flex flex-wrap items-baseline gap-3">
+        <h2 id="setup-heading" className="h-section m-0">
+          Connections
         </h2>
-        <span className="text-muted ml-3 text-[13px]">
+        <span className="text-muted text-[13px]">
           {done} of {rows.length} done
         </span>
-      </summary>
-      <p className="text-muted mt-3 text-sm">
-        Audits work without connections. Connect a repository for pull requests; Search Console adds
-        traffic measurement. Business Profile and AI questions are optional.
-      </p>
-      {/* Rows on the strip's own surface. A card here would be a card inside a card. */}
-      <ul className="m-0 list-none p-0">
-        {rows.map((row) => (
+      </div>
+      <div className="text-muted mb-3 max-w-[68ch] text-sm">
+        An audit runs with none of these. A repository is what turns findings into pull requests,
+        and Search Console adds your real searches and clicks. The last two are optional.
+      </div>
+      {/* Rows inside one frame. A card per row would be five boxes saying the same thing. */}
+      <ul className="frame m-0 list-none p-0 px-5">
+        {rows.map((row, index) => (
           <li
             key={row.name}
             className="flex flex-wrap items-start justify-between gap-3 py-4"
-            style={{ borderTop: '1px solid var(--color-divider)' }}
+            style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -178,6 +178,6 @@ export function SetupChecklist({
           </li>
         ))}
       </ul>
-    </details>
+    </section>
   )
 }

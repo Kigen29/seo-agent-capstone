@@ -97,13 +97,13 @@ export default async function CompetitorsPage({
           figure="0"
           title="No competitors tracked yet"
           action={
-            <Link href={`/visibility?siteId=${site.id}#questions`} className="btn btn-primary">
-              Name your competitors
+            <Link href={`/site?siteId=${site.id}`} className="btn btn-primary">
+              Choose your competitors
             </Link>
           }
         >
-          Competitors are listed with your tracked questions, because the same list is what share of
-          voice is measured against.
+          We can suggest competitors from what you offer and where, or you can add the ones you
+          know. The weekly watch starts once there is at least one.
         </EmptyState>
       ) : (
         <>
