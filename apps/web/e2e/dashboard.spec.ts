@@ -164,6 +164,25 @@ test('an audit says how many findings there are and how many the agent can fix, 
   await expect(page.locator('main table')).toHaveCount(0)
 })
 
+test('one click offers a pull request for every finding the agent can fix on a site', async ({
+  page,
+}) => {
+  await signIn(page)
+  // The audit page redirects to carry its site, which is the cheapest way to learn the site id.
+  await page.goto(`/audits/${AUDIT}`)
+  await page.waitForURL(/siteId=/)
+  const siteId = new URL(page.url()).searchParams.get('siteId')
+
+  await page.goto(`/findings?siteId=${siteId}`)
+  const offer = page.getByRole('region', { name: 'Open several pull requests' })
+  await expect(offer).toContainText('Each gets its own pull request')
+  await expect(offer.getByRole('button', { name: /Open \d+ pull requests?/ })).toBeVisible()
+
+  // Without a site chosen there is no single repository to open them against, so no offer.
+  await page.goto('/findings')
+  await expect(page.getByRole('region', { name: 'Open several pull requests' })).toHaveCount(0)
+})
+
 test('audits are a history: every run is listed, and an audit says what changed since the last', async ({
   page,
 }) => {

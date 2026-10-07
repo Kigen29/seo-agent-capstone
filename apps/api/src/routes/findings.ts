@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import {
   getFinding,
   getFixProgress,
@@ -7,14 +6,18 @@ import {
   listFixAttempts,
 } from '@seo/audit'
 import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
-import { appendJob, findings, withTenant, sites } from '@seo/db'
-import { and, eq } from 'drizzle-orm'
+import { withTenant, sites } from '@seo/db'
+import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
+import { requestFix } from '../fix-request.js'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
 import { refreshWaitingPullRequest } from '../pr-refresh.js'
+
+/** How many pull requests one request may ask for. */
+export const BULK_FIX_LIMIT = 10
 
 /**
  * The findings inbox, one finding, and the button that turns a finding into a pull request.
@@ -113,78 +116,75 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app
     .withTypeProvider<ZodTypeProvider>()
     .post('/findings/:id/fix', { schema: { params: uuidParam } }, async (request, reply) => {
+      const result = await requestFix(deps, request.tenantId, request.params.id, request.log)
+
+      if (result.queued) return reply.status(202).send({ status: 'queued' })
+      if (result.status === 404) return notFound(reply)
+      return reply.status(result.status).send({
+        error: result.status === 503 ? 'Service Unavailable' : 'Conflict',
+        message: result.message,
+      })
+    })
+
+  /**
+   * Ask for a pull request for several findings of one site in one request.
+   *
+   * Each finding still gets its own pull request: one finding, one branch, one diff to review
+   * and one thing to verify after it merges (rules 2 and 4). What this saves is the clicking.
+   * With no ids it takes the site's open findings the agent can fix, most important first.
+   *
+   * Capped, because every one is a model call and a pull request in someone's review queue, and
+   * a person who asked for ten can ask for the next ten when those are in. A finding that cannot
+   * be queued does not stop the rest; it comes back with the reason.
+   */
+  app.withTypeProvider<ZodTypeProvider>().post(
+    '/sites/:id/fixes',
+    {
+      schema: {
+        params: uuidParam,
+        body: z
+          .object({ findingIds: z.array(z.string().uuid()).min(1).max(BULK_FIX_LIMIT).optional() })
+          .nullish(),
+      },
+    },
+    async (request, reply) => {
       if (!options.enqueueFix) {
         return reply
           .status(503)
           .send({ error: 'Service Unavailable', message: 'The fixer is not configured.' })
       }
-
-      const finding = await getFinding(db, request.tenantId, request.params.id)
-      if (!finding) return notFound(reply)
-
-      if (!finding.fixable) {
-        return reply.status(409).send({
-          error: 'Conflict',
-          message: 'This finding cannot be fixed in code automatically; it needs a human.',
-        })
-      }
-      if (finding.status !== 'open') {
-        return reply.status(409).send({
-          error: 'Conflict',
-          message: 'A pull request for this finding has already been opened.',
-        })
-      }
-      // The same issue, raised again by a newer audit while a fix from an earlier one is still in
-      // flight. A second pull request for it would conflict with the first (ADR-0029).
-      if (finding.earlier?.work === 'in_progress') {
-        return reply.status(409).send({
-          error: 'Conflict',
-          message:
-            'A fix for this issue is already in progress from an earlier audit' +
-            (finding.earlier.prUrl ? `: ${finding.earlier.prUrl}` : '.'),
-        })
-      }
-
       const [site] = await withTenant(db, request.tenantId, (tx) =>
-        tx
-          .select({ repo: sites.repoFullName, installation: sites.githubInstallationId })
-          .from(sites)
-          .where(eq(sites.id, finding.siteId))
-          .limit(1),
+        tx.select({ id: sites.id }).from(sites).where(eq(sites.id, request.params.id)).limit(1),
       )
-      if (!site || !site.repo || !site.installation) {
-        return reply
-          .status(409)
-          .send({ error: 'Conflict', message: 'Connect a repository to this site first.' })
+      if (!site) return notFound(reply)
+
+      const eligible = await listFindings(db, request.tenantId, {
+        siteId: site.id,
+        fixable: true,
+        status: 'open',
+        sort: 'priority',
+        pageSize: BULK_FIX_LIMIT,
+      })
+      const asked = request.body?.findingIds
+      const titles = new Map(eligible.findings.map((finding) => [finding.rowId, finding.title]))
+      const ids = asked ?? eligible.findings.map((finding) => finding.rowId)
+
+      const queued: { id: string; title: string }[] = []
+      const skipped: { id: string; title: string; reason: string }[] = []
+      // One at a time: each is a short transaction, and the order is the priority order.
+      for (const id of ids) {
+        const result = await requestFix(deps, request.tenantId, id, request.log)
+        const title = titles.get(id) ?? ''
+        if (result.queued) queued.push({ id, title })
+        else skipped.push({ id, title, reason: result.message })
       }
 
-      const job = {
-        requestId: randomUUID(),
-        tenantId: request.tenantId,
-        siteId: finding.siteId,
-        findingRowId: finding.rowId,
-      }
-      const accepted = await withTenant(db, request.tenantId, async (tx) => {
-        const changed = await tx
-          .update(findings)
-          .set({ fixError: null })
-          .where(and(eq(findings.id, finding.rowId), eq(findings.status, 'open')))
-          .returning({ id: findings.id })
-        if (changed.length === 0) return false
-        // The error reset and the durable request must commit or roll back together.
-        await appendJob(tx, request.tenantId, `fix:${job.requestId}`, 'fix', job)
-        return true
+      return reply.status(202).send({
+        queued,
+        skipped,
+        // What is left for a second request, when this one took the default selection.
+        remaining: asked ? 0 : Math.max(0, eligible.total - ids.length),
       })
-      if (!accepted) {
-        return reply
-          .status(409)
-          .send({ error: 'Conflict', message: 'This finding is no longer open.' })
-      }
-      try {
-        await options.enqueueFix(job)
-      } catch {
-        request.log.warn('Fix queued in outbox; immediate queue publication unavailable.')
-      }
-      return reply.status(202).send({ status: 'queued' })
-    })
+    },
+  )
 }

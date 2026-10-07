@@ -122,7 +122,14 @@ export interface FindingPage {
   pageSize: number
 }
 
-/** Two scalars, for the poll that runs while a crawl is in flight. */
+/** What became of each finding in a request for several pull requests. */
+export interface BulkFixResult {
+  queued: { id: string; title: string }[]
+  skipped: { id: string; title: string; reason: string }[]
+  /** Eligible findings this request did not reach, because one request is capped. */
+  remaining: number
+}
+
 /** One audit in a site's history, with what changed since the completed audit before it. */
 export interface AuditHistoryEntry {
   id: string
@@ -157,6 +164,7 @@ export interface AuditChanges {
   pages: { before: number; after: number } | null
 }
 
+/** Two scalars, for the poll that runs while a crawl is in flight. */
 export interface AuditProgress {
   id: string
   status: string
@@ -828,6 +836,16 @@ export function createApiClient(options: ApiClientOptions) {
      */
     fixFinding: async (id: string) =>
       request<{ status: string }>(`/findings/${id}/fix`, { method: 'POST' }),
+
+    /**
+     * Ask for a pull request for several of a site's findings at once: the given ones, or the
+     * most important open findings the agent can fix. Each still gets its own pull request.
+     */
+    fixSiteFindings: async (siteId: string, findingIds?: string[]) =>
+      request<BulkFixResult>(`/sites/${siteId}/fixes`, {
+        method: 'POST',
+        ...(findingIds ? { body: JSON.stringify({ findingIds }) } : {}),
+      }),
 
     /** What this tenant has connected: Google Search Console, and any connected repositories. */
     getConnections: async () =>
