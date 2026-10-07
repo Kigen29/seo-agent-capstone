@@ -136,7 +136,30 @@ export function siteProfileRoutes(app: FastifyInstance, deps: RouteDeps): void {
         })
       } catch (error) {
         if (error instanceof NoProviderConfiguredError) return unavailable()
-        throw error
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.startsWith('Budget guard:')) {
+          return reply.status(429).send({
+            error: 'Too Many Requests',
+            message:
+              'This account has used its monthly allowance for paid features, so no competitors ' +
+              'were suggested. The cap is shown under Settings, Account. You can still add ' +
+              'competitors by typing their web addresses.',
+          })
+        }
+        /*
+          Named, and not rethrown. Rethrowing made this a bare 500, and the page could then only
+          say "a fault on our side" for what is nearly always the provider: a key out of credit, a
+          rate limit, a request too large for the plan. The provider's own sentence is the only
+          thing that tells the person running this what to fix.
+        */
+        request.log.warn({ err: message }, 'competitor suggestions failed')
+        const reason = message.replace(/\s+/g, ' ').slice(0, 180)
+        return reply.status(502).send({
+          error: 'Bad Gateway',
+          message:
+            `The language model did not give an answer: ${reason} ` +
+            'You can still add competitors by typing their web addresses.',
+        })
       }
 
       // Fetched together: each has its own short timeout, and one slow site should not hold the

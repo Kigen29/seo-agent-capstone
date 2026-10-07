@@ -48,6 +48,21 @@ describe('toUserError', () => {
     expect(toUserError(new ApiRequestError(status, 'Bad Gateway'), 'load').kind).toBe('waking')
   })
 
+  it('shows the sentence the API wrote when a model it depends on failed', () => {
+    const error = toUserError(
+      new ApiRequestError(
+        502,
+        'The language model did not give an answer: You have no credits remaining.',
+      ),
+      'suggest competitors',
+    )
+
+    // Not "starting up": that hid the one message that says what to fix.
+    expect(error.kind).toBe('unavailable')
+    expect(error.title).toBe('We could not suggest competitors')
+    expect(error.detail).toContain('no credits remaining')
+  })
+
   it('reads a dropped connection as the service starting', () => {
     expect(toUserError(new TypeError('fetch failed'), 'load').kind).toBe('waking')
   })

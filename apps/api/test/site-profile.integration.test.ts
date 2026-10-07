@@ -290,6 +290,28 @@ describe('POST /sites/:id/competitors/suggestions', () => {
     expect(response.json().message).toMatch(/still add competitors by typing/)
   })
 
+  it('names why the model failed, and never answers with a bare server error', async () => {
+    const site = await addSite('named.example.com')
+    model.object.mockRejectedValueOnce(new Error('You have no credits remaining.'))
+
+    const response = await call(app, 'POST', `/sites/${site.id}/competitors/suggestions`)
+
+    // A 500 here reached the page as "a fault on our side", which told nobody what to fix.
+    expect(response.statusCode).toBe(502)
+    expect(response.json().message).toContain('You have no credits remaining.')
+    expect(response.json().message).toMatch(/still add competitors by typing/)
+  })
+
+  it('says a spent allowance is a spent allowance', async () => {
+    const site = await addSite('named.example.com')
+    model.object.mockRejectedValueOnce(new Error('Budget guard: tenant is at its monthly cap'))
+
+    const response = await call(app, 'POST', `/sites/${site.id}/competitors/suggestions`)
+
+    expect(response.statusCode).toBe(429)
+    expect(response.json().message).toMatch(/monthly allowance/)
+  })
+
   it("does not find another tenant's site, and calls no model for it", async () => {
     const site = await addSite('named.example.com')
     model.object.mockClear()
