@@ -98,6 +98,13 @@ export default async function FindingsPage({
     return `/findings?${search.toString()}`
   }
 
+  /**
+   * The Site column earns its width only when rows can differ in it. With one site, or the list
+   * filtered to one, it repeated the same host down every row and pushed Pages and the action out
+   * of the frame at 1440px.
+   */
+  const showSite = sites.length > 1 && !params.siteId
+
   const hasFilters = Boolean(
     params.q || params.siteId || params.axis || params.severity || params.status || params.fixable,
   )
@@ -188,7 +195,7 @@ export default async function FindingsPage({
                         />
                       </th>
                     ))}
-                    <th>Site</th>
+                    {showSite && <th>Site</th>}
                     <th>Status</th>
                     <th aria-sort={sort === 'priority' ? 'descending' : 'none'}>
                       <SortLink
@@ -227,41 +234,45 @@ export default async function FindingsPage({
                           </Link>
                         </td>
                         <td>{AXIS_LABEL[finding.axis] ?? finding.axis}</td>
-                        <td className="text-muted">{hostOf(finding.siteUrl)}</td>
-                        <td className="whitespace-nowrap">
-                          {/*
+                        {showSite && <td className="text-muted">{hostOf(finding.siteUrl)}</td>}
+                        {/* Tags wrap inside the cell: three on one line pushed Priority, Pages and the
+                            action out of the frame at 1440px. */}
+                        <td>
+                          <div className="flex flex-wrap gap-1">
+                            {/*
                             Status was fetched and never rendered, so a finding with a pull request
                             already open looked exactly like one nobody had touched. In a triage
                             list that is the difference between work to do and work in flight.
                           */}
-                          <span className={status.className}>{status.label}</span>
-                          {/*
+                            <span className={status.className}>{status.label}</span>
+                            {/*
                             A failed fix attempt leaves the finding open, which is correct: it
                             still needs doing. But "open" alone made a finding whose fix had been
                             tried and failed identical to one nobody had touched, which is the
                             same mistake as not rendering status at all, one level down.
                           */}
-                          {finding.fixFailed && (
-                            <span
-                              className="tag tag-critical ml-1"
-                              title="The last fix attempt failed. Open the finding for the reason."
-                            >
-                              Fix failed
-                            </span>
-                          )}
-                          {/*
+                            {finding.fixFailed && (
+                              <span
+                                className="tag tag-critical"
+                                title="The last fix attempt failed. Open the finding for the reason."
+                              >
+                                Fix failed
+                              </span>
+                            )}
+                            {/*
                             The same issue from an earlier audit. Without this, a finding whose
                             fix is already open as a pull request reads as untouched after the
                             next audit, and one that was fixed and came back reads as brand new.
                           */}
-                          {finding.earlier && (
-                            <span
-                              className={`${EARLIER_TAG[finding.earlier.work].className} ml-1`}
-                              title={EARLIER_TAG[finding.earlier.work].title}
-                            >
-                              {EARLIER_TAG[finding.earlier.work].label}
-                            </span>
-                          )}
+                            {finding.earlier && (
+                              <span
+                                className={EARLIER_TAG[finding.earlier.work].className}
+                                title={EARLIER_TAG[finding.earlier.work].title}
+                              >
+                                {EARLIER_TAG[finding.earlier.work].label}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="tnum text-muted">{finding.estimatedImpact}</td>
                         <td className="tnum text-muted">{finding.affectedUrlCount}</td>
