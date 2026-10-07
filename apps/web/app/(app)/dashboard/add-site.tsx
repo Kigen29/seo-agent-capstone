@@ -7,15 +7,7 @@ export function AddSite() {
   const [state, action, pending] = useActionState(addSite, {})
 
   return (
-    <form
-      action={action}
-      style={{
-        marginTop: 'var(--space-6)',
-        display: 'flex',
-        gap: 'var(--space-2)',
-        flexWrap: 'wrap',
-      }}
-    >
+    <form action={action} className="flex flex-wrap justify-end gap-2">
       <input
         name="url"
         type="text"
@@ -23,7 +15,7 @@ export function AddSite() {
         autoComplete="off"
         placeholder="example.com"
         className="input"
-        style={{ flex: 1, minWidth: 220 }}
+        style={{ flex: 1, minWidth: 220, maxWidth: 320 }}
       />
       <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? 'Adding...' : 'Add site'}

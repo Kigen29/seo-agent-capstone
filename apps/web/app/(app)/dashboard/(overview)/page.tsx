@@ -141,25 +141,30 @@ export default async function Dashboard({
 
       {activeSite && <SetupChecklist site={activeSite} google={connections.google} />}
 
-      <h2 className="h-section mb-3">Your sites</h2>
-
-      <AddSite />
+      <div
+        className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b pb-4"
+        style={{ borderColor: 'var(--color-divider)' }}
+      >
+        <div>
+          <h2 className="h-section m-0">Your sites</h2>
+          <div className="text-muted mt-1 text-[13px]">Every site this account audits.</div>
+        </div>
+        <AddSite />
+      </div>
 
       {sites.length === 0 ? (
         <EmptyState figure="0" title="No sites yet">
           Add one above to run your first audit. Everything else in RankWright hangs off a site.
         </EmptyState>
       ) : (
-        <div className="table-scroll mt-6">
+        <div className="table-scroll">
           <table className="table site-table">
             <thead>
               <tr>
                 <th>Site</th>
                 <th>Last audit</th>
                 <th>Pages</th>
-                <th>
-                  <span className="sr-only">Actions</span>
-                </th>
+                <th className="num">Actions</th>
               </tr>
             </thead>
             <tbody>

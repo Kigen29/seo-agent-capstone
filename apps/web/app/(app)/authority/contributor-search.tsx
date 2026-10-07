@@ -100,11 +100,11 @@ export function ContributorSearchPanel({ siteId }: { siteId: string }) {
       {result?.note && <p className="text-muted mt-3 mb-0 text-[13px]">{result.note}</p>}
 
       {result && result.opportunities.length > 0 && (
-        <div className="card elev-sm mt-4 gap-0 p-0">
+        <div className="frame mt-4">
           {result.opportunities.map((candidate, index) => (
             <div
               key={candidate.domain}
-              className="p-3"
+              className="px-4 py-3"
               style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
             >
               <a

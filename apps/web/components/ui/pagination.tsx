@@ -30,12 +30,15 @@ export function Pagination({
   pageSize,
   total,
   hrefFor,
+  inFrame = false,
 }: {
   page: number
   pageSize: number
   total: number
   /** Builds the URL for a page, preserving whatever filters are active. */
   hrefFor: (page: number) => string
+  /** Rendered as the footer strip of a `.frame`, under the table it pages. */
+  inFrame?: boolean
 }) {
   const last = Math.max(1, Math.ceil(total / pageSize))
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -44,13 +47,17 @@ export function Pagination({
   return (
     <nav
       aria-label="Pagination"
-      className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3"
-      style={{ borderColor: 'var(--color-divider)' }}
+      className={
+        inFrame
+          ? 'panel-foot'
+          : 'mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3'
+      }
+      style={inFrame ? undefined : { borderColor: 'var(--color-divider)' }}
     >
       {/* The count is the point of paging: "20 of 412" tells you the shape of the backlog. */}
-      <p className="text-muted tnum m-0 text-[13px]">
+      <div className="text-muted tnum text-[13px]">
         {total === 0 ? 'Nothing to show' : `${first}–${shown} of ${total}`}
-      </p>
+      </div>
 
       {last > 1 && (
         <div className="flex flex-wrap items-center gap-1">
@@ -69,7 +76,7 @@ export function Pagination({
               <Link
                 key={entry}
                 href={hrefFor(entry)}
-                className={`btn btn-sm${entry === page ? ' btn-primary' : ' btn-ghost'}`}
+                className={`btn btn-sm${entry === page ? ' btn-secondary' : ' btn-ghost'}`}
                 aria-current={entry === page ? 'page' : undefined}
                 aria-label={`Page ${entry}`}
               >

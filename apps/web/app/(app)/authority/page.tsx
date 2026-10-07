@@ -164,11 +164,11 @@ export default async function AuthorityPage({
                 referring domains by authority, so a link from outside that slice would look like an
                 absence here.
               </p>
-              <div className="card elev-sm gap-0 p-0">
+              <div className="frame">
                 {authority.unlinkedMentions.map((domain, index) => (
                   <div
                     key={domain}
-                    className="p-3"
+                    className="px-4 py-3"
                     style={{
                       borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)',
                     }}
@@ -211,11 +211,11 @@ export default async function AuthorityPage({
               </p>
 
               {authority.linkGap.editorialDomains.length > 0 ? (
-                <div className="card elev-sm gap-0 p-0">
+                <div className="frame">
                   {authority.linkGap.editorialDomains.map((domain, index) => (
                     <div
                       key={domain}
-                      className="p-3"
+                      className="px-4 py-3"
                       style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
                     >
                       <a

@@ -58,24 +58,30 @@ export default async function AccountSettingsPage({
   }
 
   const { budget } = account
-  const remaining = Math.max(
-    0,
-    budget.capMicros - budget.spentMicros - (budget.reservedMicros ?? 0),
-  )
+  const reserved = budget.reservedMicros ?? 0
+  const remaining = Math.max(0, budget.capMicros - budget.spentMicros - reserved)
+
+  /** A part of the cap as a whole percentage, clamped, for the bar and the hints under a figure. */
+  const share = (micros: number): number =>
+    budget.capMicros > 0
+      ? Math.min(100, Math.max(0, Math.round((micros / budget.capMicros) * 100)))
+      : 0
+  const ofCap = (micros: number) =>
+    budget.capMicros > 0 ? `${share(micros)}% of the cap` : undefined
 
   return (
     <div className="flex flex-col gap-6">
       <section>
         <h2 className="h-section mb-3">Account</h2>
-        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-          <dl className="m-0 grid gap-3 sm:grid-cols-2">
+        <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          <dl className="m-0 flex flex-wrap items-start justify-between gap-4">
             <div>
               <dt className="card-kicker">Name</dt>
-              <dd className="m-0 text-sm">{account.tenantName ?? 'Unnamed'}</dd>
+              <dd className="m-0 mt-1 font-semibold">{account.tenantName ?? 'Unnamed'}</dd>
             </div>
-            <div>
+            <div className="sm:text-right">
               <dt className="card-kicker">Created</dt>
-              <dd className="m-0 text-sm">
+              <dd className="m-0 mt-1 font-semibold">
                 {account.createdAt
                   ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(
                       new Date(account.createdAt),
@@ -96,11 +102,69 @@ export default async function AccountSettingsPage({
         </p>
 
         <StatRow>
-          <Stat label="Spent" value={money(budget.spentMicros)} />
-          <Stat label="Reserved" value={money(budget.reservedMicros ?? 0)} />
+          <Stat label="Spent" value={money(budget.spentMicros)} hint={ofCap(budget.spentMicros)} />
+          <Stat
+            label="Reserved"
+            value={money(reserved)}
+            hint={reserved > 0 ? 'Held for running work' : undefined}
+          />
           <Stat label="Monthly cap" value={money(budget.capMicros)} />
-          <Stat label="Remaining" value={money(remaining)} />
+          <Stat
+            label="Remaining"
+            value={money(remaining)}
+            hint={ofCap(remaining)}
+            tone={remaining > 0 ? 'success' : undefined}
+          />
         </StatRow>
+
+        {/*
+          The same three amounts as one bar, because "is most of it gone" is a question about
+          proportion and four separate figures make the reader do the division. Not drawn at all
+          when there is no cap: a bar that is 0% of nothing is not a measurement.
+        */}
+        {budget.capMicros > 0 && (
+          <div
+            className="mb-6 rounded-lg border p-3"
+            style={{ borderColor: 'var(--color-divider)', background: 'var(--color-surface)' }}
+          >
+            <div className="flex flex-wrap justify-between gap-2 text-[12px]">
+              <span className="text-muted">
+                Spent and reserved: {money(budget.spentMicros + reserved)} of{' '}
+                {money(budget.capMicros)}
+              </span>
+              <span className="tnum font-semibold">
+                {share(budget.spentMicros + reserved)}% used
+              </span>
+            </div>
+            <div
+              className="meter mt-2"
+              role="img"
+              aria-label={`${share(budget.spentMicros)}% spent, ${share(reserved)}% reserved`}
+            >
+              <span
+                style={{
+                  width: `${share(budget.spentMicros)}%`,
+                  background: 'var(--color-accent)',
+                }}
+              />
+              <span style={{ width: `${share(reserved)}%`, background: 'var(--color-info)' }} />
+            </div>
+            <div className="text-muted mt-2 flex flex-wrap gap-4 text-[12px]">
+              <span className="flex items-center gap-1.5">
+                <span className="dot" style={{ color: 'var(--color-accent)' }} />
+                Spent
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="dot" style={{ color: 'var(--color-info)' }} />
+                Reserved
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="dot" style={{ color: 'var(--color-neutral-400)' }} />
+                Remaining
+              </span>
+            </div>
+          </div>
+        )}
 
         {/*
           The cap being zero is a configuration, not a fault, and it has to read as one. A tenant

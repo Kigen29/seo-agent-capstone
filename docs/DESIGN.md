@@ -16,7 +16,10 @@ design languages in one app.
 
 ## The idea
 
-An editorial, printed feel: serif type, warm paper, gold used sparingly. The product's argument is
+An editorial, printed feel: serif type, warm paper, gold used sparingly. The palette and the type
+are Classical. The structure (the shell, the surfaces, the shapes of the components) was redrawn
+from the Stitch project "Comprehensive UI Redesign", whose own colours and fonts were deliberately
+not adopted. The product's argument is
 that it tells you the truth about your site — including when it does not know something — and the
 interface is meant to read like a well-set report rather than a dashboard competing for attention.
 
@@ -55,8 +58,16 @@ column. This product is mostly tables of numbers; without it they wobble.
 ## Space, shape, depth
 
 - Spacing is `--space-*` off a 4px base. Do not hand-roll pixel margins.
-- Radii are **small**: 2/4/7/12px. Nothing here is a pill. A 16px radius reads as a different product.
-- Three shadows only, `--shadow-sm|md|lg`, all warm. Cards use `elev-sm`; do not stack elevation.
+- Radii are 4/8/12/16px. Controls (buttons, inputs, nav links) take `--radius-md`; surfaces
+  (cards, table frames, wells) take `--radius-lg`.
+- Tags are small rectangles with a hairline in their own colour. **The only pill is a live-status
+  tag** (`.tag-dot`: an audit's state, a connection), which is led by a dot, so "this is running
+  state" has a shape of its own. Buttons stay rectangular. The switch track and the avatar are the
+  other two round things, because a square switch does not read as a switch and a circle reads as
+  a person.
+- Depth is tonal before it is shadow: the sidebar and table headers sit on `--color-surface`,
+  cards and table bodies on `--color-raised`, fields on `--color-bg`. Three shadows only,
+  `--shadow-sm|md|lg`, all warm; do not stack elevation.
 
 ## Components that already exist
 
@@ -65,12 +76,19 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | Need | Use |
 |---|---|
 | A panel | `.card` + `.elev-sm`, with `.card-kicker` for the label |
-| A number with a label | `<Stat>` inside `<StatRow>` |
+| A number with a label | `<Stat label value hint tone>` inside `<StatRow>`. Small uppercase label, large serif figure, optional line of context. `tone="accent"` marks the one figure in a row that is in motion |
+| A card in a grid of cards | `.card` with a `.card-heading` title and, as its last child, a `.card-foot` row |
 | Page title and intro | `<PageHeader kicker title description>` |
 | Nothing to show | `<EmptyState figure title action>` |
 | A message | `<Note tone="ok\|warn\|error">` |
 | Severity | `<SeverityBadge>` — never a raw coloured span |
-| A status chip | `.tag` + `.tag-neutral\|outline\|accent\|success\|critical\|low` |
+| A status chip | `.tag` + `.tag-neutral\|outline\|accent\|success\|critical\|low`. Add `.tag-dot` only for live status |
+| A table | `.table` inside `.table-scroll`, always. The wrapper is the frame: border, rounded corners, raised surface. Figures and the action column take `.num` |
+| A table with paging, a count, or an action for every row | `.frame` around the `.table-scroll` and a `.panel-foot` strip. `<Pagination inFrame>` is that strip |
+| A list of rows that is not a table | `.frame`, rows divided by a top border |
+| A rule id beside a title | `.rule-id` |
+| Parts of a whole | `.meter` with one `<span>` per part |
+| Sidebar or section navigation | `.side-link` with `aria-current="page"`, under a `.side-label` group heading |
 | Paging | `<Pagination>` |
 | A form button | `<SubmitButton pendingLabel>` |
 | Loading | `.skeleton`, and a `loading.tsx` for the route |
@@ -99,7 +117,8 @@ every one of these is restyled onto the tokens above. There is no Inter, no viol
 Two rules follow, and they are the ones to hold the line on:
 
 - **A component that has a Classical class uses it.** `<Button>` renders `.btn .btn-primary`; it
-  does not re-declare gold in Tailwind utilities. There is still exactly one place that decides
+  does not re-declare gold in Tailwind utilities. Primary is a filled gold button with
+  `--color-on-accent` text, secondary is a bordered surface, and a view gets one primary. There is still exactly one place that decides
   what a primary button looks like, and it is `classical.css`.
 - **Reach for Radix when the behaviour is hard, not when the markup is.** A menu, a switch, a
   dialog and tabs are worth it: roving tabindex, Escape, focus return, `aria-expanded` and
@@ -111,7 +130,14 @@ before it ships.
 
 ## Layout
 
-- `.wrap` for a page, `.wrap-narrow` for a reading column.
+- `.wrap` for a page, `.wrap-narrow` for a reading column. `.wrap` is fluid up to 1600px with a
+  32px margin, so tables use the width; prose caps itself with `max-w-[..ch]`.
+- The shell is a 260px sidebar on `--color-surface` and the stage beside it. The stage opens with
+  `<Topbar>`: where you are, the Search Console connection, and Run audit for the current site.
+- **A `.classical` element rule beats any utility on that element**, because `classical.css` is
+  unlayered and Tailwind's utilities are in a layer. `m-0` on a `<p>` and `p-0` on a `.card` do
+  nothing. Use a `<div>` where a paragraph's margin is in the way, and an inline style for a
+  card's padding.
 - Do layout in utilities. **A hand-written component class will lose a specificity fight with a
   Tailwind utility**: `.classical .nav` is (0,2,0) and `md:hidden` is (0,1,0), so the utility loses
   regardless of the media query. That one shipped.

@@ -94,4 +94,10 @@ test('capture', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' })
   await capture(page, '/findings', '08-findings-dark.png')
   await capture(page, '/dashboard', '09-dashboard-dark.png')
+
+  // The two screens with the most distinct furniture and no capture until now: outcome cards with
+  // a footer row, and the settings frame with its section nav, spend bar and sessions table.
+  await capture(page, '/outcomes', '14-outcomes-dark.png')
+  await capture(page, '/settings/account', '15-settings-account-dark.png')
+  await capture(page, '/audits', '16-audits-dark.png')
 })

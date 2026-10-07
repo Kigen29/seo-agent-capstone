@@ -1,6 +1,7 @@
 import type { SignedInIdentity } from '@seo/api-client'
 import { redirect } from 'next/navigation'
 import { Sidebar, type SidebarSite } from '@/components/sidebar'
+import { Topbar, type TopbarSite } from '@/components/topbar'
 import { getClient, getToken, getSites } from '@/lib/session'
 
 /**
@@ -17,6 +18,9 @@ import { getClient, getToken, getSites } from '@/lib/session'
  * them can forget to check for a session: a page would have to be physically moved out of the
  * group, which is a visible act rather than an omission.
  */
+/** Statuses that mean an audit is on the queue or running. */
+const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!(await getToken())) redirect('/login')
 
@@ -27,16 +31,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * error handling for its own data. Taking the whole screen down because the switcher could not
    * populate would turn a cosmetic problem into an outage.
    */
-  let sites: SidebarSite[] = []
+  let sites: (SidebarSite & TopbarSite)[] = []
   let identity: SignedInIdentity | null = null
+  let google: { connected: boolean } | null = null
   try {
     const api = await getClient()
     if (api) {
       // Both at once: two round trips to a sleeping free instance is twice the cold start, and
       // neither of these blocks the other.
-      const [siteList, who] = await Promise.all([getSites(), api.getIdentity()])
-      sites = siteList.map((site) => ({ id: site.id, url: site.url }))
+      // The connection state is the top bar's chip and nothing else, so its failure is caught on
+      // its own: the bar then claims nothing, and the switcher and the identity still arrive.
+      const [siteList, who, connections] = await Promise.all([
+        getSites(),
+        api.getIdentity(),
+        api.getConnections().catch(() => null),
+      ])
+      sites = siteList.map((site) => ({
+        id: site.id,
+        url: site.url,
+        auditRunning: site.latestAudit ? RUNNING.has(site.latestAudit.status) : false,
+      }))
       identity = who
+      google = connections?.google ?? null
     }
   } catch {
     sites = []
@@ -45,7 +61,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="md:flex">
       <Sidebar sites={sites} identity={identity} />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        <Topbar sites={sites} google={google} />
+        {children}
+      </div>
     </div>
   )
 }

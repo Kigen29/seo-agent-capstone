@@ -12,13 +12,13 @@ import { cn } from '@/lib/utils'
  * the fallback on error rather than leaving a torn-image glyph, and it delays the swap slightly so
  * a fast connection does not flash initials before the picture arrives.
  *
- * Square with a small radius, not a circle. `DESIGN.md`: "Nothing here is a pill."
+ * A circle, which is the one shape everybody reads as "a person".
  */
 export function Avatar({ className, ...props }: ComponentProps<typeof Primitive.Root>) {
   return (
     <Primitive.Root
-      className={cn('relative flex size-9 shrink-0 overflow-hidden rounded', className)}
-      style={{ background: 'var(--color-surface)' }}
+      className={cn('relative flex size-9 shrink-0 overflow-hidden rounded-full', className)}
+      style={{ background: 'var(--color-accent-100)' }}
       {...props}
     />
   )
@@ -33,7 +33,7 @@ export function AvatarFallback({ className, ...props }: ComponentProps<typeof Pr
     <Primitive.Fallback
       delayMs={300}
       className={cn('flex size-full items-center justify-center text-xs', className)}
-      style={{ color: 'var(--color-text-muted)' }}
+      style={{ color: 'var(--color-accent-800)', fontWeight: 600 }}
       {...props}
     />
   )

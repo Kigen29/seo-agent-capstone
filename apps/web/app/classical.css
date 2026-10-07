@@ -207,21 +207,32 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-.classical .btn-primary {
-  color: var(--color-accent-700);
+/*
+ * Primary is filled, so the one action a view is asking for is the heaviest thing on it.
+ *
+ * The colour is repeated on `:hover` on purpose. A primary button is very often a `<Link>`, and
+ * `.classical a:hover` at (0,2,1) outranks `.classical .btn-primary` at (0,2,0): without the
+ * second selector the label turns gold on a gold fill the moment the pointer arrives.
+ */
+.classical .btn-primary,
+.classical .btn-primary:hover {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
   border-color: var(--color-accent);
 }
 .classical .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+  border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
 }
 .classical .btn-primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 74%, var(--color-text));
 }
 .classical .btn-secondary {
+  background: var(--color-surface);
   border-color: var(--color-divider);
 }
 .classical .btn-secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
 }
 .classical .btn-ghost {
   color: var(--color-accent-700);
@@ -265,7 +276,8 @@
   font-size: 14px;
   color: var(--color-text);
   caret-color: var(--color-accent);
-  background: transparent;
+  /* The page colour, so a field reads as cut into whatever surface, well or sidebar holds it. */
+  background-color: var(--color-bg);
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
 }
@@ -275,7 +287,7 @@
   A solid themed surface, and inheriting color-scheme, keeps the control and its list on theme.
 */
 .classical select.input {
-  background-color: var(--color-surface);
+  background-color: var(--color-bg);
   color-scheme: inherit;
   /*
     The browser's own arrow sits hard against the border and cannot be moved. So it is turned off
@@ -291,7 +303,7 @@
   text-overflow: ellipsis;
 }
 .classical select.input option {
-  background-color: var(--color-surface);
+  background-color: var(--color-bg);
   color: var(--color-text);
 }
 .classical .input:hover {
@@ -349,9 +361,145 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
-  border-radius: var(--radius-md);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
   border: 1px solid var(--color-divider);
+}
+/*
+ * A labelled figure: quiet label, large tabular number, optional line of context underneath.
+ * See `<Stat>`. The label is muted rather than gold because a row of four of these would
+ * otherwise put four accents side by side, and the number is the thing to read.
+ */
+.classical .stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  border: 1px solid var(--color-divider);
+}
+.classical .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.classical .stat-value {
+  margin-top: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* The same figure inside a card that holds three of them, where 30px would crowd. */
+.classical .stat-value-sm {
+  margin-top: var(--space-1);
+  font-size: 24px;
+}
+.classical .stat-hint {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+/* The one figure in a row that is in motion right now. At most one per row. */
+.classical .stat-accent {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.classical .stat-accent .stat-label,
+.classical .stat-accent .stat-value {
+  color: var(--color-accent-700);
+}
+.classical .stat-success .stat-value {
+  color: var(--color-success-text);
+}
+
+/*
+ * A card's title when the card is one of a grid: a small uppercase label, so the figure under it
+ * is the loudest thing in the card and four titles in a row do not compete with the page's h1.
+ */
+.classical .card-heading {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+/* The last row of a card: a rule, then context on the left and a link or figure on the right. */
+.classical .card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/*
+ * A frame holds a table and the strip under it (paging, a count, the action that applies to every
+ * row) as one object. Inside a frame the table's own wrapper gives up its border to the frame.
+ */
+.classical .frame {
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+}
+.classical .frame > .table-scroll {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.classical .panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* A rule id beside the title it belongs to: monospace, small, and out of the way. */
+.classical .rule-id {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-text-subtle);
+}
+.classical .dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* Parts of a whole on one bar: what is spent, what is held, and what is left unfilled. */
+.classical .meter {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--color-neutral-200);
+}
+.classical .meter > span {
+  display: block;
+  height: 100%;
 }
 .classical .card-kicker {
   font-size: 10px;
@@ -387,10 +535,28 @@
   align-items: center;
   gap: 5px;
   font-size: 11px;
+  font-weight: 500;
   letter-spacing: 0.02em;
-  padding: 3px 10px;
-  border-radius: calc(var(--radius-md) * 0.75);
+  padding: 2px 8px;
+  /* A small rectangle with a hairline in its own text colour, so it holds its edge on any surface. */
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   white-space: nowrap;
+}
+/*
+ * The state of a running thing (an audit, a connection): a pill led by a dot. The only fully
+ * rounded tag, so "this is live status" has a shape of its own.
+ */
+.classical .tag-dot {
+  border-radius: 9999px;
+  padding-inline: 10px;
+}
+.classical .tag-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 .classical .tag-accent {
   background: var(--color-accent-100);
@@ -485,15 +651,28 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding: var(--space-2);
+  font-weight: 600;
+  color: var(--color-text-subtle);
+  background: var(--color-surface);
+  padding: 10px var(--space-4);
   border-bottom: 1px solid var(--color-divider);
   white-space: nowrap;
 }
 .classical .table td {
-  padding: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-divider);
   vertical-align: top;
+}
+/*
+ * Figures and the row's action sit against the right edge. A class rather than `text-right`,
+ * which loses to `.classical .table th` on specificity.
+ */
+.classical .table .num {
+  text-align: right;
+}
+/* The frame draws the bottom edge, so the last row must not draw a second one inside it. */
+.classical .table tbody tr:last-child td {
+  border-bottom: 0;
 }
 .classical .table tbody tr:hover {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
@@ -502,22 +681,106 @@
  * A table wider than the viewport has to scroll inside its own box, or it pushes the whole page
  * sideways. Every table in the app was previously unwrapped, which is most of why the app is
  * unusable on a phone.
+ *
+ * It is also the table's frame: border, rounded corners and the raised surface. Every table in the
+ * app is already inside one, so the frame lives here and no table can be half-dressed. The
+ * overflow is what clips the header row's fill to the rounded corners.
  */
 .classical .table-scroll {
   width: 100%;
   overflow-x: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
 }
 
 /* page containers */
+/*
+ * A fluid stage: the page takes the room the sidebar leaves, up to a cap, so a wide table is not
+ * squeezed into a column while half the screen sits empty. Prose keeps its own `max-w-[..ch]`.
+ */
 .classical .wrap {
-  max-width: 1120px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-8);
 }
 .classical .wrap-narrow {
   max-width: 920px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-8);
+}
+
+/*
+ * The bar across the top of the stage: where you are on the left, the site's standing connection
+ * and its one global action on the right. Display is left to utilities at the call site, because
+ * a `display` here would outrank `hidden` (see DESIGN.md, Layout).
+ */
+.classical .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: 56px;
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid var(--color-divider);
+  background: color-mix(in srgb, var(--color-bg) 90%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+}
+
+/*
+ * Sidebar and section navigation.
+ *
+ * One class for the app sidebar and the settings sections, which were the same two inline styles
+ * written out twice. The current page is marked three ways (wash, bar, ink) so it does not depend
+ * on colour alone.
+ */
+.classical .side-label {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+.classical .side-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.classical .side-link svg {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+}
+.classical .side-link:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.classical .side-link[aria-current='page'] {
+  color: var(--color-text);
+  background: var(--color-accent-100);
+}
+.classical .side-link[aria-current='page'] svg {
+  color: var(--color-accent);
+}
+.classical .side-link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: 2px;
+  border-radius: 2px;
+  background: var(--color-accent);
 }
 
 /* a monospace evidence / diff block */
@@ -628,7 +891,7 @@
   }
   .classical .wrap,
   .classical .wrap-narrow {
-    padding: var(--space-6) var(--space-3);
+    padding: var(--space-6) var(--space-4);
   }
 }
 
@@ -656,8 +919,11 @@
     display: none;
   }
   .classical .site-table tr {
-    padding: var(--space-3) 0;
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--color-divider);
+  }
+  .classical .site-table tr:last-child {
+    border-bottom: 0;
   }
   .classical .site-table td {
     border: 0;

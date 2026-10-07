@@ -22,11 +22,60 @@ export const dynamic = 'force-dynamic'
  * this one did not, not three fewer rows.
  */
 const STATUS_TONE: Record<string, string> = {
-  complete: 'tag tag-success',
-  failed: 'tag tag-critical',
-  crawling: 'tag tag-accent',
-  evaluating: 'tag tag-accent',
-  queued: 'tag tag-neutral',
+  complete: 'tag tag-dot tag-success',
+  failed: 'tag tag-dot tag-critical',
+  crawling: 'tag tag-dot tag-accent',
+  evaluating: 'tag tag-dot tag-accent',
+  queued: 'tag tag-dot tag-neutral',
+}
+
+const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
+
+/**
+ * The eight axes of a site's latest completed audit, as tiles.
+ *
+ * Eight separate figures and never a total: the axes move independently, and one number would hide
+ * which of them moved. An axis that was not measured shows a dash and says so, because a zero
+ * there would read as a failing score.
+ */
+function LatestScorecard({ entry }: { entry: AuditHistoryEntry }) {
+  return (
+    <div className="card mt-4" style={{ padding: 'var(--space-5)', gap: 'var(--space-4)' }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h3 className="card-heading">Latest scorecard</h3>
+          <div className="text-muted mt-1 text-[13px]">
+            Eight areas, each scored on its own, from the audit of{' '}
+            {day.format(new Date(entry.startedAt))}.
+          </div>
+        </div>
+        <Link href={`/audits/${entry.id}`} className="shrink-0 text-[13px]">
+          Open this audit &rarr;
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {entry.scores.map((point) => (
+          <div
+            key={point.axis}
+            className="rounded-lg border p-3"
+            style={{ borderColor: 'var(--color-divider)', background: 'var(--color-surface)' }}
+          >
+            <div className="stat-label">{AXIS_LABEL[point.axis] ?? point.axis}</div>
+            <div className="stat-value stat-value-sm">
+              {point.score === null ? (
+                <span className="text-subtle">
+                  &mdash;<span className="sr-only">Not measured</span>
+                </span>
+              ) : (
+                Math.round(point.score)
+              )}
+            </div>
+            {point.score === null && <div className="stat-hint">Not measured</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function hostOf(url: string): string {
@@ -36,6 +85,10 @@ function hostOf(url: string): string {
     return url
   }
 }
+
+/** Newest first, so the first completed entry is the latest one with scores to show. */
+const latestComplete = (audits: AuditHistoryEntry[]) =>
+  audits.find((audit) => audit.status === 'complete')
 
 /** The measured axes at their lowest, which is where a reader's eye should go. */
 function lowest(entry: AuditHistoryEntry): string {
@@ -120,7 +173,7 @@ export default async function AuditsPage({
                     <th>Findings</th>
                     <th>Since the audit before</th>
                     <th>Lowest areas</th>
-                    <th />
+                    <th className="num">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,7 +214,7 @@ export default async function AuditsPage({
                       <td className="text-muted text-[13px]">
                         {audit.status === 'complete' ? lowest(audit) : (audit.error ?? '')}
                       </td>
-                      <td className="whitespace-nowrap">
+                      <td className="num whitespace-nowrap">
                         <Link href={`/audits/${audit.id}`}>View &rarr;</Link>
                       </td>
                     </tr>
@@ -169,6 +222,9 @@ export default async function AuditsPage({
                 </tbody>
               </table>
             </div>
+            {latestComplete(history.audits) && (
+              <LatestScorecard entry={latestComplete(history.audits)!} />
+            )}
           </section>
         ))
       )}

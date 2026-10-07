@@ -407,8 +407,9 @@ test('dropdowns and their options follow the dark theme', async ({ page }) => {
       scheme: getComputedStyle(element).colorScheme,
     }
   })
-  // --color-surface in the dark palette: #232120.
-  expect(colours).toEqual({ select: 'rgb(35, 33, 32)', option: 'rgb(35, 33, 32)', scheme: 'dark' })
+  // --color-bg in the dark palette: #1a1917. Fields take the page colour so they read as cut into
+  // the sidebar and the filter well, which both sit on --color-surface.
+  expect(colours).toEqual({ select: 'rgb(26, 25, 23)', option: 'rgb(26, 25, 23)', scheme: 'dark' })
 })
 
 test('keyword research offers every country by name', async ({ page }) => {

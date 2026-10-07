@@ -42,62 +42,64 @@ export function Credentials({
         </Note>
       ) : null}
 
-      <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Kind</th>
-              <th>Created</th>
-              <th>Last used</th>
-              <th>Expires</th>
-              <th>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {credentials.map((credential) => (
-              <tr key={credential.id}>
-                <td>
-                  {credential.name}
-                  {credential.current ? (
-                    <span className="tag tag-neutral ml-2">This browser</span>
-                  ) : null}
-                </td>
-                <td className="text-muted">
-                  {credential.kind === 'session' ? 'Browser session' : 'Token'}
-                </td>
-                <td className="text-muted">{day.format(new Date(credential.createdAt))}</td>
-                <td className="text-muted">{when(credential.lastUsedAt, 'Never')}</td>
-                <td className="text-muted">{when(credential.expiresAt, 'Never')}</td>
-                <td className="whitespace-nowrap">
-                  <form action={revokeCredential}>
-                    <input type="hidden" name="id" value={credential.id} />
-                    <SubmitButton
-                      className="btn btn-ghost btn-sm"
-                      pendingLabel={credential.current ? 'Signing out...' : 'Revoking...'}
-                    >
-                      {credential.current ? 'Sign out' : 'Revoke'}
-                      <span className="sr-only"> {credential.name}</span>
-                    </SubmitButton>
-                  </form>
-                </td>
+      <div className="frame">
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Kind</th>
+                <th>Created</th>
+                <th>Last used</th>
+                <th>Expires</th>
+                <th className="num">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {credentials.map((credential) => (
+                <tr key={credential.id}>
+                  <td>
+                    {credential.name}
+                    {credential.current ? (
+                      <span className="tag tag-neutral ml-2">This browser</span>
+                    ) : null}
+                  </td>
+                  <td className="text-muted">
+                    {credential.kind === 'session' ? 'Browser session' : 'Token'}
+                  </td>
+                  <td className="text-muted">{day.format(new Date(credential.createdAt))}</td>
+                  <td className="text-muted">{when(credential.lastUsedAt, 'Never')}</td>
+                  <td className="text-muted">{when(credential.expiresAt, 'Never')}</td>
+                  <td className="num whitespace-nowrap">
+                    <form action={revokeCredential}>
+                      <input type="hidden" name="id" value={credential.id} />
+                      <SubmitButton
+                        className="btn btn-ghost btn-sm"
+                        pendingLabel={credential.current ? 'Signing out...' : 'Revoking...'}
+                      >
+                        {credential.current ? 'Sign out' : 'Revoke'}
+                        <span className="sr-only"> {credential.name}</span>
+                      </SubmitButton>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      <form action={revokeOtherCredentials} className="mt-3">
-        <SubmitButton
-          className="btn btn-danger btn-sm"
-          pendingLabel="Signing out everywhere else..."
-          disabled={others === 0}
-        >
-          Sign out everywhere else
-        </SubmitButton>
-      </form>
+        <div className="panel-foot">
+          <form action={revokeOtherCredentials}>
+            <SubmitButton
+              className="btn btn-danger btn-sm"
+              pendingLabel="Signing out everywhere else..."
+              disabled={others === 0}
+            >
+              Sign out everywhere else
+            </SubmitButton>
+          </form>
+        </div>
+      </div>
     </section>
   )
 }
