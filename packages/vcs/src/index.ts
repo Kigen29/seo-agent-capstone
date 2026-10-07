@@ -22,4 +22,6 @@ export type { GitHubApp, GitHubAppConfig, InstalledRepo } from './github/client.
 
 export { verifyWebhookSignature, SIGNATURE_HEADER } from './github/webhook.js'
 export { createVercelDeploymentLookup } from './vercel-deployment.js'
+export { exchangeVercelCode, findVercelProjects, vercelConsentUrl } from './vercel-connect.js'
+export type { VercelGrant, VercelIntegration, VercelProject } from './vercel-connect.js'
 export type { DeploymentLookup, DeploymentEvidence } from './vercel-deployment.js'

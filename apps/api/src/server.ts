@@ -226,8 +226,26 @@ const keywordCostMicros = (() => {
   return Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.02) * 1_000_000)
 })()
 
+/**
+ * The Vercel integration, when the operator has registered one. All four or none: a half-set
+ * integration would show a button that fails on the consent screen.
+ */
+const vercel =
+  process.env.VERCEL_INTEGRATION_CLIENT_ID &&
+  process.env.VERCEL_INTEGRATION_CLIENT_SECRET &&
+  process.env.VERCEL_INTEGRATION_SLUG &&
+  process.env.VERCEL_INTEGRATION_REDIRECT_URI
+    ? {
+        clientId: process.env.VERCEL_INTEGRATION_CLIENT_ID,
+        clientSecret: process.env.VERCEL_INTEGRATION_CLIENT_SECRET,
+        slug: process.env.VERCEL_INTEGRATION_SLUG,
+        redirectUri: process.env.VERCEL_INTEGRATION_REDIRECT_URI,
+      }
+    : undefined
+
 const app = await buildApp({
   ...(process.env.RENDER_GIT_COMMIT ? { revision: process.env.RENDER_GIT_COMMIT } : {}),
+  ...(vercel ? { vercel } : {}),
   corsOrigins: process.env.WEB_URL ? [process.env.WEB_URL] : undefined,
   webUrl: process.env.WEB_URL,
   trustProxyHops,

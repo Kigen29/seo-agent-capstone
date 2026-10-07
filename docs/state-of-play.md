@@ -2,7 +2,9 @@
 
 Where the product actually is, what constrains it, and what to pick up next.
 
-Last reviewed: 2026-10-05.
+Last reviewed: 2026-10-07.
+
+**What shipped on 2026-10-06 and 2026-10-07, from using the product on two real sites.** The agent opened its first real pull request (kenya-safari-architect #27) after three fixes to the model chain: a retired model and a busy one now fall through, and a "try again in N seconds" is waited out instead of failing. **Audits are a history** (`/audits`, `GET /sites/:id/audits`, `GET /audits/:id/changes`): every run is listed and each says what was resolved and what is new since the one before, by finding identity. **Several pull requests in one request** (`POST /sites/:id/fixes`, ten at a time, still one pull request per finding). **Connect to Vercel** by consent (ADR-0033): one button when the operator has registered an integration (`docs/vercel-integration.md`, four `VERCEL_INTEGRATION_*` variables on the API), and either way the project is found from the repository, so the token form no longer asks for a project id. Also fixed: the profile page crashed for every signed-in person (a helper exported from a client file), and topic names repeated (now made distinct in code). **Operator action outstanding: register the Vercel integration, or the button is not shown.**
 
 **The topic map runs on Google's embedding model (ADR-0032).** The OpenAI account is inactive, so every audit had been skipping the topic map. `LLM_EMBED` is now `google:gemini-embedding-001`, and `LLM_SMART` has `google:gemini-2.5-flash` after the first Groq model so an agent request Groq calls too large is retried there at full size. The grouping threshold is per embedding model (0.88 for Google, chosen from the `calibrate-topics` workflow's output); an uncalibrated model is flagged as provisional in the coverage note. The text embedded is now each page's own content (`extract.mainText`), because the opening of a body turned out to be the menu. Keep `LLM_EMBED` to one model. Render's copies of `LLM_SMART` and `LLM_EMBED` are set by hand and must match the GitHub variables.
 

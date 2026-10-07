@@ -15,6 +15,15 @@ export interface AppOptions {
     repoFullName: string
     installationId: number
   }) => Promise<boolean>
+  /**
+   * The Vercel integration behind the "Connect to Vercel" button. Absent when the operator has
+   * not registered one, in which case the page offers the token form and nothing else.
+   */
+  vercel?: import('@seo/vcs').VercelIntegration & { fetch?: typeof globalThis.fetch }
+  /** Injectable project lookup, so a test needs no network. */
+  findVercelProjects?: typeof import('@seo/vcs').findVercelProjects
+  /** Injectable code exchange, for the same reason. */
+  exchangeVercelCode?: typeof import('@seo/vcs').exchangeVercelCode
   db?: Database
   /** Public commit SHA used to confirm the deployed API revision. */
   revision?: string

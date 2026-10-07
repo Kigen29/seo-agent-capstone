@@ -9,9 +9,10 @@ import { withTenant, oauthCredentials, sites } from '@seo/db'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import type { InstalledRepo } from '@seo/vcs'
+import { exchangeVercelCode, type InstalledRepo } from '@seo/vcs'
 import { z } from 'zod'
 import { signInstallState, verifyInstallState } from '../github-state.js'
+import { connectVercel } from '../hosting-connect.js'
 import type { RouteDeps } from '../options.js'
 import { chooseRepoForSite } from '../repo-match.js'
 
@@ -224,6 +225,88 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
       } catch (err) {
         console.error('github install callback failed', err)
         return reply.redirect(backToDashboardGithub('failed'))
+      }
+    },
+  )
+
+  /**
+   * The Vercel consent callback. Unauthenticated for the same reason as the other two: it is a
+   * browser redirect back from Vercel, carrying a code and our signed `state`, and no session.
+   *
+   * The state names the tenant and the site, so the credential is stored against a site this
+   * server named. Nothing in the query is trusted to say which site: not the team, not the
+   * configuration. The project is not taken from the query either; it is looked up from the
+   * site's own repository and then proved to serve the site's own address, exactly as a pasted
+   * token is (ADR-0028).
+   */
+  const backToHosting = (siteId: string | undefined, status: string) =>
+    `${webUrl.replace(/\/$/, '')}/settings/connections/hosting?${new URLSearchParams({
+      ...(siteId ? { siteId } : {}),
+      vercel: status,
+    }).toString()}`
+
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/connections/vercel/callback',
+    {
+      schema: {
+        querystring: z.object({
+          code: z.string().optional(),
+          state: z.string().optional(),
+          teamId: z.string().optional(),
+          configurationId: z.string().optional(),
+          next: z.string().optional(),
+          source: z.string().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const { code, state, teamId } = request.query
+
+      if (!state) return reply.redirect(backToHosting(undefined, 'declined'))
+      const verified = verifyInstallState(state)
+      if (!verified) return reply.redirect(backToHosting(undefined, 'invalid'))
+      const { tenantId, siteId } = verified
+
+      if (!options.vercel) return reply.redirect(backToHosting(siteId, 'unavailable'))
+      if (!code) return reply.redirect(backToHosting(siteId, 'declined'))
+
+      try {
+        const [site] = await withTenant(db, tenantId, (tx) =>
+          tx.select().from(sites).where(eq(sites.id, siteId)).limit(1),
+        )
+        if (!site) return reply.redirect(backToHosting(siteId, 'invalid'))
+        if (!site.repoFullName || !site.githubInstallationId)
+          return reply.redirect(backToHosting(siteId, 'norepo'))
+
+        const grant = await (options.exchangeVercelCode ?? exchangeVercelCode)(
+          options.vercel,
+          code,
+          options.vercel.fetch,
+        )
+        // The team on the grant is Vercel's statement of what was approved. The one in the
+        // query is only used when the grant names none, and only ever to scope a lookup.
+        const team =
+          grant.teamId ?? (teamId && /^team_[a-zA-Z0-9]+$/.test(teamId) ? teamId : undefined)
+
+        const result = await connectVercel(
+          { db, options },
+          tenantId,
+          {
+            id: site.id,
+            url: site.url,
+            repoFullName: site.repoFullName,
+            githubInstallationId: site.githubInstallationId,
+          },
+          { token: grant.token, ...(team ? { teamId: team } : {}) },
+        )
+        return reply.redirect(backToHosting(siteId, result.status))
+      } catch (err) {
+        // The message only: an error object from a fetch can carry the request, and the request
+        // carried a client secret.
+        request.log.error(
+          `vercel consent callback failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        )
+        return reply.redirect(backToHosting(siteId, 'failed'))
       }
     },
   )

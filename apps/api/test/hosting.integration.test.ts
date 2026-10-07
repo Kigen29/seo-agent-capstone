@@ -124,7 +124,7 @@ describe('connecting a hosting project', () => {
     const res = await call('GET', siteId, token)
 
     expect(res.statusCode).toBe(200)
-    expect(res.json()).toEqual({ mode: 'github', connection: null })
+    expect(res.json()).toEqual({ oneClick: false, mode: 'github', connection: null })
   })
 
   it('refuses a project the provider check does not confirm, and stores nothing', async () => {
@@ -156,7 +156,7 @@ describe('connecting a hosting project', () => {
     const res = await connect()
 
     expect(res.statusCode).toBe(200)
-    expect(res.json()).toEqual({ connected: true })
+    expect(res.json()).toEqual({ connected: true, projectId: 'prj_abc123' })
     // The caller names a project and a token. The site URL and repository come from our record.
     expect(validated.at(-1)).toMatchObject({
       token: SECRET,
@@ -277,7 +277,11 @@ describe('the worker loading a site connection', () => {
       revision: null,
       deploymentLookup: undefined,
     })
-    expect((await call('GET', siteId, token)).json()).toEqual({ mode: 'github', connection: null })
+    expect((await call('GET', siteId, token)).json()).toEqual({
+      oneClick: false,
+      mode: 'github',
+      connection: null,
+    })
   })
 })
 

@@ -42,7 +42,9 @@ export function HostingForm({ siteId, status }: { siteId: string; status: Hostin
       )}
 
       <label className="flex flex-col gap-1">
-        <span className="card-kicker">Vercel project ID</span>
+        <span className="card-kicker">
+          Vercel project ID, optional: left empty, it is found from the repository
+        </span>
         <input
           className="input"
           name="projectId"
@@ -50,7 +52,6 @@ export function HostingForm({ siteId, status }: { siteId: string; status: Hostin
           defaultValue={connection?.projectId ?? ''}
           spellCheck={false}
           autoComplete="off"
-          required
         />
       </label>
       <label className="flex flex-col gap-1">
