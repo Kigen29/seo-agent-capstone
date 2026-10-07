@@ -58,7 +58,8 @@ export type { ClassifiedGap, ClassifiedGapDomain, GapKind } from './authority/li
 export { evaluateCannibalisation, CANNIBALISATION_CHECKS } from './gsc/cannibalisation.js'
 export type { CannibalisationInput } from './gsc/cannibalisation.js'
 
-export { evaluateQuestionGaps, QUESTION_GAP_CHECKS } from './gsc/questions.js'
+export { evaluateQuestionGaps, isAnswered, QUESTION_GAP_CHECKS } from './gsc/questions.js'
+export { topicWords } from './gsc/question-words.js'
 
 export { findContributors } from './authority/contributors.js'
 export type {

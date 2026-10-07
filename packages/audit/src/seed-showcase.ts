@@ -22,6 +22,7 @@ import type { CompetitorSnapshot } from './competitors/snapshot.js'
 import { watchCompetitors } from './competitors/watch.js'
 import { fingerprintAll } from './fingerprint.js'
 import { baselineFor, verificationFor } from './outcome-evidence.js'
+import { evaluateClusterHubs, evaluateQuestionCoverage } from './topic-findings.js'
 
 /**
  * A second seeded tenant, with every populated state the screens can show.
@@ -271,9 +272,35 @@ export function showcaseDrafts(now: Date = new Date()): { earlier: Finding[]; la
       finish('AGENT-001#0', recent.llms),
       finish('TECH-003#0', recent.sitemap),
       finish('TECH-005#1', recent.contact),
+      // What the topic map advises (ADR-0035), from the functions the audit calls: three guide
+      // pages that do not link to each other, and the tracked questions no title or heading on
+      // this small crawl covers.
+      ...evaluateClusterHubs({
+        siteId: SHOWCASE.siteId,
+        clusters: [{ name: 'Guides', share: 3 / 48, pages: GUIDES }],
+        graph: GUIDES.map((url) => ({ url, outbound: [] })),
+        nodes: new Map(GUIDES.map((url) => [url, { inboundCount: 1, clickDepth: 2 }])),
+        observedAt: recent.blocked.evidence.observedAt,
+      }),
+      ...evaluateQuestionCoverage({
+        siteId: SHOWCASE.siteId,
+        siteUrl: URL,
+        prompts: QUESTIONS.map((question) => question.prompt),
+        pages: CRAWLED_TITLES,
+        observedAt: recent.blocked.evidence.observedAt,
+      }),
     ],
   }
 }
+
+const GUIDES = [`${URL}/guides`, `${URL}/guides/packing`, `${URL}/guides/seasons`]
+
+/** The titles and main headings of the pages the question check is run against. */
+const CRAWLED_TITLES = [
+  { url: `${URL}/`, title: 'Showcase: small-group walking tours', h1s: ['Walk with local guides'] },
+  { url: `${URL}/tours`, title: 'Guided day trips and what they cost', h1s: ['Day trip prices'] },
+  { url: `${URL}/guides/packing`, title: 'What to pack for a three-day trek', h1s: ['Packing'] },
+]
 
 /** What the agent's pull request for an earlier finding was, by the finding's key. */
 const PULL_REQUEST: Record<string, { number: number; resolution: 'merged' | null }> = {

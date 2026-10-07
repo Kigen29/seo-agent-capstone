@@ -514,5 +514,6 @@ Four code-level laws are enforced mechanically by the same pipeline: no vendor S
 | 0032 | The topic threshold belongs to the embedding model | Accepted; amends 0024 |
 | 0033 | Hosting is connected by consent, and the project is found, not typed | Accepted; extends 0028 |
 | 0034 | Competitor watch reports the order of events, never a cause | Accepted |
+| 0035 | The topic map's findings are decided by links and words, not by vectors | Accepted; extends 0024 |
 
 The ADRs are the primary source; this document summarises them and adds the deployment-cost and testing analysis the rubric requires. Where the two differ, the ADRs win, because they are never edited after acceptance and this document is regenerated.

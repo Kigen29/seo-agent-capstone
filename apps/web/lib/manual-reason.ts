@@ -53,6 +53,8 @@ const BY_RULE: Record<string, ManualReason> = {
   'LOCAL-003': 'your_content',
   'PROD-001': 'your_content',
   'PROD-002': 'your_content',
+  // A hub page is a page somebody has to write, not an edit to one that exists.
+  'TOPIC-001': 'your_content',
   // How the site is built or served.
   'TECH-017': 'beyond_a_patch',
   'TECH-018': 'beyond_a_patch',

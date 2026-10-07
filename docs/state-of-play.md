@@ -257,8 +257,13 @@ caller**, which had been recorded here as a loose end since Sprint 3. Vectors ar
 pgvector stays unused, which corrects a claim the stack documents have carried since Sprint 1:
 nothing queries vectors across audits, so a vector column would be storage with no reader.
 
-Still to do on that item: the cluster findings (a cluster with no internal hub, a tracked prompt
-with no matching cluster). The map currently adds no checks to any axis for exactly that reason.
+**Done (2026-10-07):** the map's findings, under ADR-0035. TOPIC-001 raises a group of three or
+more pages in which no page links to at least half of the others, counted from the crawl's own
+links. TOPIC-002 raises a tracked AI-visibility question whose subject words appear in no crawled
+title or main heading. Neither is decided by a vector or reads a cluster's name, and neither is
+fixable by a pull request. Each adds one check to its axis only when it could run. The planned
+"tracked prompt with no matching cluster" became a word test on purpose: the clustering threshold
+is calibrated for page against page, not question against page.
 
 **Done (2026-09-21):** Tier 3 item 8, the public check, under ADR-0025. `POST /check` and
 `GET /check/:id` are the only anonymous routes in the API and the only ones that run with no
