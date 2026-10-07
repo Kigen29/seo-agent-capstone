@@ -75,7 +75,7 @@ const MAX_FINDINGS = 10
 const clampImpact = (raw: number): number => Math.max(1, Math.min(90, Math.round(raw)))
 
 /** Does any crawled page's title or H1 already cover this question's subject? */
-function isAnswered(subject: string[], pages: PageSummary[]): boolean {
+export function isAnswered(subject: string[], pages: PageSummary[]): boolean {
   const needed = Math.max(1, Math.ceil(subject.length * COVERED))
 
   return pages.some((page) => {

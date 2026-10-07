@@ -14,7 +14,14 @@ import {
   type CrawlResult,
   type EgressPolicy,
 } from '@seo/crawler'
-import { audits, findings as findingsTable, sites, withTenant, type Database } from '@seo/db'
+import {
+  audits,
+  findings as findingsTable,
+  sites,
+  visibilityPrompts,
+  withTenant,
+  type Database,
+} from '@seo/db'
 import {
   budgeted,
   budgetedBacklinks,
@@ -37,6 +44,13 @@ import { checkDeployedFixes } from './fix-checks.js'
 import type { MergedFindingRef, VerificationCoverage } from './verify-fixes.js'
 import { measurePerformance } from './performance.js'
 import { measureTopics, type NameClusters, type TopicsLlm } from './topics.js'
+import {
+  evaluateClusterHubs,
+  evaluateQuestionCoverage,
+  HUB_CHECKS,
+  HUB_MIN_PAGES,
+  QUESTION_COVERAGE_CHECKS,
+} from './topic-findings.js'
 import { measureSearch } from './search.js'
 import { measureVisibility } from './visibility.js'
 import { measureAuthority } from './authority.js'
@@ -335,6 +349,10 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         .limit(1),
     )
 
+    // Built once: the rule engine reads it, and so does the hub check further down.
+    const graphPages = toGraphPages(result.pages)
+    const graph = buildLinkGraph(graphPages, { seed })
+
     const crawlFindings = runRules({
       siteId,
       seed,
@@ -344,7 +362,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       posture: result.posture,
       llmsTxt: result.llmsTxt,
       sitemapUrls: result.sitemapUrls,
-      graph: buildLinkGraph(toGraphPages(result.pages), { seed }),
+      graph,
       skipped: result.skipped,
       ...(result.outbound ? { outbound: result.outbound } : {}),
       ...(result.mobile ? { mobile: result.mobile } : {}),
@@ -450,12 +468,53 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       options.backlinks ?? backlinksFromEnv(db, tenantId),
     )
 
+    /**
+     * What the topic map advises (ADR-0035). Two findings, and neither is decided by a model: a
+     * group of pages with no hub is counted from the crawl's own links, and a tracked question no
+     * page is about is tested against the crawl's own titles and headings.
+     *
+     * The second needs no embeddings at all, so it runs whether or not the map was measured. The
+     * questions are read here rather than taken from the visibility report, which lists only the
+     * ones that have been polled.
+     */
+    const observedAt = new Date().toISOString()
+    const prompts = await withTenant(db, tenantId, (tx) =>
+      tx
+        .select({ prompt: visibilityPrompts.prompt })
+        .from(visibilityPrompts)
+        .where(eq(visibilityPrompts.siteId, siteId)),
+    )
+    const crawledOk = result.pages.filter((page) => page.status === 200 && !page.error)
+
+    const hubFindings = topics.map
+      ? evaluateClusterHubs({
+          siteId,
+          clusters: topics.map.clusters,
+          graph: graphPages,
+          nodes: graph.nodes,
+          observedAt,
+        })
+      : []
+    const questionFindings = evaluateQuestionCoverage({
+      siteId,
+      siteUrl: seed,
+      prompts: prompts.map((row) => row.prompt),
+      pages: crawledOk.map((page) => ({
+        url: page.finalUrl,
+        title: page.extract.title,
+        h1s: page.extract.h1s,
+      })),
+      observedAt,
+    })
+
     const found = [
       ...crawlFindings,
       ...performance.findings,
       ...search.findings,
       ...visibility.findings,
       ...authority.findings,
+      ...hubFindings,
+      ...questionFindings,
     ]
 
     const coverage = { ...ruleCoverage(), performance: performance.coverage }
@@ -492,17 +551,30 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
     }
 
     /**
-     * The topic map is described on the structure axis and adds no checks to it.
+     * The topic map is described on the structure axis, and counts as a check there only for the
+     * advice it can give.
      *
-     * Deliberate: it measures how the site's subject matter is distributed and currently raises
-     * no findings, so counting it as a check would inflate an axis score with work that produced
-     * no advice. When the cluster findings land (a cluster with no hub page, a tracked prompt
-     * with no matching cluster) they bring their own count with them.
+     * The map itself measures how the site's subject matter is distributed and is not a check: a
+     * measurement that raises no advice must not inflate a score. The hub check is one, and it is
+     * counted only when the map was measured and there was at least one group large enough to
+     * have a hub, so a site of unrelated pages is not credited with passing a test it never sat.
      */
     if (topics.map) {
+      const hubChecked = topics.map.clusters.some(
+        (cluster) => cluster.pages.length >= HUB_MIN_PAGES,
+      )
       coverage.structure = {
-        checksRun: coverage.structure.checksRun,
+        checksRun: coverage.structure.checksRun + (hubChecked ? HUB_CHECKS : 0),
         note: `${coverage.structure.note ?? ''} ${topics.coverage.note ?? ''}`.trim(),
+      }
+    }
+
+    // The question check is on the content axis, and ran only if there were questions to test
+    // and pages to test them against.
+    if (prompts.length > 0 && crawledOk.length > 0) {
+      coverage.content = {
+        ...coverage.content,
+        checksRun: coverage.content.checksRun + QUESTION_COVERAGE_CHECKS,
       }
     }
 

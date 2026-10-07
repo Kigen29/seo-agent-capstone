@@ -109,3 +109,6 @@ export type {
   WatchedChange,
   WatchedCompetitor,
 } from './competitors/report.js'
+
+// What the topic map advises (ADR-0035).
+export { evaluateClusterHubs, evaluateQuestionCoverage, HUB_MIN_PAGES } from './topic-findings.js'
