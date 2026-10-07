@@ -39,27 +39,39 @@ export default async function ConnectionsSettingsPage() {
           any time.
         </p>
 
-        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-          {connections.google.connected ? (
-            <>
-              <span className="tag tag-success self-start">Connected</span>
-              <p className="m-0 text-sm">
-                {connections.google.email ?? 'Connected, but the account email was not returned.'}
-              </p>
-            </>
-          ) : (
-            <>
-              <span className="tag tag-neutral self-start">Not connected</span>
-              <p className="text-muted m-0 text-sm">
-                Search data stays unmeasured until this is connected.
-              </p>
-              <form action={connectGoogle}>
+        <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          {/*
+            One shape for all three cards: what the state is on the left, what you can do about it
+            on the right. A row that wraps on a phone, so the action lands under the text.
+          */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              {connections.google.connected ? (
+                <>
+                  <span className="tag tag-dot tag-success">Connected</span>
+                  <span className="text-sm font-semibold break-all">
+                    {connections.google.email ??
+                      'Connected, but the account email was not returned.'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="tag tag-dot tag-neutral">Not connected</span>
+                  <span className="text-muted text-sm">
+                    Search data stays unmeasured until this is connected.
+                  </span>
+                </>
+              )}
+            </div>
+            {!connections.google.connected && (
+              <form action={connectGoogle} className="shrink-0">
+                {/* The page's one primary action: it is the connection every axis gains from. */}
                 <button type="submit" className="btn btn-primary btn-sm">
                   Connect Search Console
                 </button>
               </form>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </section>
 
@@ -70,41 +82,49 @@ export default async function ConnectionsSettingsPage() {
           branch: every change is a branch and a pull request you review.
         </p>
 
-        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-          {connections.github.connected ? (
-            <>
-              <span className="tag tag-success self-start">Connected</span>
-              {connections.github.repos.length > 0 ? (
-                <ul className="m-0 pl-4 text-sm">
-                  {connections.github.repos.map((repo) => (
-                    <li key={repo} className="break-all">
-                      {repo}
-                    </li>
-                  ))}
-                </ul>
+        <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              {connections.github.connected ? (
+                <>
+                  <span className="tag tag-dot tag-success">Connected</span>
+                  {connections.github.repos.length > 0 ? (
+                    <ul className="m-0 list-none p-0 text-sm">
+                      {connections.github.repos.map((repo) => (
+                        <li
+                          key={repo}
+                          className="break-all"
+                          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        >
+                          {repo}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    /*
+                      Installed with no repository granted is a real state and a confusing one: the
+                      App is connected and the fixer still cannot do anything. Saying so beats an
+                      empty list that reads as a rendering bug.
+                    */
+                    <span className="text-muted text-sm">
+                      The app is installed but has not been granted access to any repository yet.
+                    </span>
+                  )}
+                </>
               ) : (
-                /*
-                  Installed with no repository granted is a real state and a confusing one: the
-                  App is connected and the fixer still cannot do anything. Saying so beats an
-                  empty list that reads as a rendering bug.
-                */
-                <p className="text-muted m-0 text-sm">
-                  The app is installed but has not been granted access to any repository yet.
-                </p>
+                <>
+                  <span className="tag tag-dot tag-neutral">Not connected</span>
+                  <span className="text-muted max-w-[62ch] text-sm">
+                    Findings are still raised, but none can become a pull request until a
+                    site&apos;s repository is connected. Repositories are connected per site.
+                  </span>
+                </>
               )}
-            </>
-          ) : (
-            <>
-              <span className="tag tag-neutral self-start">Not connected</span>
-              <p className="text-muted m-0 text-sm">
-                Findings are still raised, but none can become a pull request until a site&apos;s
-                repository is connected. Repositories are connected per site.
-              </p>
-              <Link href="/dashboard" className="btn btn-primary btn-sm self-start">
-                Connect a repository
-              </Link>
-            </>
-          )}
+            </div>
+            <Link href="/dashboard" className="btn btn-secondary btn-sm shrink-0">
+              {connections.github.connected ? 'Connect another site' : 'Connect a repository'}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -115,14 +135,19 @@ export default async function ConnectionsSettingsPage() {
           proof of what your site is serving: connect each site&apos;s own Vercel project, or have
           another host report its deployments through GitHub.
         </p>
-        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-          <p className="text-muted m-0 text-sm">
-            Set up per site. A token you add is used for that site only and is never shared with
-            another account.
-          </p>
-          <Link href="/settings/connections/hosting" className="btn btn-primary btn-sm self-start">
-            Set up hosting for a site
-          </Link>
+        <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="text-muted max-w-[62ch] min-w-0 text-sm">
+              Set up per site. A token you add is used for that site only and is never shared with
+              another account.
+            </span>
+            <Link
+              href="/settings/connections/hosting"
+              className="btn btn-secondary btn-sm shrink-0"
+            >
+              Set up hosting for a site
+            </Link>
+          </div>
         </div>
       </section>
     </div>
