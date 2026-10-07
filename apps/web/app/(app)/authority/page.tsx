@@ -248,14 +248,15 @@ export default async function AuthorityPage({
 
           {site && <ContributorSearchPanel siteId={site.id} />}
 
-          <p className="text-muted m-0 text-[13px]">
+          {/* A div: a paragraph here takes the stylesheet margin and ignores the utility. */}
+          <div className="text-muted mt-6 text-[13px]">
             Measured on the audit of{' '}
             {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(
               new Date(audit.startedAt),
             )}
             . Counted by domain rather than by result, because ten pages on one news site is one
             publication that covered you.
-          </p>
+          </div>
         </>
       )}
     </main>
