@@ -116,3 +116,76 @@ describe('measurePerformance', () => {
     expect(result.coverage.note).toMatch(/this run/i)
   })
 })
+
+describe('measurePerformance, for a site that redirects to another origin', () => {
+  /** Answers with field data for one origin and 404 for every other, and records what was asked. */
+  const cruxFor = (known: string) => {
+    const asked: string[] = []
+    const fetch = vi.fn(async (_url: string, init: { body: string }) => {
+      const { origin } = JSON.parse(init.body) as { origin: string }
+      asked.push(origin)
+      const found = origin === known
+      const body = found ? cruxBody(4500) : { error: { status: 'NOT_FOUND' } }
+      return {
+        status: found ? 200 : 404,
+        ok: found,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as Response
+    })
+    return { fetch: fetch as unknown as typeof globalThis.fetch, asked }
+  }
+
+  it('finds field data under the origin the site is served from', async () => {
+    // Found on a real site: entered without www, served with it, and reported as having too
+    // little traffic to measure because only the first was ever asked about.
+    const { fetch, asked } = cruxFor('https://www.example.com')
+
+    const result = await measurePerformance(
+      's1',
+      ['https://www.example.com/', 'https://example.com'],
+      'key',
+      fetch,
+    )
+
+    expect(result.coverage.checksRun).toBe(1)
+    expect(asked).toEqual(['https://www.example.com'])
+  })
+
+  it('falls back to the origin that was typed when the served one has no data', async () => {
+    const { fetch, asked } = cruxFor('https://example.com')
+
+    const result = await measurePerformance(
+      's1',
+      ['https://www.example.com/', 'https://example.com'],
+      'key',
+      fetch,
+    )
+
+    expect(result.coverage.checksRun).toBe(1)
+    expect(asked).toEqual(['https://www.example.com', 'https://example.com'])
+  })
+
+  it('is still unmeasured, and still blames traffic, when neither origin has data', async () => {
+    const { fetch, asked } = cruxFor('https://elsewhere.example.org')
+
+    const result = await measurePerformance(
+      's1',
+      ['https://www.example.com/', 'https://example.com'],
+      'key',
+      fetch,
+    )
+
+    expect(result.coverage.checksRun).toBe(0)
+    expect(result.coverage.note).toMatch(/traffic/i)
+    expect(asked).toHaveLength(2)
+  })
+
+  it('asks once when the served origin and the typed one are the same', async () => {
+    const { fetch, asked } = cruxFor('https://elsewhere.example.org')
+
+    await measurePerformance('s1', ['https://example.com', 'https://example.com'], 'key', fetch)
+
+    expect(asked).toHaveLength(1)
+  })
+})

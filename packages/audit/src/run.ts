@@ -9,6 +9,7 @@ import { canFixFinding } from '@seo/fixers'
 import {
   buildLinkGraph,
   crawl,
+  normaliseUrl,
   toGraphPages,
   type CrawledPage,
   type CrawlResult,
@@ -246,6 +247,19 @@ function assertSiteWasReachable(
  * Runs on the worker (a GitHub Actions runner, ADR-0006), never on Vercel: it drives a real
  * Chromium.
  */
+/**
+ * The address the site's own pages were served from: the final URL of the seed if the crawl
+ * followed it there, else of the first page that loaded. Falls back to the seed.
+ */
+function servedFrom(
+  seed: string,
+  pages: readonly { url: string; finalUrl: string; status: number }[],
+): string {
+  const key = (url: string) => normaliseUrl(url) ?? url
+  const home = pages.find((page) => page.status === 200 && key(page.url) === key(seed))
+  return (home ?? pages.find((page) => page.status === 200))?.finalUrl ?? seed
+}
+
 export async function runAudit(db: Database, options: RunAuditOptions): Promise<AuditResult> {
   const { tenantId, siteId, seed } = options
 
@@ -377,7 +391,8 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
      */
     const performance = await measurePerformance(
       siteId,
-      seed,
+      // Where the crawl was actually served from, then what was typed. See measurePerformance.
+      [servedFrom(seed, result.pages), seed],
       options.cruxApiKey ?? process.env.GOOGLE_CRUX_API_KEY,
     )
 
