@@ -66,8 +66,28 @@ jobs:
       # the dashboard's e2e drives one against the real app. The falsification conditions for
       # both are about behaviour against a live origin, and no mock can falsify that, so the
       # ~1 minute this costs is the price of the tests meaning anything.
+      # Cached, like the worker's, and installed without `--with-deps`.
+      #
+      # What stalled this job twice in one day was never the browser download. `--with-deps` runs
+      # apt, and apt waited on the runner's Ubuntu mirror until the whole 15-minute job was
+      # cancelled, failing a pull request that had nothing wrong with it. The hosted image already
+      # carries the system libraries Chromium needs, because it ships Chrome, so apt has no work
+      # to do here and is not asked. If a runner image ever drops one, the browser fails to launch
+      # with the library named, which is a clear failure and not a silent stall.
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Bounded and tried twice. A stalled download now costs four minutes and a retry.
       - name: Install Chromium
-        run: pnpm --filter @seo/crawler exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 9
+        run: |
+          timeout 240 pnpm --filter @seo/crawler exec playwright install chromium \
+            || timeout 240 pnpm --filter @seo/crawler exec playwright install chromium
 
       - name: Format check
         run: pnpm format:check
