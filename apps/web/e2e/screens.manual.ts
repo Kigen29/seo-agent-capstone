@@ -180,3 +180,13 @@ test('capture authority', async ({ page }) => {
     .click()
   await page.screenshot({ path: `${OUT}/55-authority-composer-mobile.png` })
 })
+
+/** The competitors page with its add panel open. Run alone with `-g competitors`. */
+test('capture competitors', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signIn(page, SHOWCASE_TOKEN)
+  await capture(page, '/competitors', '60-competitors.png')
+  await page.getByRole('button', { name: 'Add competitor' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.screenshot({ path: `${OUT}/61-competitors-add.png` })
+})

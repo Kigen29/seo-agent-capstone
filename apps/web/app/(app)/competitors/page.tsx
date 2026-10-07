@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { citationSentence, COINCIDENCE_NOTE } from '@/lib/citation-sentence'
 import { getClient } from '@/lib/session'
+import { AddCompetitor } from './add-competitor'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,6 +91,12 @@ export default async function CompetitorsPage({
         kicker="Research"
         title="What did your competitors change?"
         description={`Once every ${watch.intervalDays} days we read a few public pages on each competitor you track and record what is different: titles, meta descriptions, main headings and pages new to their sitemap. Beside each change are their AI citations before and after it.`}
+        actions={
+          <AddCompetitor
+            siteId={site.id}
+            tracked={watch.competitors.map((competitor) => competitor.domain)}
+          />
+        }
       />
 
       {watch.competitors.length === 0 ? (
