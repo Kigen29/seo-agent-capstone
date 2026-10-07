@@ -168,3 +168,35 @@ test('the last step offers the first audit as the one primary action', async ({ 
     new RegExp(`/site\\?siteId=${SECOND_SITE}`),
   )
 })
+
+test('a competitor can be added from the top of the competitors page', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/competitors?siteId=${SECOND_SITE}`)
+
+  await page.getByRole('button', { name: 'Add competitor' }).click()
+  const panel = page.getByRole('dialog')
+  await expect(panel.getByRole('heading', { name: 'Your competitors' })).toBeVisible()
+
+  await panel.getByLabel('Add one yourself').fill('from-the-top.example.com')
+  await panel.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(
+    panel.getByRole('listitem').filter({ hasText: 'from-the-top.example.com' }),
+  ).toBeVisible()
+
+  // Closing shows it on the page behind, without a reload by hand.
+  await panel.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('main').getByText('from-the-top.example.com').first()).toBeVisible()
+
+  // Tidy up, so a rerun starts from the same place.
+  await page.getByRole('button', { name: 'Add competitor' }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('listitem')
+    .filter({ hasText: 'from-the-top.example.com' })
+    .getByRole('button', { name: /Remove/ })
+    .click()
+  await expect(
+    page.getByRole('dialog').getByRole('listitem').filter({ hasText: 'from-the-top.example.com' }),
+  ).toHaveCount(0)
+})
