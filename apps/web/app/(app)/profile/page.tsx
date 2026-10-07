@@ -108,19 +108,21 @@ export default async function ProfilePage() {
 
       <section className="mt-8">
         <h2 className="h-section mb-3">Session</h2>
-        <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
-          <p className="text-muted m-0 max-w-[60ch] text-sm">
-            Signing out revokes this browser&apos;s session on the server, not just in this browser,
-            so the credential stops working rather than merely being forgotten. Other devices you
-            are signed in on, and any token you minted for the CLI, are left alone.
-          </p>
+        <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          {/* The same row as the connection cards: what it does on the left, the action on the right. */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="text-muted max-w-[60ch] min-w-0 text-sm">
+              Signing out revokes this browser&apos;s session on the server, not just in this
+              browser, so the credential stops working rather than merely being forgotten. Other
+              devices you are signed in on, and any token you minted for the CLI, are left alone.
+            </span>
 
-          {/* Width-constrained: `.card` stretches its children, and a bare button becomes a bar. */}
-          <form action={signOut} className="self-start">
-            <SubmitButton pendingLabel="Signing out..." className="btn btn-secondary btn-sm">
-              Sign out
-            </SubmitButton>
-          </form>
+            <form action={signOut} className="shrink-0">
+              <SubmitButton pendingLabel="Signing out..." className="btn btn-secondary btn-sm">
+                Sign out
+              </SubmitButton>
+            </form>
+          </div>
         </div>
       </section>
 

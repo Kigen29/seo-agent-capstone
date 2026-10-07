@@ -24,10 +24,11 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <div className="min-w-0 flex-1">{children}</div>
       </div>
 
-      <p className="text-muted mt-8 text-[13px]">
+      {/* A div: a paragraph takes the stylesheet margin and ignores the utility (DESIGN.md). */}
+      <div className="text-muted mt-8 text-[13px]">
         Looking for your account? <Link href="/profile">Your profile</Link> has the identity you
         signed in with.
-      </p>
+      </div>
     </main>
   )
 }
