@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { MentionList } from './mention-list'
 import { OutreachWorkbench } from './outreach-workbench'
 
 export const dynamic = 'force-dynamic'
@@ -179,6 +180,8 @@ export default async function AuthorityPage({
             </Note>
           )}
 
+          <MentionList mentions={authority.mentions} measured={authority.earnedDomains !== null} />
+
           <section className="mt-8">
             <div className="mb-3 flex items-center gap-1">
               <h2 className="h-section m-0">Who to contact</h2>
@@ -194,6 +197,7 @@ export default async function AuthorityPage({
                 key={site.id}
                 siteId={site.id}
                 unlinked={authority.unlinkedMentions}
+                mentionPages={authority.mentions}
                 sampled={authority.referringDomainsSampled}
                 gap={authority.linkGap}
                 market={profile?.market}

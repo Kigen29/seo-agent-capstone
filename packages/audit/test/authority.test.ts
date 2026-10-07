@@ -56,6 +56,41 @@ describe('measureAuthority', () => {
     expect(result.coverage.note).not.toMatch(/no backlink index is configured/)
   })
 
+  it('keeps the pages that mention the brand, and says which sites do not link', async () => {
+    const mentioned = {
+      name: 'fake-serp',
+      mentions: async (query: string) => ({
+        query,
+        sources: [
+          { url: 'https://travel.example/story', title: 'A story about Heartbeest' },
+          { url: 'https://unlinked.example/review', title: 'A review' },
+          { url: 'https://heartbeestsafaris.com/about', title: 'About us' },
+        ],
+      }),
+    } as unknown as SerpProvider
+
+    const result = await measureAuthority(options, mentioned, backlinks)
+
+    // The count used to be all that survived. The pages are what make it checkable.
+    expect(result.metrics?.earnedDomains).toBe(2)
+    expect(result.metrics?.mentions).toEqual([
+      {
+        url: 'https://travel.example/story',
+        domain: 'travel.example',
+        title: 'A story about Heartbeest',
+        kind: 'earned',
+        linked: true,
+      },
+      {
+        url: 'https://unlinked.example/review',
+        domain: 'unlinked.example',
+        title: 'A review',
+        kind: 'earned',
+        linked: false,
+      },
+    ])
+  })
+
   it('measures links when the brand is not set yet', async () => {
     const result = await measureAuthority({ ...options, brand: null }, serp, backlinks)
 

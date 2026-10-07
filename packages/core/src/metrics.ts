@@ -45,6 +45,24 @@ export const authorityMetricsSchema = z.object({
    */
   unlinkedMentions: z.array(z.string()).optional(),
   /**
+   * The pages that mention the brand, so the count above can be opened and read.
+   *
+   * Undefined on an audit from before this was kept, which a reader must be told is "not
+   * recorded" and not "none". `linked` is absent when no backlink index was consulted, for the
+   * same reason `referringDomains` is nullable: unknown is not no.
+   */
+  mentions: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        domain: z.string(),
+        title: z.string().optional(),
+        kind: z.enum(['earned', 'self_published']),
+        linked: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+  /**
    * The AUTH-005 link gap: publications linking to every tracked competitor and not to this site.
    *
    * Only the editorial ones are kept, because they are the only bucket that is work. The count of
