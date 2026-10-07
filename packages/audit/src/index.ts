@@ -77,6 +77,8 @@ export {
   trafficWindows,
 } from './traffic-outcome.js'
 export type { PageTraffic } from './traffic-outcome.js'
+export { diffFindings, getAuditChanges, HISTORY_LIMIT, listSiteAudits } from './history.js'
+export type { AuditChanges, AuditHistoryEntry, AxisPoint, ChangedFinding } from './history.js'
 export { listFixAttempts } from './fix-attempts.js'
 export type { FixAttempt } from './fix-attempts.js'
 export { fixPrRates } from './fix-pr-rates.js'

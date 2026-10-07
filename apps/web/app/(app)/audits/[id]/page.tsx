@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
+import { AuditChangesSection } from '@/components/audit-changes'
 import { LiveProgress } from '@/components/live-progress'
 import { ScorecardGrid } from '@/components/scorecard'
 import { TopicMapFigure } from '@/components/topic-map'
@@ -49,6 +50,9 @@ export default async function AuditPage({
 
   const fixableCount = audit.findings.filter((finding) => finding.fixable).length
 
+  // The comparison is extra. If it cannot be read the audit is still shown, without it.
+  const changes = await api.getAuditChanges(id).catch(() => null)
+
   return (
     <main id="main" className="wrap">
       <Breadcrumbs
@@ -62,9 +66,14 @@ export default async function AuditPage({
         title={audit.siteUrl}
         description={`${audit.pagesCrawled} pages crawled · ${new Date(audit.startedAt).toLocaleString()}`}
         actions={
-          <Link href={`/findings?siteId=${audit.siteId}`} className="btn btn-secondary btn-sm">
-            All findings
-          </Link>
+          <>
+            <Link href={`/audits?siteId=${audit.siteId}`} className="btn btn-secondary btn-sm">
+              Audit history
+            </Link>
+            <Link href={`/findings?siteId=${audit.siteId}`} className="btn btn-secondary btn-sm">
+              All findings
+            </Link>
+          </>
         }
       />
 
@@ -106,6 +115,8 @@ export default async function AuditPage({
 
             <ScorecardGrid scorecard={audit.scorecard} />
           </section>
+
+          {changes && <AuditChangesSection changes={changes} />}
 
           {audit.metrics?.topics && audit.metrics.topics.clusters.length > 0 && (
             <section style={{ marginTop: 'var(--space-8)' }}>

@@ -164,6 +164,27 @@ test('an audit says how many findings there are and how many the agent can fix, 
   await expect(page.locator('main table')).toHaveCount(0)
 })
 
+test('audits are a history: every run is listed, and an audit says what changed since the last', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/audits')
+
+  await expect(page.getByRole('heading', { name: 'Audit history' })).toBeVisible()
+  const row = page.locator('main table tbody tr').first()
+  await expect(row).toContainText('complete')
+  // One seeded audit, so it is the first and says so instead of showing a comparison.
+  await expect(row).toContainText('First audit')
+  await row.getByRole('link', { name: /View/ }).click()
+
+  const since = page.getByRole('region', { name: 'Since the previous audit' })
+  await expect(since).toContainText('first completed audit of this site')
+  await expect(page.getByRole('link', { name: 'Audit history' })).toHaveAttribute(
+    'href',
+    /\/audits\?siteId=/,
+  )
+})
+
 test('every finding says who fixes it: the agent, or a named reason it is left to a person', async ({
   page,
 }) => {
