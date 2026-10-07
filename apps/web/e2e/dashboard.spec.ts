@@ -19,6 +19,8 @@ import { expect, test, type Page } from '@playwright/test'
 
 const TOKEN = 'seo_e2e_fixed_token_do_not_use_in_production'
 const OTHER_TOKEN = 'seo_e2e_other_tenant_token_do_not_use'
+// The tenant with history: packages/audit/src/seed-showcase.ts.
+const SHOWCASE_TOKEN = 'seo_e2e_showcase_token_do_not_use_in_production'
 const AUDIT = '00000000-0000-4000-8000-000000000004'
 const BLOCKED_FINDING = '00000000-0000-4000-8000-000000000005'
 
@@ -576,4 +578,43 @@ test('a bookmarked audit restores its site context before navigation', async ({ 
   await expect(page).toHaveURL(new RegExp(`/audits/${AUDIT}\\?siteId=`))
   await page.getByRole('link', { name: 'All findings', exact: true }).click()
   await expect(page).toHaveURL(/\/findings\?siteId=00000000-0000-4000-8000-000000000003/)
+})
+
+/**
+ * Competitor watch (ADR-0034). The story's falsification condition is that the page claims a
+ * competitor's change caused a citation gain, so the assertion that matters is about wording: the
+ * counts are there with their samples, the denial is there, and no causal claim is.
+ */
+test('competitor watch shows what changed beside citations, and claims no cause', async ({
+  page,
+}) => {
+  await signIn(page, SHOWCASE_TOKEN)
+  await page.goto('/competitors')
+
+  await expect(
+    page.getByRole('heading', { name: /what did your competitors change/i }),
+  ).toBeVisible()
+
+  // Read, and looked-but-could-not-read, are two different rows and neither is a zero.
+  const main = page.locator('main')
+  await expect(main.getByText(/^Read \d{1,2} \w{3,4} \d{4}, 2 pages$/)).toBeVisible()
+  await expect(main.getByText(/robots\.txt asks crawlers like ours to stay out/)).toBeVisible()
+
+  const batch = page.locator('article').first()
+  await expect(batch.getByText('What a guided day costs, and what is included')).toBeVisible()
+  await expect(batch.getByText('New page')).toBeVisible()
+  await expect(batch.getByText(/cited in \d+ of \d+ checks in the 7 days before/i)).toBeVisible()
+  await expect(batch.getByText(/not evidence of a cause/)).toBeVisible()
+  await expect(batch).not.toContainText(/because|led to|caused|lift|%/i)
+})
+
+test('competitor watch with no competitors says where to name them', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/competitors')
+
+  await expect(page.getByText('No competitors tracked yet')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Name your competitors' })).toHaveAttribute(
+    'href',
+    /\/visibility\?siteId=/,
+  )
 })

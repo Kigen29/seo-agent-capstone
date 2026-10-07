@@ -1,4 +1,12 @@
-const queues = ['audit', 'fix', 'verify-fix', 'verify', 'confirm-verify', 'poll-ai'] as const
+const queues = [
+  'audit',
+  'fix',
+  'verify-fix',
+  'verify',
+  'confirm-verify',
+  'poll-ai',
+  'watch-competitors',
+] as const
 type Queue = (typeof queues)[number]
 
 /** Validate before connecting, so a typo cannot silently drain unrelated work. */

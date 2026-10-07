@@ -673,6 +673,64 @@ export const authHandoffs = pgTable(
   (table) => [uniqueIndex('auth_handoffs_code_idx').on(table.codeHash)],
 )
 
+/**
+ * What a tracked competitor's public pages said on one day (ADR-0034).
+ *
+ * Kept only to diff the next snapshot against, so the writer deletes all but the latest two per
+ * competitor. That deletion, with the gzip on `body`, is the storage bound: the table's size
+ * is a function of how many competitors are tracked, never of how long they have been.
+ */
+export const competitorSnapshots = pgTable(
+  'competitor_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+
+    /** The competitor's host, as configured on the site. */
+    competitor: text('competitor').notNull(),
+    takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
+    pagesRead: integer('pages_read').notNull().default(0),
+
+    /** Why nothing could be read. Null when the snapshot is a real one. */
+    note: text('note'),
+
+    /** Gzipped JSON of the pages read and the sitemap's URL list. */
+    body: bytea('body').notNull(),
+    bytes: integer('bytes').notNull(),
+  },
+  (table) => [
+    index('competitor_snapshots_site_idx').on(table.siteId, table.competitor, table.takenAt),
+  ],
+)
+
+/** One thing that differed between two consecutive snapshots of a competitor. */
+export const competitorChanges = pgTable(
+  'competitor_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+
+    competitor: text('competitor').notNull(),
+    detectedAt: timestamp('detected_at', { withTimezone: true }).notNull().defaultNow(),
+
+    kind: text('kind').$type<'title' | 'description' | 'h1' | 'new_url'>().notNull(),
+    url: text('url').notNull(),
+    before: text('before'),
+    after: text('after'),
+  },
+  (table) => [index('competitor_changes_site_idx').on(table.siteId, table.detectedAt)],
+)
+
 /** Every table that carries a tenant_id, and therefore every table that needs RLS. */
 export const TENANT_SCOPED = [
   hostingConnections,
@@ -687,6 +745,8 @@ export const TENANT_SCOPED = [
   spend,
   userIdentities,
   authHandoffs,
+  competitorSnapshots,
+  competitorChanges,
 ] as const
 
 /**

@@ -90,6 +90,8 @@ export const TENANT_SCOPED_TABLES = [
   'user_identities',
   'auth_handoffs',
   'fix_attempts',
+  'competitor_snapshots',
+  'competitor_changes',
 ] as const
 
 /** The full RLS setup, in the order a migration must apply it. */
