@@ -36,7 +36,8 @@ export function toUserError(error: unknown, doing: string): UserError {
   if (error instanceof ApiRequestError) {
     const said = error.message?.trim()
 
-    if (error.status === 400 || error.status === 422) {
+    // A 409 is the API refusing because something else has to be true first, in words it chose.
+    if (error.status === 400 || error.status === 409 || error.status === 422) {
       return {
         kind: 'invalid',
         title: `We could not ${doing}`,

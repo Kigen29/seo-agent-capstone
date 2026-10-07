@@ -2,6 +2,7 @@ import type { PromptSummary, VisibilityReport } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
+import { InfoHint } from '@/components/ui/info-hint'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { QuestionMiner } from './question-miner'
@@ -43,10 +44,10 @@ const STABILITY: Record<
   absent: {
     label: 'Not cited',
     className: 'tag tag-critical',
-    help: 'Polled enough to be sure: the engines are not citing you for this.',
+    help: 'Checked enough times to be sure: the engines do not cite you for this.',
   },
   insufficient: {
-    label: 'Still polling',
+    label: 'Still checking',
     className: 'tag tag-neutral',
     help: 'Not enough checks, or not over enough days, to say anything yet.',
   },
@@ -132,13 +133,23 @@ export default async function VisibilityPage({
         <>
           <StatRow>
             <Stat
-              label="Prompts with a verdict"
+              label="Questions with an answer"
               value={`${report.promptsMeasured} of ${report.promptsConfigured}`}
+              hint="Checked often enough to call"
             />
-            <Stat label="Checks run" value={report.checksRun.toLocaleString('en-US')} />
-            <Stat label="Days polled" value={`${report.daysPolled} of ${report.windowDays}`} />
+            <Stat
+              label="Checks run"
+              value={report.checksRun.toLocaleString('en-US')}
+              hint="One per question, per engine, per day"
+            />
+            <Stat
+              label="Days checked"
+              value={`${report.daysPolled} of ${report.windowDays}`}
+              hint="A verdict needs at least three"
+            />
             <Stat
               label="Share of voice"
+              hint="Your part of all citations"
               value={
                 report.share ? (
                   percent(report.share.clientShare)
@@ -162,7 +173,7 @@ export default async function VisibilityPage({
           {report.prompts.length > 0 && (
             <section className="mb-6">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="h-section m-0">Per prompt</h2>
+                <h2 className="h-section m-0">Question by question</h2>
                 <span className="text-muted text-[12px]">Last {report.windowDays} days</span>
               </div>
               <div className="table-scroll">
@@ -220,11 +231,24 @@ export default async function VisibilityPage({
 
           {report.share && (
             <section className="mb-6">
-              <h2 className="h-section mb-1">Share of voice</h2>
-              <p className="text-muted mt-0 mb-3 max-w-[68ch] text-sm">
-                Citations across every check in the window, yours against the competitors this site
-                is configured to watch.
-              </p>
+              <div className="mb-1 flex items-center gap-1">
+                <h2 className="h-section m-0">Share of voice</h2>
+                <InfoHint label="share of voice">
+                  Every time an AI answer cited you or one of your competitors counts as one
+                  citation. Share of voice is the part of those that went to you. It only compares
+                  you with the competitors you chose, so adding or removing one changes the figure.
+                </InfoHint>
+              </div>
+              <div className="text-muted mb-3 max-w-[68ch] text-sm">
+                How often AI answers cited you, beside how often they cited each competitor.
+                {site && (
+                  <>
+                    {' '}
+                    Competitors are chosen on{' '}
+                    <Link href={`/site?siteId=${site.id}`}>site setup</Link>.
+                  </>
+                )}
+              </div>
               <div className="frame">
                 <ul className="m-0 list-none p-0">
                   <li className="flex items-baseline justify-between gap-4 px-4 py-3">
@@ -263,7 +287,7 @@ export default async function VisibilityPage({
 
           {report.engines.length > 0 && (
             <p className="text-muted m-0 text-[13px]">
-              Polled on {report.engines.join(', ')}, over the last {report.windowDays} days.
+              Checked on {report.engines.join(', ')}, over the last {report.windowDays} days.
             </p>
           )}
         </>

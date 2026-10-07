@@ -167,8 +167,13 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   live on `/site`, which is now the one place for brand, offering, market, competitors and
   connections; the dashboard carries a one-line count that links there.
 - **One shape for errors**: `act()` in `apps/web/lib/action.ts` returns `ActionResult`, and
-  `<ErrorNote>` shows it. New actions use it. The older actions (question miner, contributor
-  search, outreach pitch, keyword forms) still return `{ error: string }` and are being moved over.
+  `<ErrorNote>` shows it, with a title and a way forward. Every form that reports a failure in
+  place uses it. Actions that redirect (start an audit, verify ownership, open a pull request)
+  carry a status in the address and land on a `<Note>` banner, which is the same visual shape.
+- **Authority** is four figures and one "who to contact" section: three tabs ordered by how likely
+  a reply is, one action per row, and a single email composer in a `<dialog>` that remembers the
+  fact between publications. It still cannot send; the draft is copied or opened in the person's
+  own mail program.
 - **The eval harness** (`packages/eval`): precision, recall, hallucination rate, judge-independence
   check, and a documented labelling method.
 - **MCP server** (`apps/mcp`): exposes the product to an external agent. Writes are off unless

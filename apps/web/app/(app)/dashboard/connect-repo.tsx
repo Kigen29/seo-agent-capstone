@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { ErrorNote } from '@/components/ui/error-note'
+import type { UserError } from '@/lib/user-error'
 import { beginConnectRepo, chooseRepo } from './actions'
 
 type Pick = { repos: { fullName: string }[]; manageUrl: string }
@@ -25,12 +27,17 @@ export function ConnectRepo({
   const [pending, start] = useTransition()
   const [pick, setPick] = useState<Pick | null>(null)
   const [selected, setSelected] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<UserError | null>(null)
 
   function begin() {
     setError(null)
     start(async () => {
-      const result = await beginConnectRepo(siteId)
+      const answer = await beginConnectRepo(siteId)
+      if (!answer.ok) {
+        setError(answer.error)
+        return
+      }
+      const result = answer.data
       if (result.mode === 'install') {
         window.location.href = result.url
         return
@@ -42,9 +49,7 @@ export function ConnectRepo({
         }
         setPick({ repos: result.repos, manageUrl: result.manageUrl })
         setSelected(result.repos[0]!.fullName)
-        return
       }
-      setError(result.message)
     })
   }
 
@@ -53,7 +58,7 @@ export function ConnectRepo({
     setError(null)
     start(async () => {
       const result = await chooseRepo(siteId, selected)
-      if ('error' in result) {
+      if (!result.ok) {
         setError(result.error)
         return
       }
@@ -96,11 +101,7 @@ export function ConnectRepo({
         <a href={pick.manageUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
           Repository not listed? Grant the app access on GitHub &rarr;
         </a>
-        {error && (
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-            {error}
-          </span>
-        )}
+        <ErrorNote error={error} />
       </div>
     )
   }
@@ -115,11 +116,7 @@ export function ConnectRepo({
       >
         {pending ? 'Loading...' : repoFullName ? 'Change repo' : 'Connect repo'}
       </button>
-      {error && (
-        <span style={{ fontSize: 12, color: 'var(--color-neutral-800)' }} role="alert">
-          {error}
-        </span>
-      )}
+      <ErrorNote error={error} />
     </div>
   )
 }

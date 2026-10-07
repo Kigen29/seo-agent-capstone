@@ -162,7 +162,7 @@ export function Overview({
             <Figure label="Avg position" value={search.position.toFixed(1)} />
           </div>
         ) : (
-          <NotMeasured reason="Connect Google Search Console, then run an audit." />
+          <NotMeasured reason="Connect Google Search Console on site setup, then run an audit." />
         )}
       </Card>
 
@@ -172,7 +172,7 @@ export function Overview({
         foot={
           visibility && !visibility.note && visibility.engines.length > 0 ? (
             <>
-              <span>Polled on</span>
+              <span>Checked on</span>
               <span>{visibility.engines.join(', ')}</span>
             </>
           ) : undefined
@@ -181,7 +181,7 @@ export function Overview({
         {visibility && !visibility.note ? (
           <div className="grid grid-cols-3 gap-4">
             <Figure
-              label="With a verdict"
+              label="With an answer"
               value={
                 <>
                   {visibility.promptsMeasured}{' '}
@@ -206,7 +206,9 @@ export function Overview({
             a verdict. Three different answers, and none of them is a zero.
           */
           <NotMeasured
-            reason={visibility?.note ?? 'Add the questions your customers ask, and polling starts.'}
+            reason={
+              visibility?.note ?? 'Add the questions your customers ask, and daily checks start.'
+            }
           />
         )}
       </Card>
@@ -215,7 +217,7 @@ export function Overview({
         {authority ? (
           <div className="grid grid-cols-3 gap-4">
             <Figure
-              label="Earned media"
+              label="Wrote about you"
               value={
                 authority.earnedDomains === null
                   ? dash
@@ -223,7 +225,7 @@ export function Overview({
               }
             />
             <Figure
-              label="Referring"
+              label="Link to you"
               value={
                 authority.referringDomains === null
                   ? dash
@@ -231,7 +233,7 @@ export function Overview({
               }
             />
             <Figure
-              label="Mention, no link"
+              label="No link yet"
               value={
                 authority.unlinkedMentions
                   ? authority.unlinkedMentions.length.toLocaleString('en-US')
@@ -240,7 +242,7 @@ export function Overview({
             />
           </div>
         ) : (
-          <NotMeasured reason="Needs a SERP data source, which is a paid dependency and off by default." />
+          <NotMeasured reason="Not switched on. Counting who mentions you needs a paid search-data source, which is off by default." />
         )}
       </Card>
     </div>
