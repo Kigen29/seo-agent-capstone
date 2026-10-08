@@ -1,3 +1,4 @@
+import { containsName } from '../text/name-match.js'
 import { hostOf, sameSite } from '../visibility/citation.js'
 import type { SerpSource } from '../serp/types.js'
 import { DIRECTORIES, matches, PLATFORMS } from './platforms.js'
@@ -172,27 +173,6 @@ export function listMentions(
     .slice(0, MAX_MENTION_PAGES)
 }
 
-/**
- * Letters and digits only, lower case, accents removed, everything else a single space.
- *
- * So "Heartbeest  Safaris", "heartbeest-safaris" and "HEARTBEEST SAFARIS" are one name, and a
- * page is not refused for a hyphen or a capital.
- */
-function plain(text: string): string {
-  return text
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-}
-
-/** Whether the name appears in the text as whole words, in order. */
-function names(text: string | undefined, name: string): boolean {
-  if (!text || !name) return false
-  return ` ${plain(text)} `.includes(` ${name} `)
-}
-
 export interface ConfirmedMentions {
   /** Results whose own text contains the name as written. */
   confirmed: SerpSource[]
@@ -220,7 +200,6 @@ export interface ConfirmedMentions {
  * direction costs a client emailing six strangers about articles that were never about them.
  */
 export function confirmMentions(sources: readonly SerpSource[], brand: string): ConfirmedMentions {
-  const name = plain(brand)
   const confirmed: SerpSource[] = []
   const rejected: SerpSource[] = []
 
@@ -233,7 +212,11 @@ export function confirmMentions(sources: readonly SerpSource[], brand: string): 
       // Left as it came. A malformed address simply will not match.
     }
 
-    if (names(source.title, name) || names(source.snippet, name) || names(address, name)) {
+    if (
+      containsName(source.title, brand) ||
+      containsName(source.snippet, brand) ||
+      containsName(address, brand)
+    ) {
       confirmed.push(source)
     } else {
       rejected.push(source)
