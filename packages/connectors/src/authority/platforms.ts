@@ -54,8 +54,34 @@ export const DIRECTORIES: readonly string[] = [
   'thomasnet.com',
   'europages.com',
   'kompass.com',
+  // Travel listings and marketplaces: an operator's own profile or tour page, not coverage.
+  'safaribookings.com',
+  'tourradar.com',
+  'viator.com',
+  'getyourguide.com',
+  'tourtravelworld.com',
+  // Document hosts: what is found there is a brochure somebody uploaded.
+  'slideshare.net',
+  'scribd.com',
+  'issuu.com',
 ]
+
+/**
+ * Listing sites that run one site per country: tripadvisor.ru, tripadvisor.co.uk, yelp.de.
+ *
+ * Matching `tripadvisor.com` alone let `tripadvisor.ru` through as an independent publication
+ * to pitch. These are matched by name, whatever the ending.
+ */
+const DIRECTORY_BRANDS: readonly string[] = ['tripadvisor', 'yelp', 'trustpilot']
+
+/** Whether `host` is another country's site of the listing brand that `entry` names. */
+function isCountrySiteOf(host: string, entry: string): boolean {
+  const brand = entry.endsWith('.com') ? entry.slice(0, -'.com'.length) : ''
+  if (!DIRECTORY_BRANDS.includes(brand)) return false
+  // tripadvisor.ru, www.tripadvisor.co.uk, tripadvisor.com.au. Not nottripadvisor.ru.
+  return new RegExp(`(^|\\.)${brand}\\.(com?\\.)?[a-z]{2,3}$`).test(host)
+}
 
 /** Whether a host is one of these, or a subdomain of one. */
 export const matches = (host: string, list: readonly string[]): boolean =>
-  list.some((entry) => host === entry || host.endsWith(`.${entry}`))
+  list.some((entry) => host === entry || host.endsWith(`.${entry}`) || isCountrySiteOf(host, entry))

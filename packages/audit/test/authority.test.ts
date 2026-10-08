@@ -62,9 +62,13 @@ describe('measureAuthority', () => {
       mentions: async (query: string) => ({
         query,
         sources: [
-          { url: 'https://travel.example/story', title: 'A story about Heartbeest' },
-          { url: 'https://unlinked.example/review', title: 'A review' },
-          { url: 'https://heartbeestsafaris.com/about', title: 'About us' },
+          { url: 'https://travel.example/story', title: 'On the road with Heartbeest Safaris' },
+          {
+            url: 'https://unlinked.example/review',
+            title: 'A review',
+            snippet: 'Our week with Heartbeest Safaris in the Mara.',
+          },
+          { url: 'https://heartbeestsafaris.com/about', title: 'About Heartbeest Safaris' },
         ],
       }),
     } as unknown as SerpProvider
@@ -77,7 +81,7 @@ describe('measureAuthority', () => {
       {
         url: 'https://travel.example/story',
         domain: 'travel.example',
-        title: 'A story about Heartbeest',
+        title: 'On the road with Heartbeest Safaris',
         kind: 'earned',
         linked: true,
       },
@@ -89,6 +93,48 @@ describe('measureAuthority', () => {
         linked: false,
       },
     ])
+    expect(result.metrics?.mentionSearch).toEqual({ brand: 'Heartbeest Safaris', leftOut: 0 })
+  })
+
+  /**
+   * The fault reported from production on 8 October 2026. The search engine read "Heartbeest"
+   * as a misspelling of "hartebeest" and returned another company, African Hartebeest Safaris.
+   * Six sites, six "no link" pitches and a finding were all reported to the client about a
+   * business that was not theirs.
+   */
+  it('counts nothing when every result is about a similarly named business', async () => {
+    const wrongCompany = {
+      name: 'fake-serp',
+      mentions: async (query: string) => ({
+        query,
+        sources: [
+          {
+            url: 'https://africanhartebeest.com/7-days-treasures-of-north-tanzania-safari',
+            title: '7-Days Treasures of North Tanzania Safari',
+          },
+          {
+            url: 'https://africantravelcenter.net/tour-agency/african-hartebeest/',
+            title: 'African Hartebeest | Tour Operator Profile in Kenya',
+          },
+          {
+            url: 'https://www.tourtravelworld.com/travel-agents/african-hartebeest-safaris-nairobi-377189/nairobi_tour_packages.htm',
+            title: 'Nairobi Tour Packages of African Hartebeest Safaris',
+          },
+        ],
+      }),
+    } as unknown as SerpProvider
+
+    const result = await measureAuthority(options, wrongCompany, backlinks)
+
+    expect(result.metrics?.earnedDomains).toBe(0)
+    expect(result.metrics?.mentions).toEqual([])
+    expect(result.metrics?.unlinkedMentions).toEqual([])
+    // Said, not hidden: the reader is told results came back and why they were not counted.
+    expect(result.metrics?.mentionSearch).toEqual({ brand: 'Heartbeest Safaris', leftOut: 3 })
+    expect(result.coverage.note).toMatch(/3 search result\(s\) were left out/)
+    expect(result.coverage.note).toMatch(/a business with a similar name/)
+    // And no finding names the other company's sites as publications to chase.
+    expect(JSON.stringify(result.findings)).not.toMatch(/africanhartebeest|tourtravelworld/)
   })
 
   it('measures links when the brand is not set yet', async () => {

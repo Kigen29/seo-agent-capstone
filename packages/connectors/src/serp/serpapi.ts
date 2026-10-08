@@ -105,13 +105,18 @@ export const DEFAULT_SERP_COST_PER_QUERY_USD = 0.025
 export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
   const doFetch = options.fetch ?? globalThis.fetch
 
-  async function search(query: string, query_options?: SerpQueryOptions): Promise<SerpApiResponse> {
+  async function search(
+    query: string,
+    query_options?: SerpQueryOptions,
+    extra: Record<string, string> = {},
+  ): Promise<SerpApiResponse> {
     const params = new URLSearchParams({
       engine: 'google',
       q: query,
       api_key: options.apiKey,
       gl: query_options?.country ?? options.country ?? 'us',
       hl: query_options?.language ?? options.language ?? 'en',
+      ...extra,
     })
 
     const response = await doFetch(`${ENDPOINT}?${params.toString()}`)
@@ -173,7 +178,13 @@ export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
     },
 
     async mentions(brand, queryOptions) {
-      const body = await search(brand, queryOptions)
+      /*
+        `nfpr=1` asks Google not to substitute a spelling it prefers. Without it a brand whose
+        name is close to a dictionary word is searched as that word: "Heartbeest" became
+        "hartebeest" and every result was another company. It is a request, not a guarantee, so
+        the caller still checks each result for the name (see confirmMentions).
+      */
+      const body = await search(brand, queryOptions, { nfpr: '1' })
 
       return {
         query: brand,

@@ -2,6 +2,7 @@ import type { AuthorityMetrics, AxisCoverage, Finding } from '@seo/core'
 import {
   classifyGap,
   classifyMentions,
+  confirmMentions,
   listMentions,
   evaluateAuthority,
   linkGapFinding,
@@ -111,7 +112,13 @@ export async function measureAuthority(
 
   try {
     const own = await provider.mentions(mentionQuery(brand, options.domain))
-    const footprint = classifyMentions(own.sources, options.domain)
+    /*
+      Checked before anything is counted. A search engine returns what it thinks was meant, and
+      for a name close to a dictionary word that is another business entirely. Only results that
+      contain the name as written go on to be classified, listed and pitched.
+    */
+    const checked = confirmMentions(own.sources, brand)
+    const footprint = classifyMentions(checked.confirmed, options.domain)
 
     /**
      * Competitors are compared on the same instrument: the same query shape, the same exclusion
@@ -128,7 +135,10 @@ export async function measureAuthority(
         const result = await provider.mentions(mentionQuery(domain, domain))
         return {
           domain,
-          earnedDomains: classifyMentions(result.sources, domain).earnedDomains.length,
+          // The same check as for the client, or the comparison would flatter whoever was
+          // measured more generously.
+          earnedDomains: classifyMentions(confirmMentions(result.sources, domain).confirmed, domain)
+            .earnedDomains.length,
         }
       }),
     )
@@ -187,6 +197,7 @@ export async function measureAuthority(
         earnedDomains: report.earnedCount,
         selfPublishedDomains: footprint.selfPublishedDomains.length,
         ...(report.unlinkedMentions ? { unlinkedMentions: report.unlinkedMentions } : {}),
+        mentionSearch: { brand, leftOut: checked.rejected.length },
         mentions: listMentions(footprint, options.domain, report.unlinkedMentions),
         ...(gap && classifiedGap
           ? {
@@ -204,6 +215,10 @@ export async function measureAuthority(
         // link index when it was consulted, and the gap query when it ran.
         checksRun: 1 + competitors.length + (links ? 1 : 0) + (gap ? 1 : 0),
         note:
+          (checked.rejected.length > 0
+            ? `${checked.rejected.length} search result(s) were left out because the page did not ` +
+              `contain "${brand}" as written, which usually means a business with a similar name. `
+            : '') +
           `Measured from web mentions of "${brand}": ${report.earnedCount} distinct earned-media ` +
           `domain(s), plus ${footprint.selfPublishedDomains.length} self-published platform(s), ` +
           `counted by domain rather than by result because ten pages on one news site is one ` +

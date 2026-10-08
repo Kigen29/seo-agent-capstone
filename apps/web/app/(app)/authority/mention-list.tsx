@@ -103,7 +103,10 @@ function SiteRows({ sites }: { sites: Site[] }) {
 export function MentionList({
   mentions,
   measured,
+  search,
 }: {
+  /** How the mentions were found. Absent on an audit from before this was recorded. */
+  search?: { brand: string; leftOut: number } | undefined
   /** Undefined on an audit from before the pages were kept. */
   mentions: Mention[] | undefined
   /** Mentions were counted on this audit, so a missing list means "not recorded", not "none". */
@@ -131,6 +134,43 @@ export function MentionList({
         The pages behind the figures above. Open any of them to read what was said.
       </div>
 
+      {/*
+        The working, shown. A count nobody can trace is a count nobody should trust, and the one
+        time this axis was badly wrong it was because a search engine answered a different
+        question from the one asked and nothing on the page said what had been asked.
+      */}
+      {search && (
+        <div className="text-muted mb-3 max-w-[68ch] text-[13px]">
+          Searched for the exact name &ldquo;{search.brand}&rdquo;, leaving out your own site. A
+          result is only counted when its title, summary or address contains that name as written.
+          {search.leftOut > 0 && (
+            <>
+              {' '}
+              <span className="font-semibold" style={{ color: 'var(--color-text)' }}>
+                {search.leftOut} {search.leftOut === 1 ? 'result was' : 'results were'} left out
+              </span>{' '}
+              because {search.leftOut === 1 ? 'it did' : 'they did'} not, which usually means a
+              business with a similar name.
+            </>
+          )}
+        </div>
+      )}
+
+      {/*
+        An audit from before each result was checked for the name. Its figures may describe a
+        business with a similar name, and saying so is better than showing them as fact.
+      */}
+      {mentions !== undefined && !search && (
+        <div role="alert" className="note note-warn mb-3 max-w-[68ch]">
+          <div className="font-semibold">These results were not checked for your exact name</div>
+          <div className="mt-0.5">
+            This audit was measured before that check existed, so some or all of the pages below,
+            and the figures above, may be about a business with a similar name. Run a new audit and
+            only pages that contain your name as written will be counted.
+          </div>
+        </div>
+      )}
+
       {mentions === undefined && (
         <div className="note note-info max-w-[68ch]">
           The pages were not recorded on this audit, only how many sites there were. Run a new audit
@@ -140,8 +180,8 @@ export function MentionList({
 
       {mentions !== undefined && earned.length === 0 && (
         <div className="note note-info max-w-[68ch]">
-          No independent site was found mentioning your brand name. If that looks wrong, check the
-          brand name on site setup is written the way the press writes it.
+          No independent site was found that mentions your brand name as written. If that looks
+          wrong, check the brand name on site setup is spelled the way the press writes it.
         </div>
       )}
 

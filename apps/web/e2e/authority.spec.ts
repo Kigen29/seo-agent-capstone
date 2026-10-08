@@ -154,3 +154,22 @@ test('a publication to contact opens on what it wrote, not on its front page', a
     'https://travel-desk.example.net/guides/off-season-departures',
   )
 })
+
+test('the page shows how the mentions were found, and how many results were refused', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/authority')
+
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Where you were mentioned' }),
+  })
+  // The name that was searched, the rule a result has to pass, and what did not pass it.
+  await expect(section).toContainText('Searched for the exact name')
+  await expect(section).toContainText('contains that name as written')
+  await expect(section).toContainText('2 results were left out')
+  // Checked results carry no warning about being unchecked.
+  await expect(section.getByText('These results were not checked for your exact name')).toHaveCount(
+    0,
+  )
+})
