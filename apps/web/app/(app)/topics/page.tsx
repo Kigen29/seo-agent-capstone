@@ -133,11 +133,20 @@ export default async function TopicsPage({
         <>
           <StatRow>
             {/* "k of N", so a map over part of the site says so. */}
-            <Stat label="Pages grouped" value={`${map.pagesEmbedded} of ${map.pagesCrawled}`} />
-            <Stat label="Groups" value={String(groups.length)} />
-            <Stat label="Standing alone" value={String(alone.length)} />
             <Stat
-              label="Advice"
+              label="Pages compared"
+              value={`${map.pagesEmbedded} of ${map.pagesCrawled}`}
+              hint="Of the pages the audit read"
+            />
+            <Stat label="Groups" value={String(groups.length)} hint="Pages about one subject" />
+            <Stat
+              label="Standing alone"
+              value={String(alone.length)}
+              hint="Pages unlike any other"
+            />
+            <Stat
+              label="Suggestions"
+              hint="Things to link or to write"
               value={String(advice.length)}
               tone={advice.length > 0 ? 'accent' : undefined}
             />
