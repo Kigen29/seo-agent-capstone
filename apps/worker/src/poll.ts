@@ -183,7 +183,7 @@ export async function runPollAi(
 ): Promise<{ prompts: number; checks: number }> {
   const site = await withTenant(db, job.tenantId, async (tx) => {
     const [row] = await tx
-      .select({ url: sites.url, competitors: sites.competitors })
+      .select({ url: sites.url, competitors: sites.competitors, brand: sites.brand })
       .from(sites)
       .where(eq(sites.id, job.siteId))
       .limit(1)
@@ -211,7 +211,12 @@ export async function runPollAi(
     return { prompts: prompts.length, checks: 0 }
   }
 
-  const target: PollTarget = { domain: site.url, competitors: site.competitors }
+  const target: PollTarget = {
+    domain: site.url,
+    competitors: site.competitors,
+    // So an answer that names the business, and gives no sources, is not read as silence.
+    brand: site.brand,
+  }
   let written = 0
 
   for (const prompt of prompts) {

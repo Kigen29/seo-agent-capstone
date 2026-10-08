@@ -37,6 +37,12 @@ export interface PollTarget {
   domain: string
   /** Competitor domains, for share of voice. */
   competitors: string[]
+  /**
+   * The client's name as a person writes it, e.g. 'Heartbeest Safaris'. Used only when an engine
+   * gives no source list and the answer's own words are all there is to go on. Absent until the
+   * site has one, in which case the domain alone is looked for.
+   */
+  brand?: string | null
 }
 
 /** The deterministic verdict for one engine answer: was the client cited, and which rivals were. */

@@ -1,3 +1,4 @@
+import { containsName } from '../text/name-match.js'
 import type { CitationCheck, EngineAnswer, PollTarget } from './types.js'
 
 /**
@@ -31,9 +32,24 @@ export function sameSite(a: string, b: string): boolean {
 }
 
 /** Whether the answer text names the domain, used only when the engine returns no source list. */
-function answerMentions(answer: string, domain: string): boolean {
+function answerMentions(answer: string, domain: string, brand?: string | null): boolean {
   const host = hostOf(domain)
   if (!host) return false
+
+  /*
+    With a name, the name decides. An assistant that recommends a business says "Heartbeest
+    Safaris"; it almost never spells out the web address. Looking only for the address, or for
+    the address squashed into one word, reported such an answer as not mentioning the client at
+    all, so a business that was being named every day read as invisible.
+
+    And once there is a name, the squashed-address guess below is not used. For a site like
+    tiles.co.ke it looks for the word "tiles", which any answer about tiles contains, and the
+    client was then "mentioned" by answers that never named them.
+  */
+  if (brand?.trim()) {
+    return answer.toLowerCase().includes(host) || containsName(answer, brand)
+  }
+
   // Normalise once and match everything against the lowercased text; `host` and the stem are
   // already lowercase, so no case-insensitive flag is needed and the match stays deterministic.
   const haystack = answer.toLowerCase()
@@ -62,7 +78,8 @@ export function checkCitation(answer: EngineAnswer, target: PollTarget): Citatio
   const isCited = (domain: string): boolean =>
     hasSources
       ? citedHosts.some((host) => sameSite(host, domain))
-      : answerMentions(answer.answer, domain)
+      : // The name belongs to the client. A competitor is known here only by its address.
+        answerMentions(answer.answer, domain, domain === target.domain ? target.brand : undefined)
 
   return {
     engine: answer.engine,

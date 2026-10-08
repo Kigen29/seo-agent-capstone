@@ -168,6 +168,7 @@ export type { SigninState } from './identity/state.js'
 export type { IdentityProvider, IdentityProviderConfig, SocialIdentity } from './identity/types.js'
 
 export { checkCitation, sameSite, hostOf } from './visibility/citation.js'
+export { containsName, plainText } from './text/name-match.js'
 export {
   summarisePrompt,
   shareOfVoice,
