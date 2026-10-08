@@ -1,3 +1,5 @@
+import { OutcomeNote, outcomeFor, type Outcome } from './ui/outcome-note'
+
 /**
  * The banner shown after the GitHub App install flow redirects back to the dashboard.
  *
@@ -7,48 +9,41 @@
  * "declined", "expired link", and "failed" are not the same event.
  */
 
-/** The exact set of statuses the GitHub setup callback redirects with. See backToDashboardGithub. */
-type RepoCallbackStatus = 'connected' | 'declined' | 'invalid' | 'unavailable' | 'failed' | 'norepo'
-
-const CALLBACK_MESSAGE: Record<
-  RepoCallbackStatus,
-  { tone: 'ok' | 'warn' | 'error'; text: string }
-> = {
+/** The statuses the GitHub setup callback redirects with. See backToDashboardGithub. */
+const CALLBACK: Record<string, Outcome> = {
   connected: {
     tone: 'ok',
-    text: 'Repository connected. The agent can now open pull requests on it.',
+    title: 'Repository connected',
+    detail: 'Fixes can now arrive as pull requests for you to review.',
   },
-  declined: { tone: 'warn', text: 'The install was cancelled. Nothing was connected.' },
+  declined: {
+    tone: 'info',
+    title: 'Nothing was connected',
+    detail: 'The install was cancelled on GitHub. You can connect whenever you are ready.',
+  },
   invalid: {
-    tone: 'error',
-    text: 'That install link had expired or did not check out. Try again.',
+    tone: 'warn',
+    title: 'That link had expired',
+    detail: 'It is good for a few minutes and for one use. Start the connection again from here.',
   },
-  unavailable: { tone: 'warn', text: 'The GitHub App is not configured on this server yet.' },
+  unavailable: {
+    tone: 'info',
+    title: 'Connecting a repository is not switched on here',
+    detail: 'The GitHub App has not been set up on this installation yet.',
+  },
   failed: {
     tone: 'error',
-    text: 'Something went wrong connecting the repository. Try again shortly.',
+    title: 'We could not finish connecting the repository',
+    detail: 'That is a fault on our side, not something you did. Try again in a moment.',
   },
   norepo: {
     tone: 'warn',
-    text: 'No repository was granted during the install. Reconnect and select a repo.',
+    title: 'No repository was chosen',
+    detail:
+      'The app was installed without access to any repository. Connect again and select the one that holds this site.',
   },
 }
 
-const isCallbackStatus = (value: string): value is RepoCallbackStatus => value in CALLBACK_MESSAGE
-
-const TONE: Record<'ok' | 'warn' | 'error', string> = {
-  ok: 'note note-ok',
-  warn: 'note note-warn',
-  error: 'note note-error',
-}
-
 export function RepoCallback({ callback }: { callback?: string }) {
-  const message = callback && isCallbackStatus(callback) ? CALLBACK_MESSAGE[callback] : undefined
-  if (!message) return null
-
-  return (
-    <p role="status" className={TONE[message.tone]} style={{ marginTop: 'var(--space-4)' }}>
-      {message.text}
-    </p>
-  )
+  return <OutcomeNote outcome={outcomeFor(CALLBACK, callback)} className="mt-4" />
 }

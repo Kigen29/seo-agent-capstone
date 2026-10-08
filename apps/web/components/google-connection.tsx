@@ -1,3 +1,5 @@
+import { OutcomeNote, outcomeFor, type Outcome } from './ui/outcome-note'
+
 /**
  * Feedback after the Google OAuth round trip.
  *
@@ -5,43 +7,36 @@
  * declined" are three different things and lumping them under one grey message is the kind
  * of vagueness this product is meant to avoid.
  */
-/** The exact set of statuses the OAuth callback redirects with. See the API's backToDashboard. */
-type GoogleCallbackStatus = 'connected' | 'declined' | 'invalid' | 'unavailable' | 'failed'
+/** The statuses the OAuth callback redirects with. See the API's backToDashboard. */
 
-const CALLBACK_MESSAGE: Record<
-  GoogleCallbackStatus,
-  { tone: 'ok' | 'warn' | 'error'; text: string }
-> = {
-  connected: { tone: 'ok', text: 'Search Console connected.' },
-  declined: { tone: 'warn', text: 'Consent was declined. Nothing was connected.' },
-  invalid: {
-    tone: 'error',
-    text: 'That sign-in link had expired or did not check out. Try again.',
+const CALLBACK: Record<string, Outcome> = {
+  connected: {
+    tone: 'ok',
+    title: 'Search Console is connected',
+    detail: 'Your real searches and clicks will be read on the next audit.',
   },
-  unavailable: { tone: 'warn', text: 'Search Console is not configured on this server yet.' },
-  failed: { tone: 'error', text: 'Something went wrong connecting Google. Try again shortly.' },
+  declined: {
+    tone: 'info',
+    title: 'Nothing was connected',
+    detail: 'Consent was declined on Google. You can connect whenever you are ready.',
+  },
+  invalid: {
+    tone: 'warn',
+    title: 'That link had expired',
+    detail: 'It is good for a few minutes and for one use. Start the connection again from here.',
+  },
+  unavailable: {
+    tone: 'info',
+    title: 'Search Console is not switched on here',
+    detail: 'Connecting Google has not been set up on this installation yet.',
+  },
+  failed: {
+    tone: 'error',
+    title: 'We could not finish connecting Google',
+    detail: 'That is a fault on our side, not something you did. Try again in a moment.',
+  },
 }
 
-/** The callback value is an untrusted query string, so narrow it to a known status before use. */
-const isCallbackStatus = (value: string): value is GoogleCallbackStatus => value in CALLBACK_MESSAGE
-
-const TONE: Record<'ok' | 'warn' | 'error', string> = {
-  ok: 'note note-ok',
-  warn: 'note note-warn',
-  error: 'note note-error',
-}
-
-/**
- * Only the outcome message after the Google OAuth round trip. The connection's state and its
- * button now live on the dashboard's setup checklist; this keeps the "connected", "declined" and
- * "failed" feedback where the redirect lands.
- */
 export function GoogleCallbackNote({ callback }: { callback?: string }) {
-  const message = callback && isCallbackStatus(callback) ? CALLBACK_MESSAGE[callback] : undefined
-  if (!message) return null
-  return (
-    <p role="status" className={TONE[message.tone]} style={{ marginTop: 'var(--space-4)' }}>
-      {message.text}
-    </p>
-  )
+  return <OutcomeNote outcome={outcomeFor(CALLBACK, callback)} className="mt-4" />
 }

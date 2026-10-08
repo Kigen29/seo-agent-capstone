@@ -1,4 +1,4 @@
-import { Note } from '@/components/ui/note'
+import { OutcomeNote } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { openFixPrs } from './actions'
 
@@ -45,10 +45,15 @@ export function BulkFix({ siteId, fixable }: { siteId: string; fixable: number }
 export function BulkFixOutcome({ params }: { params: Record<string, string | undefined> }) {
   if (params.bulk === 'failed') {
     return (
-      <Note tone="error" className="mb-5">
-        The request did not reach the agent, so no pull requests were asked for. Try again in a
-        moment.
-      </Note>
+      <OutcomeNote
+        className="mb-5"
+        outcome={{
+          tone: 'error',
+          title: 'No pull requests were asked for',
+          detail:
+            'The request did not reach the agent. That is a fault on our side. Try again in a moment.',
+        }}
+      />
     )
   }
   if (params.bulk !== 'done') return null
@@ -56,15 +61,29 @@ export function BulkFixOutcome({ params }: { params: Record<string, string | und
   const queued = Number(params.queued) || 0
   const skipped = Number(params.skipped) || 0
   const remaining = Number(params.remaining) || 0
+  const plural = (count: number, one: string, many: string) => (count === 1 ? one : many)
 
   return (
-    <Note tone={queued > 0 ? 'ok' : 'info'} className="mb-5">
-      {queued > 0
-        ? `The agent is working on ${queued} pull ${queued === 1 ? 'request' : 'requests'}. Each finding shows its own progress, and a pull request appears on it when it is ready.`
-        : 'No pull requests were asked for.'}
-      {skipped > 0 &&
-        ` ${skipped} ${skipped === 1 ? 'finding was' : 'findings were'} left out${params.why ? `: ${params.why}` : '.'}`}
-      {remaining > 0 && ` ${remaining} more can be asked for once these are in.`}
-    </Note>
+    <OutcomeNote
+      className="mb-5"
+      outcome={{
+        tone: queued > 0 ? 'ok' : 'info',
+        title:
+          queued > 0
+            ? `The agent is working on ${queued} pull ${plural(queued, 'request', 'requests')}`
+            : 'No pull requests were asked for',
+        detail: (
+          <>
+            {queued > 0 &&
+              'Each finding shows its own progress, and a pull request appears on it when it is ready.'}
+            {skipped > 0 &&
+              ` ${skipped} ${plural(skipped, 'finding was', 'findings were')} left out${
+                params.why ? `: ${params.why}` : '.'
+              }`}
+            {remaining > 0 && ` ${remaining} more can be asked for once these are in.`}
+          </>
+        ),
+      }}
+    />
   )
 }

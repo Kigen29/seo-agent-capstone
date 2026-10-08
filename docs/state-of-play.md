@@ -168,8 +168,10 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   connections; the dashboard carries a one-line count that links there.
 - **One shape for errors**: `act()` in `apps/web/lib/action.ts` returns `ActionResult`, and
   `<ErrorNote>` shows it, with a title and a way forward. Every form that reports a failure in
-  place uses it. Actions that redirect (start an audit, verify ownership, open a pull request)
-  carry a status in the address and land on a `<Note>` banner, which is the same visual shape.
+  place uses it. Actions that redirect (start an audit, connect Google or a repository, verify
+  ownership, open a pull request, pay, revoke a session) carry a status in the address and land
+  on `<OutcomeNote>`, which has the same title-then-detail shape, so there is one thing to look
+  for whichever way a result arrives.
 - **Authority** is four figures and one "who to contact" section: three tabs ordered by how likely
   a reply is, one action per row, and a single email composer in a `<dialog>` that remembers the
   fact between publications. It still cannot send; the draft is copied or opened in the person's

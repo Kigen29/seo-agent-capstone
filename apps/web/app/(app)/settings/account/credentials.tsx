@@ -1,5 +1,5 @@
 import type { ApiCredential } from '@seo/api-client'
-import { Note } from '@/components/ui/note'
+import { OutcomeNote } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { revokeCredential, revokeOtherCredentials } from './actions'
 
@@ -16,10 +16,13 @@ const when = (iso: string | null, none: string) => (iso ? day.format(new Date(is
 export function Credentials({
   credentials,
   revoked,
+  notRevoked = false,
 }: {
   credentials: ApiCredential[]
   /** How many were just revoked, read back from the redirect, or null. */
   revoked: number | null
+  /** A revoke was asked for and the service did not answer, so nothing was revoked. */
+  notRevoked?: boolean
 }) {
   const others = credentials.filter((credential) => !credential.current).length
 
@@ -34,13 +37,36 @@ export function Credentials({
         stops it working immediately.
       </p>
 
-      {revoked !== null ? (
-        <Note tone="info" className="mb-3">
-          {revoked === 0
-            ? 'Nothing else was signed in.'
-            : `Revoked ${revoked} ${revoked === 1 ? 'credential' : 'credentials'}.`}
-        </Note>
-      ) : null}
+      {/*
+        The failure used to be sent back in the address and read by nothing, so a revoke that did
+        not happen looked exactly like one that did. For signing a lost device out, that is the
+        wrong thing to leave unsaid.
+      */}
+      {notRevoked && (
+        <OutcomeNote
+          className="mb-3"
+          outcome={{
+            tone: 'warn',
+            title: 'Nothing was revoked',
+            detail:
+              'The service was starting up and did not answer, so every session below is still active. Try again in a moment.',
+          }}
+        />
+      )}
+      {revoked !== null && (
+        <OutcomeNote
+          className="mb-3"
+          outcome={
+            revoked === 0
+              ? { tone: 'info', title: 'Nothing else was signed in' }
+              : {
+                  tone: 'ok',
+                  title: `Revoked ${revoked} ${revoked === 1 ? 'session' : 'sessions'}`,
+                  detail: 'They can no longer act as this account.',
+                }
+          }
+        />
+      )}
 
       <div className="frame">
         <div className="table-scroll">

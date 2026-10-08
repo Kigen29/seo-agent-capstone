@@ -40,12 +40,12 @@ const money = (micros: number): string =>
 export default async function AccountSettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ revoked?: string; billing?: string }>
+  searchParams: Promise<{ revoked?: string; billing?: string; asleep?: string }>
 }) {
   const api = await getClient()
   if (!api) return null
 
-  const { revoked: revokedParam, billing: returned } = await searchParams
+  const { revoked: revokedParam, billing: returned, asleep } = await searchParams
   const revokedCount = Number(revokedParam)
   const revoked = Number.isInteger(revokedCount) && revokedCount >= 0 ? revokedCount : null
 
@@ -197,7 +197,7 @@ export default async function AccountSettingsPage({
         )}
       </section>
 
-      <Credentials credentials={credentials} revoked={revoked} />
+      <Credentials credentials={credentials} revoked={revoked} notRevoked={Boolean(asleep)} />
     </div>
   )
 }

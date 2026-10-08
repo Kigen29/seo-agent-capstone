@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { EvidenceBlock } from '@/components/evidence'
 import { SeverityBadge } from '@/components/severity'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
-import { Note, type NoteTone } from '@/components/ui/note'
+import { Note } from '@/components/ui/note'
+import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
@@ -35,10 +36,12 @@ const EFFORT_LABEL: Record<string, string> = {
  * there is no job to watch and the message is the whole story. A queued fix is handled by
  * `FixProgress` instead, which watches the job rather than asserting once that it is on its way.
  */
-const FIX_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
+const FIX: Record<string, Outcome> = {
   failed: {
-    tone: 'error',
-    text: 'Could not open a pull request. Connect a repository to this site, or check that no PR is already open, then try again.',
+    tone: 'warn',
+    title: 'The pull request was not started',
+    detail:
+      'Check that a repository is connected to this site and that a pull request for this finding is not already open, then try again.',
   },
 }
 
@@ -77,7 +80,6 @@ export default async function FindingPage({
     redirect(
       `/findings/${id}?siteId=${finding.siteId}${fix ? `&fix=${encodeURIComponent(fix)}` : ''}`,
     )
-  const fixMessage = fix ? FIX_MESSAGE[fix] : undefined
 
   return (
     <main id="main" className="wrap-narrow">
@@ -174,11 +176,7 @@ export default async function FindingPage({
           {fix === 'queued' && !finding.fixError ? (
             <FixProgress findingId={finding.rowId} />
           ) : (
-            fixMessage && (
-              <Note tone={fixMessage.tone} className="mb-3">
-                {fixMessage.text}
-              </Note>
-            )
+            <OutcomeNote outcome={outcomeFor(FIX, fix)} className="mb-3" />
           )}
           {/*
             The last attempt's failure, said out loud.
@@ -189,9 +187,14 @@ export default async function FindingPage({
             trying again is reasonable and some of these failures are transient.
           */}
           {finding.fixError && (
-            <Note tone="error" className="mb-3">
-              The last fix attempt needs attention. {finding.fixError}
-            </Note>
+            <OutcomeNote
+              className="mb-3"
+              outcome={{
+                tone: 'error',
+                title: 'The last fix attempt did not finish',
+                detail: finding.fixError,
+              }}
+            />
           )}
           {finding.fixable ? (
             connections.github.connected ? (
