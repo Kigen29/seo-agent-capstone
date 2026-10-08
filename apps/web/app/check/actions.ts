@@ -1,6 +1,7 @@
 'use server'
 
 import { apiUrl } from '@/lib/session'
+import { visitorHeaders } from '@/lib/visitor'
 import { invalid, type UserError } from '@/lib/user-error'
 
 /**
@@ -37,7 +38,9 @@ export async function runCheck(_prev: CheckState, formData: FormData): Promise<C
   try {
     response = await fetch(`${apiUrl()}/check`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      // With the visitor's address, signed, so the daily limit is theirs and not shared with
+      // everybody else this server makes the call for.
+      headers: { 'content-type': 'application/json', ...(await visitorHeaders()) },
       body: JSON.stringify({ url }),
       // The API sleeps on the free tier and a cold start has been measured at 33.6 seconds
       // (ADR-0025). A shorter timeout here would turn a slow first request into a broken one.

@@ -22,6 +22,7 @@ import {
 } from '@seo/queue'
 import { createGitHubApp, githubAppConfigFromEnv } from '@seo/vcs'
 import { buildApp } from './app.js'
+import { VISITOR_SECRET_MIN_LENGTH } from '@seo/core'
 import { DEFAULT_RATE_LIMITS, scaleRateLimits } from './protect.js'
 import { LlmClient } from '@seo/llm'
 import { makeDispatcher } from './dispatch.js'
@@ -209,6 +210,23 @@ const rateLimits = (() => {
 })()
 
 /**
+ * See AppOptions.visitorSecret. Unset is fine and means no forwarded address is believed. Set
+ * but too short stops the process: a secret somebody could guess is worse than none, because
+ * it looks like protection.
+ */
+const visitorSecret = (() => {
+  const raw = process.env.VISITOR_ADDRESS_SECRET?.trim()
+  if (!raw) return undefined
+  if (raw.length < VISITOR_SECRET_MIN_LENGTH) {
+    throw new Error(
+      `VISITOR_ADDRESS_SECRET must be at least ${VISITOR_SECRET_MIN_LENGTH} characters. ` +
+        'Generate one with: openssl rand -base64 32',
+    )
+  }
+  return raw
+})()
+
+/**
  * The payment rail (ADR-0036). Off unless both Stripe variables are set, and off with a logged
  * reason if the key is a live one: this deployment runs billing in test mode only.
  */
@@ -272,6 +290,7 @@ const app = await buildApp({
   webUrl: process.env.WEB_URL,
   trustProxyHops,
   rateLimits,
+  ...(visitorSecret ? { visitorSecret } : {}),
   google,
   github,
   identityProviders,

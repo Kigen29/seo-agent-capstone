@@ -150,7 +150,8 @@ export function installRateLimits(
     // No credentials at all: sign-in, an OAuth callback, the free check, or a probe. A request
     // that presents a token is counted by account instead, once the token has been checked.
     if (!request.headers.authorization) {
-      const anonymous = limiter.take(`anon:${request.ip}`, limits.anonymous)
+      // By visitor, not by connection: the web app makes these calls for many people.
+      const anonymous = limiter.take(`anon:${request.visitorAddress}`, limits.anonymous)
       if (!anonymous.allowed) return refuse(reply, anonymous.retryAfterSeconds)
     }
   })

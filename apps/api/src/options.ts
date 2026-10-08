@@ -30,6 +30,12 @@ export interface AppOptions {
   /** Origins allowed to call the API from a browser. The web app, and nothing else. */
   corsOrigins?: string[]
   /**
+   * The secret the web app signs a visitor's address with (VISITOR_ADDRESS_SECRET, the same
+   * value on both). Absent means no forwarded address is believed, and anonymous limits count
+   * the caller's own address, which for calls made by the web app is the web server.
+   */
+  visitorSecret?: string
+  /**
    * How fast the API may be called. See `protect.ts` for who each limit is counted against.
    *
    * Absent means unlimited, which is what a test wants: a suite adds forty sites in a second
@@ -221,6 +227,12 @@ export interface RouteDeps {
 declare module 'fastify' {
   interface FastifyRequest {
     tenantId: string
+    /**
+     * Who is really asking, for anything counted per visitor. The address the web app vouched
+     * for when it made the call on a visitor's behalf, or the caller's own address otherwise.
+     * See `visitor-address.ts` in `@seo/core`.
+     */
+    visitorAddress: string
     /** The exact bytes of a webhook body, kept so its HMAC signature can be verified. */
     rawBody?: string
   }

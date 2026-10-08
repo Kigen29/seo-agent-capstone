@@ -1,3 +1,9 @@
+import {
+  verifyVisitorAddress,
+  VISITOR_ADDRESS_HEADER,
+  VISITOR_SIGNATURE_HEADER,
+  VISITOR_TIME_HEADER,
+} from '@seo/core'
 import { sql } from 'drizzle-orm'
 import cors from '@fastify/cors'
 import { createDb } from '@seo/db'
@@ -99,6 +105,24 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   await app.register(cors, {
     origin: options.corsOrigins ?? false,
     credentials: true,
+  })
+
+  /*
+    Who is really asking. The web app calls from its own server, so without this every anonymous
+    visitor shares the web server's address and one visitor can use up a per-visitor allowance
+    for all of them. A forwarded address is believed only when the web app signed it; anything
+    else, including a header somebody simply typed, falls back to the address we can see.
+
+    First among the hooks, so the limits below count the right party.
+  */
+  app.decorateRequest('visitorAddress', '')
+  app.addHook('onRequest', async (request) => {
+    const vouched = await verifyVisitorAddress(options.visitorSecret, {
+      address: request.headers[VISITOR_ADDRESS_HEADER],
+      time: request.headers[VISITOR_TIME_HEADER],
+      signature: request.headers[VISITOR_SIGNATURE_HEADER],
+    })
+    request.visitorAddress = vouched ?? request.ip
   })
 
   // Before any route, so a refusal, a 404 and a 500 carry them too.

@@ -49,7 +49,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
  */
 function hashAddress(request: FastifyRequest): string {
   const salt = process.env.TOKEN_ENCRYPTION_KEY ?? 'unsalted'
-  return createHash('sha256').update(`${salt}:${request.ip}`).digest('hex')
+  // The visitor, when the web app vouched for one; the caller's own address otherwise.
+  return createHash('sha256').update(`${salt}:${request.visitorAddress}`).digest('hex')
 }
 
 export function checkRoutes(app: FastifyInstance, deps: RouteDeps): void {
