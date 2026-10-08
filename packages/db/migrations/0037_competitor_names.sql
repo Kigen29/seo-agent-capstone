@@ -1,0 +1,12 @@
+-- The name each tracked competitor goes by, keyed by its domain.
+--
+-- An AI answer names a business; it rarely gives a web address. The client is found in such an
+-- answer by its brand name (ADR-0040), and a competitor was found only by its address, which
+-- tilted share of voice towards the client. This holds the competitors' names so both are looked
+-- for the same way (ADR-0041).
+--
+-- A JSON object and not a second array, because it carries three states per competitor: a name,
+-- an explicit null (the homepage was read and states no name, so do not fetch it again), and
+-- absent (not read yet). Additive, with a default, so existing rows need no backfill: the daily
+-- poll fills it in.
+ALTER TABLE sites ADD COLUMN competitor_names jsonb NOT NULL DEFAULT '{}'::jsonb;
