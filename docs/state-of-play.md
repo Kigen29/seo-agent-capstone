@@ -364,6 +364,13 @@ a pull request, and product page rules. The public `/check` page is approved in 
 
 Each of these cost real time in a previous session.
 
+- **A search engine answers the question it thinks was asked.** The authority axis searched for
+  a client's brand in quotes and counted every result. Google read "Heartbeest" as a misspelling
+  of "hartebeest" and returned another company, and the product reported six sites, six pitches
+  and a finding about a business that was not the client's. A result is now a mention only if
+  its title, summary or address contains the name as written (ADR-0039, `confirmMentions`).
+  Anything else that takes a third party's result set as fact needs the same check.
+
 - **There are two monthly caps, and "allowance used up" can mean either.** Each account has its
   own (`tenants.monthly_budget_micros`, shown under Settings, Account), and the whole deployment
   shares one (`GLOBAL_MONTHLY_BUDGET_MICROS`, set on Render and again as a GitHub Actions variable

@@ -354,6 +354,8 @@ export interface AuthorityMetrics {
    * The pages that mention the brand. Undefined on an audit from before they were kept, which is
    * "not recorded", not "none". `linked` is absent when links were never checked.
    */
+  /** How the mentions were found: the name searched, and how many results were refused. */
+  mentionSearch?: { brand: string; leftOut: number }
   mentions?: {
     url: string
     domain: string

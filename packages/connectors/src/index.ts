@@ -108,6 +108,7 @@ export { aiOverviewEngine } from './visibility/ai-overview.js'
 
 export {
   classifyMentions,
+  confirmMentions,
   listMentions,
   MAX_MENTION_PAGES,
   mentionQuery,

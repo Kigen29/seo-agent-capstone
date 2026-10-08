@@ -401,6 +401,7 @@ export async function seedShowcase(db: Database, now: Date = new Date()): Promis
       'travel-desk.example.net',
       'weekender.example.org',
     ],
+    mentionSearch: { brand: SHOWCASE.brand, leftOut: 2 },
     // The pages behind the six earned domains and the one platform, in the shape `listMentions`
     // writes: earned first, by site, with whether each site links.
     mentions: [

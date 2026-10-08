@@ -51,6 +51,18 @@ export const authorityMetricsSchema = z.object({
    * recorded" and not "none". `linked` is absent when no backlink index was consulted, for the
    * same reason `referringDomains` is nullable: unknown is not no.
    */
+  /**
+   * How the mentions were found, so the page can show its working: the name that was searched
+   * for, and how many results were left out because they did not contain it.
+   */
+  mentionSearch: z
+    .object({
+      /** The brand name exactly as it was searched. */
+      brand: z.string(),
+      /** Results returned by the search and refused: a similarly named business, usually. */
+      leftOut: z.number().int().min(0),
+    })
+    .optional(),
   mentions: z
     .array(
       z.object({

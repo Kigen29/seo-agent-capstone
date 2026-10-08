@@ -180,7 +180,11 @@ export default async function AuthorityPage({
             </Note>
           )}
 
-          <MentionList mentions={authority.mentions} measured={authority.earnedDomains !== null} />
+          <MentionList
+            mentions={authority.mentions}
+            measured={authority.earnedDomains !== null}
+            search={authority.mentionSearch}
+          />
 
           <section className="mt-8">
             <div className="mb-3 flex items-center gap-1">

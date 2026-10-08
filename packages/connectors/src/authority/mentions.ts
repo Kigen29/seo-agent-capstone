@@ -171,3 +171,74 @@ export function listMentions(
     )
     .slice(0, MAX_MENTION_PAGES)
 }
+
+/**
+ * Letters and digits only, lower case, accents removed, everything else a single space.
+ *
+ * So "Heartbeest  Safaris", "heartbeest-safaris" and "HEARTBEEST SAFARIS" are one name, and a
+ * page is not refused for a hyphen or a capital.
+ */
+function plain(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/** Whether the name appears in the text as whole words, in order. */
+function names(text: string | undefined, name: string): boolean {
+  if (!text || !name) return false
+  return ` ${plain(text)} `.includes(` ${name} `)
+}
+
+export interface ConfirmedMentions {
+  /** Results whose own text contains the name as written. */
+  confirmed: SerpSource[]
+  /** Results the search returned that do not. Kept as a count, so the filtering can be seen. */
+  rejected: SerpSource[]
+}
+
+/**
+ * Keep only the search results that really contain the name that was searched for.
+ *
+ * A search engine does not return what was asked for; it returns what it thinks was meant. Asked
+ * for "Heartbeest Safaris" in quotes, Google decided the word was a misspelling of "hartebeest",
+ * the antelope, and returned pages about African Hartebeest Safaris, a different company. Every
+ * one was counted as a mention of the client, listed with a link, and offered as a publication to
+ * email. The axis was confidently describing somebody else's business.
+ *
+ * So a result is a mention only if its own title, summary or address contains the name, exactly
+ * as written, as whole words. That is a parser deciding, not a search engine's guess and not a
+ * model's (rule 1). The title and the summary are the search engine's own extract of the page,
+ * and the summary is the passage that matched, so a page that truly names the brand shows it
+ * there.
+ *
+ * It errs towards leaving a real mention out. A summary cut short before the name, or a name
+ * written differently on the page, is lost; that costs a count that is slightly low. The other
+ * direction costs a client emailing six strangers about articles that were never about them.
+ */
+export function confirmMentions(sources: readonly SerpSource[], brand: string): ConfirmedMentions {
+  const name = plain(brand)
+  const confirmed: SerpSource[] = []
+  const rejected: SerpSource[] = []
+
+  for (const source of sources) {
+    let address = source.url
+    try {
+      const parsed = new URL(source.url)
+      address = decodeURIComponent(`${parsed.hostname} ${parsed.pathname}`)
+    } catch {
+      // Left as it came. A malformed address simply will not match.
+    }
+
+    if (names(source.title, name) || names(source.snippet, name) || names(address, name)) {
+      confirmed.push(source)
+    } else {
+      rejected.push(source)
+    }
+  }
+
+  return { confirmed, rejected }
+}
