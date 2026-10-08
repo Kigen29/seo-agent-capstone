@@ -200,3 +200,26 @@ test('a competitor can be added from the top of the competitors page', async ({ 
     page.getByRole('dialog').getByRole('listitem').filter({ hasText: 'from-the-top.example.com' }),
   ).toHaveCount(0)
 })
+
+test('a competitor can be given the name it goes by, and it is kept', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/site?siteId=${SECOND_SITE}`)
+
+  await page.getByLabel('Add one yourself').fill('named-by-hand.example.com')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  const row = page.getByRole('listitem').filter({ hasText: 'named-by-hand.example.com' })
+  // Just added, so nothing has read its homepage yet, and the page says exactly that.
+  await expect(row).toContainText('Name not read yet')
+
+  await row.getByRole('button', { name: /Add its name/ }).click()
+  await row.getByLabel('What named-by-hand.example.com is called').fill('Named By Hand Tours')
+  await row.getByRole('button', { name: 'Save name' }).click()
+  await expect(row).toContainText('Known as Named By Hand Tours')
+
+  await page.reload()
+  await expect(row).toContainText('Known as Named By Hand Tours')
+
+  // Tidy up, so a rerun starts from the same place.
+  await row.getByRole('button', { name: /Remove/ }).click()
+  await expect(row).toHaveCount(0)
+})

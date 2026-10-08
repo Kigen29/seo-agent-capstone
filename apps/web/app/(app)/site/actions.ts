@@ -65,3 +65,12 @@ export async function addQuestions(
   }
   return result
 }
+
+/** Set the name a tracked competitor goes by, or clear it. Returns every name as now stored. */
+export async function saveCompetitorName(
+  siteId: string,
+  domain: string,
+  name: string | null,
+): Promise<ActionResult<Record<string, string | null>>> {
+  return act('save that name', (api) => api.saveCompetitorName(siteId, domain, name))
+}

@@ -122,6 +122,8 @@ export {
   MAX_BRAND,
   MAX_MARKET,
   MAX_OFFERING,
+  MAX_COMPETITOR_NAME,
+  saveCompetitorName,
   saveCompetitors,
   saveMentionExclusions,
   saveSiteProfile,

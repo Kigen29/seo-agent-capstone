@@ -6,6 +6,8 @@ import {
   MAX_MARKET,
   MAX_OFFERING,
   normaliseCompetitors,
+  MAX_COMPETITOR_NAME,
+  saveCompetitorName,
   saveCompetitors,
   saveMentionExclusions,
   saveSiteProfile,
@@ -88,6 +90,38 @@ export function siteProfileRoutes(app: FastifyInstance, deps: RouteDeps): void {
       const saved = await saveCompetitors(db, request.tenantId, request.params.id, competitors)
       if (!saved) return notFound(reply)
       return { competitors: saved }
+    },
+  )
+
+  /**
+   * What one tracked competitor is called (ADR-0041), set by a person.
+   *
+   * The daily poll reads a competitor's name from its homepage title, and many titles do not
+   * state one. Without a name the competitor is only found in an AI answer by its web address,
+   * which undercounts it. This is where the owner supplies it. An empty name clears the entry
+   * and hands the competitor back to the daily read.
+   */
+  typed.put(
+    '/sites/:id/competitor-names',
+    {
+      schema: {
+        params: uuidParam,
+        body: z.object({
+          domain: z.string().min(1).max(253),
+          name: z.string().max(MAX_COMPETITOR_NAME).nullable(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const names = await saveCompetitorName(
+        db,
+        request.tenantId,
+        request.params.id,
+        request.body.domain.trim().toLowerCase(),
+        request.body.name,
+      )
+      if (!names) return notFound(reply)
+      return { competitorNames: names }
     },
   )
 

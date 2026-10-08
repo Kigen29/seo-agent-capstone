@@ -25,6 +25,11 @@ export interface SiteProfile {
   competitors: string[]
   /** Sites the owner has said are not about them, left out of their brand mentions. */
   mentionExclusions: string[]
+  /**
+   * What each competitor is called, by domain (ADR-0041). A name, an explicit null when its
+   * homepage states none, or absent when it has not been read yet.
+   */
+  competitorNames: Record<string, string | null>
 }
 
 export const MAX_BRAND = 200
@@ -51,6 +56,7 @@ export async function getSiteProfile(
         market: sites.market,
         competitors: sites.competitors,
         mentionExclusions: sites.mentionExclusions,
+        competitorNames: sites.competitorNames,
       })
       .from(sites)
       .where(eq(sites.id, siteId))
@@ -82,6 +88,7 @@ export async function saveSiteProfile(
         market: sites.market,
         competitors: sites.competitors,
         mentionExclusions: sites.mentionExclusions,
+        competitorNames: sites.competitorNames,
       })
 
     return saved ?? null
@@ -141,5 +148,46 @@ export async function saveMentionExclusions(
       .returning({ mentionExclusions: sites.mentionExclusions })
 
     return saved?.mentionExclusions ?? null
+  })
+}
+
+export const MAX_COMPETITOR_NAME = 120
+
+/**
+ * Set, or clear, the name one tracked competitor goes by.
+ *
+ * For the competitor whose homepage title does not state its name, and for the one whose title
+ * states it wrongly. A name a person typed is kept: the daily read only fills in competitors
+ * with no entry, so it never overwrites this.
+ *
+ * Clearing a name removes the entry altogether, and does not store "no name". That hands the
+ * competitor back to the daily read, which is what somebody clearing a field most likely wants.
+ *
+ * Only a tracked competitor can be named. Returns null when the site is not the tenant's, and
+ * the names unchanged when the domain is not one of its competitors.
+ */
+export async function saveCompetitorName(
+  db: Database,
+  tenantId: string,
+  siteId: string,
+  domain: string,
+  name: string | null,
+): Promise<Record<string, string | null> | null> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [site] = await tx
+      .select({ competitors: sites.competitors, competitorNames: sites.competitorNames })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+    if (!site) return null
+    if (!site.competitors.includes(domain)) return site.competitorNames
+
+    const names = { ...site.competitorNames }
+    const tidied = tidy(name, MAX_COMPETITOR_NAME)
+    if (tidied) names[domain] = tidied
+    else delete names[domain]
+
+    await tx.update(sites).set({ competitorNames: names }).where(eq(sites.id, siteId))
+    return names
   })
 }
