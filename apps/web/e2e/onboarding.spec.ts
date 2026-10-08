@@ -17,6 +17,13 @@ const TOKEN = 'seo_e2e_fixed_token_do_not_use_in_production'
 const EMPTY_TOKEN = 'seo_e2e_other_tenant_token_do_not_use'
 const SECOND_SITE = '00000000-0000-4000-8000-000000000007'
 
+/*
+  One at a time, in order. Several tests here edit the second site's competitor list, and a save
+  replaces the whole list, so two of them running at once overwrite each other and one fails for
+  no reason of its own. The rest of the suite stays parallel; only this file gives that up.
+*/
+test.describe.configure({ mode: 'default' })
+
 async function signIn(page: Page, token = TOKEN) {
   await page.context().addCookies([
     {

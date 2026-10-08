@@ -26,6 +26,7 @@ Each line names where it lives, so it can be checked and not just believed.
 
 - Rate limits: per account for signed-in requests, per address for anonymous ones, tighter for anything that calls a model or a paid search, and a per-address ceiling over everything.
 - Paid work is also capped per account per month in Postgres (ADR-0016), which is what bounds cost.
+- The web app signs each anonymous visitor's address when it calls the API for them, and the API believes only a signed, recent one, so a visitor cannot claim a new address to dodge a limit (ADR-0043, `packages/core/src/visitor-address.ts`).
 - Request bodies are capped at 256 KB and must arrive within 30 seconds.
 - Security headers on every response, including refusals. CORS allows no origin unless one is named.
 - Authentication runs before validation, so an unauthenticated caller learns nothing about a route's shape.
@@ -58,5 +59,5 @@ Stated so they are not mistaken for oversights. The reasoning for each is in ADR
 
 - The rate limiter is in memory. A restart forgets the counts, and it would be per instance if the API ran on more than one.
 - The web content policy allows inline scripts, which the framework needs unless every page renders on demand.
-- The free page check counts its per-address quota against the web server's address. Its global daily cap is the real bound.
+- Anonymous limits are counted per visitor only when `VISITOR_ADDRESS_SECRET` is set on both the web app and the API (ADR-0043). Until then they count the web server's address, every visitor shares one allowance, and the free check's global daily cap is the real bound.
 - A process cannot absorb a volumetric attack. That is left to the hosting platform's edge network.

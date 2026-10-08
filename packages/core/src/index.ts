@@ -1,5 +1,14 @@
 export { AXES, axisSchema } from './axis.js'
 export { safeNext } from './safe-next.js'
+export {
+  signVisitorAddress,
+  verifyVisitorAddress,
+  VISITOR_ADDRESS_HEADER,
+  VISITOR_SECRET_MIN_LENGTH,
+  VISITOR_SIGNATURE_HEADER,
+  VISITOR_SIGNATURE_MAX_AGE_MS,
+  VISITOR_TIME_HEADER,
+} from './visitor-address.js'
 export type { Axis } from './axis.js'
 
 export { severitySchema, severityWeight } from './severity.js'
