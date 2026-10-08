@@ -107,6 +107,17 @@ export const sites = pgTable(
       .default(sql`'{}'`),
 
     /**
+     * What each competitor is called, by domain, read from its own homepage (ADR-0041).
+     *
+     * A name, an explicit null (read, and the title states no name), or absent (not read yet).
+     * It exists so a competitor is looked for in an AI answer the same way the client is.
+     */
+    competitorNames: jsonb('competitor_names')
+      .$type<Record<string, string | null>>()
+      .notNull()
+      .default({}),
+
+    /**
      * The brand name, as a human writes it. Null until somebody says what it is.
      *
      * Not derivable from the domain, which is exactly why it is stored. `heartbeestsafaris.com`

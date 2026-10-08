@@ -19,6 +19,7 @@ import {
 import { LlmClient, NoProviderConfiguredError, resolveChain } from '@seo/llm'
 import { enqueuePollAi, type PollAiJob, type Queue } from '@seo/queue'
 import { and, eq, notExists } from 'drizzle-orm'
+import { captureCompetitorNames, summarisePage, type ReadHomepage } from '@seo/audit'
 import { createWorkerLlm } from './llm.js'
 
 /**
@@ -179,11 +180,16 @@ export function utcDay(now: Date = new Date()): string {
 export async function runPollAi(
   db: Database,
   job: PollAiJob,
-  deps: { llm?: LlmClient } = {},
+  deps: { llm?: LlmClient; readHomepage?: ReadHomepage } = {},
 ): Promise<{ prompts: number; checks: number }> {
   const site = await withTenant(db, job.tenantId, async (tx) => {
     const [row] = await tx
-      .select({ url: sites.url, competitors: sites.competitors, brand: sites.brand })
+      .select({
+        url: sites.url,
+        competitors: sites.competitors,
+        brand: sites.brand,
+        competitorNames: sites.competitorNames,
+      })
       .from(sites)
       .where(eq(sites.id, job.siteId))
       .limit(1)
@@ -211,11 +217,26 @@ export async function runPollAi(
     return { prompts: prompts.length, checks: 0 }
   }
 
+  /*
+    Read each competitor's name from its own homepage, once, before the first answer is judged.
+    Here and not when a competitor is saved, so competitors added before this existed are named
+    on their next poll with nobody re-saving anything.
+  */
+  const competitorNames = await captureCompetitorNames(
+    db,
+    job.tenantId,
+    job.siteId,
+    site.competitors,
+    site.competitorNames,
+    deps.readHomepage ?? ((url) => summarisePage(url)),
+  )
+
   const target: PollTarget = {
     domain: site.url,
     competitors: site.competitors,
     // So an answer that names the business, and gives no sources, is not read as silence.
     brand: site.brand,
+    competitorNames,
   }
   let written = 0
 

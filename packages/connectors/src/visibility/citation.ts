@@ -78,8 +78,13 @@ export function checkCitation(answer: EngineAnswer, target: PollTarget): Citatio
   const isCited = (domain: string): boolean =>
     hasSources
       ? citedHosts.some((host) => sameSite(host, domain))
-      : // The name belongs to the client. A competitor is known here only by its address.
-        answerMentions(answer.answer, domain, domain === target.domain ? target.brand : undefined)
+      : // Each side by its own name, so the two are found the same way. A competitor whose
+        // name is not known falls back to its address, as the client does without a brand.
+        answerMentions(
+          answer.answer,
+          domain,
+          domain === target.domain ? target.brand : target.competitorNames?.[domain],
+        )
 
   return {
     engine: answer.engine,

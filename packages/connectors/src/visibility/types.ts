@@ -43,6 +43,11 @@ export interface PollTarget {
    * site has one, in which case the domain alone is looked for.
    */
   brand?: string | null
+  /**
+   * What each competitor is called, by domain, so a competitor is looked for the same way the
+   * client is. A competitor with no entry, or a null one, is looked for by its address alone.
+   */
+  competitorNames?: Record<string, string | null | undefined>
 }
 
 /** The deterministic verdict for one engine answer: was the client cited, and which rivals were. */
