@@ -114,6 +114,11 @@ export {
   mentionQuery,
 } from './authority/mentions.js'
 export type { MentionPage } from './authority/mentions.js'
+export {
+  applyMentionExclusions,
+  MAX_MENTION_EXCLUSIONS,
+  withoutExcludedSources,
+} from './authority/exclusions.js'
 export type { MentionFootprint } from './authority/mentions.js'
 export { evaluateAuthority, THIN_FOOTPRINT, MIN_UNLINKED_MENTIONS } from './authority/evaluate.js'
 export type { AuthorityInput, AuthorityReport } from './authority/evaluate.js'

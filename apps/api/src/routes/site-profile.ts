@@ -7,9 +7,11 @@ import {
   MAX_OFFERING,
   normaliseCompetitors,
   saveCompetitors,
+  saveMentionExclusions,
   saveSiteProfile,
   summarisePage,
 } from '@seo/audit'
+import { MAX_MENTION_EXCLUSIONS } from '@seo/connectors'
 import { countryFromUrl, countryName } from '@seo/core'
 import { NoProviderConfiguredError } from '@seo/llm'
 import type { FastifyInstance } from 'fastify'
@@ -86,6 +88,36 @@ export function siteProfileRoutes(app: FastifyInstance, deps: RouteDeps): void {
       const saved = await saveCompetitors(db, request.tenantId, request.params.id, competitors)
       if (!saved) return notFound(reply)
       return { competitors: saved }
+    },
+  )
+
+  /**
+   * The sites that are not about this business, replaced whole (ADR-0042).
+   *
+   * Reduced to bare hosts by the same rule competitors are, and refused whole if any entry is
+   * not a web address, so a typo is reported and not silently stored as a site that matches
+   * nothing.
+   */
+  typed.put(
+    '/sites/:id/mention-exclusions',
+    {
+      schema: {
+        params: uuidParam,
+        body: z.object({ domains: z.array(z.string().max(253)).max(MAX_MENTION_EXCLUSIONS) }),
+      },
+    },
+    async (request, reply) => {
+      const { competitors: domains, invalid } = normaliseCompetitors(request.body.domains)
+      if (invalid.length > 0) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Not a web address: ${invalid.join(', ')}. Give each site as its domain, like example.com.`,
+        })
+      }
+
+      const saved = await saveMentionExclusions(db, request.tenantId, request.params.id, domains)
+      if (!saved) return notFound(reply)
+      return { mentionExclusions: saved }
     },
   )
 

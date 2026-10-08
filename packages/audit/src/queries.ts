@@ -8,6 +8,7 @@ import {
   type Severity,
   type VerificationStatus,
 } from '@seo/core'
+import { applyMentionExclusions } from '@seo/connectors'
 import { audits, findings, sites, visibilityPrompts, withTenant, type Database } from '@seo/db'
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import {
@@ -363,7 +364,17 @@ export async function getAudit(
       completedAt: audit.completedAt,
       error: audit.error,
       scorecard: audit.scorecard ?? null,
-      metrics: audit.metrics ?? null,
+      /*
+        Read through the site's current "not us" list, so excluding a site changes the figures
+        on screen at once. The stored audit is not rewritten: it is a record of what was
+        measured, and undoing an exclusion has to be able to bring a site back.
+      */
+      metrics: audit.metrics?.authority
+        ? {
+            ...audit.metrics,
+            authority: applyMentionExclusions(audit.metrics.authority, site.mentionExclusions),
+          }
+        : (audit.metrics ?? null),
       findings: rows.map(toFinding),
     }
   })

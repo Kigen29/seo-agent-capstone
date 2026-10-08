@@ -184,6 +184,8 @@ export default async function AuthorityPage({
             mentions={authority.mentions}
             measured={authority.earnedDomains !== null}
             search={authority.mentionSearch}
+            siteId={site?.id ?? ''}
+            excluded={profile?.mentionExclusions ?? []}
           />
 
           <section className="mt-8">

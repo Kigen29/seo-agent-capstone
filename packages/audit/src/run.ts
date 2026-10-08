@@ -451,7 +451,11 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
      */
     const [site] = await withTenant(db, tenantId, (tx) =>
       tx
-        .select({ competitors: sites.competitors, brand: sites.brand })
+        .select({
+          competitors: sites.competitors,
+          brand: sites.brand,
+          mentionExclusions: sites.mentionExclusions,
+        })
         .from(sites)
         .where(eq(sites.id, siteId))
         .limit(1),
@@ -478,6 +482,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
         brand: site?.brand ?? null,
         domain: seed,
         competitors: site?.competitors ?? [],
+        excluded: site?.mentionExclusions ?? [],
       },
       options.serp ?? serpFromEnv(db, tenantId),
       options.backlinks ?? backlinksFromEnv(db, tenantId),
