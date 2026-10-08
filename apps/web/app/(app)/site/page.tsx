@@ -110,13 +110,20 @@ export default async function SiteSetupPage({
           <InfoHint label="how competitors are used">
             Two things read this list. Share of voice counts how often AI assistants cite you
             against how often they cite these sites. The weekly competitor watch reads a few of
-            their public pages and records what changed. Up to ten.
+            their public pages and records what changed. Up to ten. Each competitor also has a name,
+            because AI answers name a business and rarely give its web address: it is read from
+            their homepage, and you can add or correct it.
           </InfoHint>
         </div>
         <div className="text-muted mb-3 max-w-[68ch] text-sm">
           The sites you are measured against. Ask for suggestions, or add the ones you already know.
         </div>
-        <CompetitorsEditor key={site.id} siteId={site.id} initial={profile.competitors} />
+        <CompetitorsEditor
+          key={site.id}
+          siteId={site.id}
+          initial={profile.competitors}
+          names={profile.competitorNames}
+        />
       </section>
 
       <SetupChecklist site={site} google={connections.google} />

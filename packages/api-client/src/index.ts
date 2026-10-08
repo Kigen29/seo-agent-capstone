@@ -521,6 +521,8 @@ export interface SiteProfile {
   competitors: string[]
   /** Sites the owner has said are not about them, left out of their brand mentions. */
   mentionExclusions: string[]
+  /** What each competitor is called, by domain. Null: its homepage states none. Absent: not read yet. */
+  competitorNames: Record<string, string | null>
 }
 
 /** A competitor offered for a person to accept. It has been fetched and it answered. */
@@ -1069,6 +1071,15 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ competitors }),
         })
       ).competitors,
+
+    /** Set the name a tracked competitor goes by, or clear it with null. */
+    saveCompetitorName: async (siteId: string, domain: string, name: string | null) =>
+      (
+        await request<{ competitorNames: Record<string, string | null> }>(
+          `/sites/${siteId}/competitor-names`,
+          { method: 'PUT', body: JSON.stringify({ domain, name }) },
+        )
+      ).competitorNames,
 
     /** Replace the sites that are not about this business. They leave its mentions at once. */
     saveMentionExclusions: async (siteId: string, domains: string[]) =>

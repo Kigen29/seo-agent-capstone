@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { ErrorNote } from '@/components/ui/error-note'
 import { invalid, type UserError } from '@/lib/user-error'
 import { saveCompetitors, suggestCompetitors } from './actions'
+import { CompetitorName } from './competitor-name'
 
 /**
  * The competitors a site is compared with: suggested first, typed if you know better.
@@ -31,13 +32,21 @@ const bare = (raw: string): string =>
 export function CompetitorsEditor({
   siteId,
   initial,
+  names: initialNames,
   onChange,
 }: {
+  /**
+   * What each competitor is called, by domain. Passed where naming them belongs: the site setup
+   * page and the competitors page. Left out in onboarding, where a competitor added a moment ago
+   * has not been read yet and the line would only say so ten times.
+   */
+  names?: Record<string, string | null>
   siteId: string
   initial: string[]
   onChange?: (competitors: string[]) => void
 }) {
   const [tracked, setTracked] = useState(initial)
+  const [names, setNames] = useState(initialNames)
   const [typed, setTyped] = useState('')
   const [suggestions, setSuggestions] = useState<CompetitorSuggestion[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -127,10 +136,20 @@ export function CompetitorsEditor({
             {tracked.map((domain, index) => (
               <li
                 key={domain}
-                className="flex items-center justify-between gap-3 px-4 py-2.5"
+                className="flex items-start justify-between gap-3 px-4 py-2.5"
                 style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
               >
-                <span className="min-w-0 truncate">{domain}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate">{domain}</div>
+                  {names && (
+                    <CompetitorName
+                      siteId={siteId}
+                      domain={domain}
+                      name={names[domain]}
+                      onSaved={setNames}
+                    />
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm shrink-0"
