@@ -83,6 +83,7 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | A message | `<Note tone="ok\|warn\|error">` |
 | A failure from a form or an action | `<ErrorNote error>`, fed by a server action that returns `ActionResult` from `act()` in `lib/action.ts`. Never a hand-written sentence in a `<span>`: the failures are few and the same everywhere, and `toUserError` names each once with what happened and what to do |
 | A save that worked | `<SavedNote>`, in the place the error would have been |
+| What happened after an action that left the page and came back | `<OutcomeNote outcome>`, with the status looked up by `outcomeFor(table, status)`. The same title-then-detail shape as `<ErrorNote>`. Never index a table with a status from the address directly: `table['constructor']` is a function |
 | A term that needs a sentence of explanation | `<InfoHint label>` beside it. Opens on click, tap or Enter; never hover only |
 | A labelled input | `<Field id label hint help>`. The hint sits beside the label, not inside it |
 | Severity | `<SeverityBadge>` — never a raw coloured span |

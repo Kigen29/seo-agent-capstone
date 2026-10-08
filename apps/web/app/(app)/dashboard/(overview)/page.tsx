@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleCallbackNote } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
-import { Note, type NoteTone } from '@/components/ui/note'
+import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
 import { PageHeader } from '@/components/ui/page-header'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
@@ -18,19 +18,31 @@ import { Overview } from './overview'
 export const dynamic = 'force-dynamic'
 
 /** The banner shown after a Verify-with-a-PR click, keyed on the ?verify= status. */
-const VERIFY_MESSAGE: Record<string, { tone: NoteTone; text: string }> = {
+const VERIFY: Record<string, Outcome> = {
   queued: {
     tone: 'ok',
-    text: 'Verification queued. The agent is opening a pull request that adds the meta tag; it will appear on the site shortly.',
+    title: 'Verification started',
+    detail:
+      'The agent is opening a pull request that adds the ownership tag. It will appear against this site shortly.',
   },
   precondition: {
     tone: 'warn',
-    text: 'Connect a repository and Google Search Console to this site first.',
+    title: 'Two connections are needed first',
+    detail: 'Connect a repository and Google Search Console to this site, then verify.',
   },
   failed: {
     tone: 'error',
-    text: 'Could not queue verification. Try again shortly.',
+    title: 'We could not start verification',
+    detail: 'That is a fault on our side, not something you did. Try again in a moment.',
   },
+}
+
+/** `startAudit` comes back here with this when the API did not answer. */
+const AUDIT_NOT_QUEUED: Outcome = {
+  tone: 'info',
+  title: 'The audit was not started',
+  detail:
+    'The service was starting up. It sleeps after about fifteen minutes without use and takes up to a minute to wake. Nothing was lost. Press Run audit again.',
 }
 
 /** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
@@ -66,7 +78,6 @@ export default async function Dashboard({
     asleep,
     siteId,
   } = await searchParams
-  const verifyMessage = verifyCallback ? VERIFY_MESSAGE[verifyCallback] : undefined
 
   let sites
   let connections
@@ -129,18 +140,9 @@ export default async function Dashboard({
         silent bounce back to the dashboard with their audit never queued and no explanation. The
         button appeared to do nothing at all.
       */}
-      {asleep && (
-        <Note tone="warn" className="mt-4">
-          The API was waking up, so the audit was not queued. It sleeps after about fifteen minutes
-          idle on the free tier. Try Run audit again in a moment.
-        </Note>
-      )}
+      {asleep && <OutcomeNote outcome={AUDIT_NOT_QUEUED} className="mt-4" />}
 
-      {verifyMessage && (
-        <Note tone={verifyMessage.tone} className="mt-4">
-          {verifyMessage.text}
-        </Note>
-      )}
+      <OutcomeNote outcome={outcomeFor(VERIFY, verifyCallback)} className="mt-4" />
 
       {activeSite && (
         <Overview

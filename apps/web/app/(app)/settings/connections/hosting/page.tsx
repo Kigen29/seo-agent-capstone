@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Note, type NoteTone } from '@/components/ui/note'
+import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
@@ -19,39 +19,54 @@ export const dynamic = 'force-dynamic'
  * audits and pull requests do not need it, so nobody connects a token they did not have to.
  */
 /** What came back from Vercel's consent screen, in words a person can act on. */
-const VERCEL_OUTCOME: Record<string, { tone: NoteTone; text: string }> = {
+const VERCEL_OUTCOME: Record<string, Outcome> = {
   connected: {
     tone: 'ok',
-    text: 'Connected to Vercel. Merged fixes for this site will now be checked against its project.',
+    title: 'Connected to Vercel',
+    detail: 'Merged fixes for this site will now be checked against its project.',
   },
   no_project: {
     tone: 'warn',
-    text: 'Vercel access was approved, but the account you chose has no project that deploys this site’s repository. Try again and pick the team that owns the project, and include that project when Vercel asks which ones to share.',
+    title: 'No matching project was found',
+    detail:
+      'Vercel access was approved, but the account you chose has no project that deploys this site’s repository. Try again, pick the team that owns the project, and include that project when Vercel asks which ones to share.',
   },
   unconfirmed: {
     tone: 'warn',
-    text: 'A project linked to this repository was found, but nothing confirms it serves this site’s address yet. Check the domain is assigned to the project and that a production deployment has completed, then try again.',
+    title: 'The project could not be confirmed',
+    detail:
+      'A project linked to this repository was found, but nothing confirms it serves this site’s address yet. Check the domain is assigned to the project and that a production deployment has completed, then try again.',
   },
   declined: {
     tone: 'info',
-    text: 'Nothing was connected: the approval on Vercel was not completed.',
+    title: 'Nothing was connected',
+    detail: 'The approval on Vercel was not completed.',
   },
-  norepo: { tone: 'warn', text: 'Connect this site’s repository first, then connect Vercel.' },
+  norepo: {
+    tone: 'warn',
+    title: 'A repository is needed first',
+    detail: 'Connect this site’s repository, then connect Vercel.',
+  },
   changed: {
     tone: 'warn',
-    text: 'The site’s connection changed while this was in progress. Please try again.',
+    title: 'The connection changed part way through',
+    detail: 'Something about this site’s connection changed while this was in progress. Try again.',
   },
   invalid: {
-    tone: 'error',
-    text: 'That approval could not be matched to a request from this account, or it took too long. Please start again.',
+    tone: 'warn',
+    title: 'That approval could not be used',
+    detail:
+      'It could not be matched to a request from this account, or it took too long. Start again from here.',
   },
   unavailable: {
-    tone: 'error',
-    text: 'Connecting to Vercel in one step is not set up on this deployment. Use an access token instead.',
+    tone: 'info',
+    title: 'One-step connection is not switched on here',
+    detail: 'It has not been set up on this installation. Use an access token instead.',
   },
   failed: {
     tone: 'error',
-    text: 'Vercel could not be reached to finish connecting. Nothing was changed. Try again in a minute.',
+    title: 'We could not finish connecting Vercel',
+    detail: 'Vercel could not be reached. Nothing was changed. Try again in a minute.',
   },
 }
 
@@ -143,11 +158,7 @@ export default async function HostingPage({
           find the project from the site&apos;s repository and check that it really serves this
           address before anything is saved.
         </p>
-        {vercel && VERCEL_OUTCOME[vercel] && (
-          <Note tone={VERCEL_OUTCOME[vercel].tone} className="mb-3">
-            {VERCEL_OUTCOME[vercel].text}
-          </Note>
-        )}
+        <OutcomeNote outcome={outcomeFor(VERCEL_OUTCOME, vercel)} className="mb-3" />
         <div className="card elev-sm" style={{ padding: 'var(--space-4)' }}>
           {site.repoFullName ? (
             <>

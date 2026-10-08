@@ -1,5 +1,6 @@
 import type { Billing, BillingPlan } from '@seo/api-client'
 import { Note } from '@/components/ui/note'
+import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { choosePlan } from './actions'
 
@@ -33,23 +34,26 @@ const allowance = (plan: BillingPlan): string =>
       )} of paid work a month`
 
 /** What came back from the payment page. Neither changes the plan; only the webhook does. */
-const RETURNED: Record<string, { tone: 'ok' | 'info'; text: string }> = {
+const RETURNED: Record<string, Outcome> = {
   success: {
     tone: 'ok',
-    text: 'Checkout completed. Your plan changes when the payment provider confirms it, usually within a minute. Reload this page to see it.',
+    title: 'Checkout completed',
+    detail:
+      'Your plan changes when the payment provider confirms it, usually within a minute. Reload this page to see it.',
   },
   cancelled: {
     tone: 'info',
-    text: 'Checkout was cancelled, so nothing changed and nothing was charged.',
+    title: 'Nothing changed',
+    detail: 'Checkout was cancelled, and nothing was charged.',
   },
   failed: {
-    tone: 'info',
-    text: 'The checkout could not be started. Nothing was charged. Try again in a moment.',
+    tone: 'error',
+    title: 'We could not start the checkout',
+    detail: 'Nothing was charged. That is a fault on our side. Try again in a moment.',
   },
 }
 
 export function PlanSection({ billing, returned }: { billing: Billing; returned?: string }) {
-  const message = returned ? RETURNED[returned] : undefined
   const current = billing.plans.find((plan) => plan.id === billing.plan)
 
   return (
@@ -63,11 +67,7 @@ export function PlanSection({ billing, returned }: { billing: Billing; returned?
         and Search Console verification are free on every plan.
       </p>
 
-      {message && (
-        <Note tone={message.tone} className="mb-3">
-          {message.text}
-        </Note>
-      )}
+      <OutcomeNote outcome={outcomeFor(RETURNED, returned)} className="mb-3" />
 
       {!billing.configured && (
         <Note tone="info" className="mb-3">
