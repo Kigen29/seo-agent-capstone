@@ -123,6 +123,7 @@ export {
   MAX_MARKET,
   MAX_OFFERING,
   saveCompetitors,
+  saveMentionExclusions,
   saveSiteProfile,
 } from './site-profile.js'
 export type { SiteProfile } from './site-profile.js'

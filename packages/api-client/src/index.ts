@@ -519,6 +519,8 @@ export interface SiteProfile {
   offering: string | null
   market: string | null
   competitors: string[]
+  /** Sites the owner has said are not about them, left out of their brand mentions. */
+  mentionExclusions: string[]
 }
 
 /** A competitor offered for a person to accept. It has been fetched and it answered. */
@@ -1067,6 +1069,15 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ competitors }),
         })
       ).competitors,
+
+    /** Replace the sites that are not about this business. They leave its mentions at once. */
+    saveMentionExclusions: async (siteId: string, domains: string[]) =>
+      (
+        await request<{ mentionExclusions: string[] }>(`/sites/${siteId}/mention-exclusions`, {
+          method: 'PUT',
+          body: JSON.stringify({ domains }),
+        })
+      ).mentionExclusions,
 
     /** Draft competitors from what the site offers and where. One model call; nothing is saved. */
     suggestCompetitors: async (siteId: string) =>

@@ -173,3 +173,48 @@ test('the page shows how the mentions were found, and how many results were refu
     0,
   )
 })
+
+test('a site can be marked as not us, leaves the page at once, and can be put back', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.goto('/authority')
+
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Where you were mentioned' }),
+  })
+  // A run that failed half way leaves the site marked, and the seed does not reset it. Start
+  // from a known place, so one bad run cannot fail every run after it.
+  const leftover = section.locator('details').filter({ hasText: 'you marked as not you' })
+  if ((await leftover.count()) > 0) {
+    await leftover.locator('summary').click()
+    await leftover
+      .getByRole('button', { name: /Put back/ })
+      .first()
+      .click()
+    await expect(section.getByText('you marked as not you')).toHaveCount(0)
+  }
+
+  const site = section.getByRole('listitem').filter({ hasText: 'regional-news.example.net' })
+  await expect(site.first()).toBeVisible()
+  await page.waitForLoadState('networkidle')
+
+  await site
+    .first()
+    .getByRole('button', { name: /Not us/ })
+    .click()
+
+  // Gone from the list without a reload, and recorded where it can be undone.
+  await expect(section.getByRole('link', { name: /Tourism season opens/ })).toHaveCount(0)
+  const marked = section.locator('details').filter({ hasText: 'you marked as not you' })
+  await expect(marked).toContainText('1 site you marked as not you')
+
+  // Still gone after a reload: it was stored, not just hidden.
+  await page.reload()
+  await expect(section.getByRole('link', { name: /Tourism season opens/ })).toHaveCount(0)
+
+  await marked.locator('summary').click()
+  await marked.getByRole('button', { name: /Put back/ }).click()
+  await expect(section.getByRole('link', { name: /Tourism season opens/ })).toBeVisible()
+  await expect(section.getByText('you marked as not you')).toHaveCount(0)
+})

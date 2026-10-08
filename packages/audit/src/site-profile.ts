@@ -23,6 +23,8 @@ export interface SiteProfile {
   /** The country or region its customers are in, as free text ("Kenya", "Nairobi", "East Africa"). */
   market: string | null
   competitors: string[]
+  /** Sites the owner has said are not about them, left out of their brand mentions. */
+  mentionExclusions: string[]
 }
 
 export const MAX_BRAND = 200
@@ -48,6 +50,7 @@ export async function getSiteProfile(
         offering: sites.offering,
         market: sites.market,
         competitors: sites.competitors,
+        mentionExclusions: sites.mentionExclusions,
       })
       .from(sites)
       .where(eq(sites.id, siteId))
@@ -78,6 +81,7 @@ export async function saveSiteProfile(
         offering: sites.offering,
         market: sites.market,
         competitors: sites.competitors,
+        mentionExclusions: sites.mentionExclusions,
       })
 
     return saved ?? null
@@ -120,4 +124,22 @@ export async function captureBrand(
       .set({ brand: tidy(brand, MAX_BRAND) })
       .where(eq(sites.id, siteId)),
   )
+}
+
+/** Replace the list of sites that are not about this business. The caller normalises them. */
+export async function saveMentionExclusions(
+  db: Database,
+  tenantId: string,
+  siteId: string,
+  domains: string[],
+): Promise<string[] | null> {
+  return withTenant(db, tenantId, async (tx) => {
+    const [saved] = await tx
+      .update(sites)
+      .set({ mentionExclusions: domains })
+      .where(eq(sites.id, siteId))
+      .returning({ mentionExclusions: sites.mentionExclusions })
+
+    return saved?.mentionExclusions ?? null
+  })
 }

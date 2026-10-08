@@ -1,6 +1,7 @@
 import type { AuthorityMetrics } from '@seo/api-client'
 import { ExternalLink } from 'lucide-react'
 import { InfoHint } from '@/components/ui/info-hint'
+import { ExcludedSites, NotUsButton } from './not-us'
 
 /**
  * Where the brand was mentioned: the pages, grouped by the site they are on.
@@ -53,7 +54,15 @@ function pathOf(url: string): string {
   }
 }
 
-function SiteRows({ sites }: { sites: Site[] }) {
+function SiteRows({
+  sites,
+  siteId,
+  excluded,
+}: {
+  sites: Site[]
+  siteId: string
+  excluded: string[]
+}) {
   return (
     <ul className="frame m-0 list-none p-0">
       {sites.map((site, index) => (
@@ -64,14 +73,15 @@ function SiteRows({ sites }: { sites: Site[] }) {
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="min-w-0 font-semibold break-all">{site.domain}</span>
-            <span className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               <span className="text-muted tnum text-[13px]">
                 {site.pages.length} {site.pages.length === 1 ? 'page' : 'pages'}
               </span>
               {/* Nothing at all when links were not checked: unknown is not "no link". */}
               {site.linked === true && <span className="tag tag-success">Links to you</span>}
               {site.linked === false && <span className="tag tag-accent">No link yet</span>}
-            </span>
+              <NotUsButton siteId={siteId} domain={site.domain} excluded={excluded} />
+            </div>
           </div>
           <ul className="m-0 mt-1.5 flex list-none flex-col gap-1 p-0">
             {site.pages.map((page) => (
@@ -104,7 +114,12 @@ export function MentionList({
   mentions,
   measured,
   search,
+  siteId,
+  excluded,
 }: {
+  siteId: string
+  /** Sites the owner has marked as a different business. Already left out of `mentions`. */
+  excluded: string[]
   /** How the mentions were found. Absent on an audit from before this was recorded. */
   search?: { brand: string; leftOut: number } | undefined
   /** Undefined on an audit from before the pages were kept. */
@@ -143,6 +158,8 @@ export function MentionList({
         <div className="text-muted mb-3 max-w-[68ch] text-[13px]">
           Searched for the exact name &ldquo;{search.brand}&rdquo;, leaving out your own site. A
           result is only counted when its title, summary or address contains that name as written.
+          If a site here is a different business with the same name, mark it &ldquo;Not us&rdquo;
+          and it is left out from then on.
           {search.leftOut > 0 && (
             <>
               {' '}
@@ -185,7 +202,9 @@ export function MentionList({
         </div>
       )}
 
-      {earned.length > 0 && <SiteRows sites={earned.slice(0, SHOWN)} />}
+      {earned.length > 0 && (
+        <SiteRows sites={earned.slice(0, SHOWN)} siteId={siteId} excluded={excluded} />
+      )}
 
       {earned.length > SHOWN && (
         <details className="mt-3">
@@ -193,7 +212,7 @@ export function MentionList({
             Show {earned.length - SHOWN} more {earned.length - SHOWN === 1 ? 'site' : 'sites'}
           </summary>
           <div className="mt-3">
-            <SiteRows sites={earned.slice(SHOWN)} />
+            <SiteRows sites={earned.slice(SHOWN)} siteId={siteId} excluded={excluded} />
           </div>
         </details>
       )}
@@ -208,9 +227,11 @@ export function MentionList({
             Profiles and listings. They are real mentions and worth keeping accurate, and they are
             not counted as coverage, because nobody else chose to write them.
           </div>
-          <SiteRows sites={platforms} />
+          <SiteRows sites={platforms} siteId={siteId} excluded={excluded} />
         </details>
       )}
+
+      <ExcludedSites siteId={siteId} excluded={excluded} />
     </section>
   )
 }

@@ -112,6 +112,15 @@ export const sites = pgTable(
      * A name, an explicit null (read, and the title states no name), or absent (not read yet).
      * It exists so a competitor is looked for in an AI answer the same way the client is.
      */
+    /**
+     * Sites the client has said are not about them (ADR-0042). Kept out of their brand mentions,
+     * because the exact-name check cannot tell two businesses with the same name apart.
+     */
+    mentionExclusions: text('mention_exclusions')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+
     competitorNames: jsonb('competitor_names')
       .$type<Record<string, string | null>>()
       .notNull()

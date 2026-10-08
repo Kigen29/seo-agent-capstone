@@ -3,6 +3,7 @@ import {
   classifyGap,
   classifyMentions,
   confirmMentions,
+  withoutExcludedSources,
   listMentions,
   evaluateAuthority,
   linkGapFinding,
@@ -80,6 +81,8 @@ export async function measureAuthority(
     /** The client's own site, so their own pages are excluded from earned media. */
     domain: string
     competitors: readonly string[]
+    /** Sites the client has said are not about them. Left out before anything is counted. */
+    excluded?: readonly string[]
   },
   provider?: SerpProvider,
   /**
@@ -118,7 +121,11 @@ export async function measureAuthority(
       contain the name as written go on to be classified, listed and pitched.
     */
     const checked = confirmMentions(own.sources, brand)
-    const footprint = classifyMentions(checked.confirmed, options.domain)
+    // Then the client's own word on which sites are another business with the same name.
+    const footprint = classifyMentions(
+      withoutExcludedSources(checked.confirmed, options.excluded ?? []),
+      options.domain,
+    )
 
     /**
      * Competitors are compared on the same instrument: the same query shape, the same exclusion
