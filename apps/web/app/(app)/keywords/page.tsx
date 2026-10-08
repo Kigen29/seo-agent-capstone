@@ -119,14 +119,42 @@ export default async function KeywordsPage({
       {result && !result.note && result.ideas.length === 0 && (
         <div className="mt-6">
           <EmptyState figure="0" title="Nothing came back">
-            No ideas for &ldquo;{result.seed}&rdquo;. The seed may be too narrow, too unusual, or
-            not something people search for in that market.
+            No related searches for &ldquo;{result.seed}&rdquo;. It may be too narrow, too unusual,
+            or not something people search for in that country. Try a shorter or more general
+            phrase.
           </EmptyState>
         </div>
       )}
 
       {result && result.ideas.length > 0 && (
         <section className="mt-6">
+          {/*
+            The three figures, said once in the open. Two of them are about advertising, which
+            is easy to misread as "how hard is it to rank", and a tooltip on a column heading
+            reaches a mouse and nothing else.
+          */}
+          <dl className="text-muted mb-3 grid max-w-[80ch] gap-1 text-[13px]">
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-semibold">Monthly searches:</dt>
+              <dd className="m-0">
+                Google&apos;s estimate of how often this is searched in the chosen country.
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-semibold">Ad competition:</dt>
+              <dd className="m-0">
+                How many advertisers bid on it. A sign that the search is worth money, not of how
+                hard it is to rank for.
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-semibold">Cost per click:</dt>
+              <dd className="m-0">
+                What an advertiser pays for one visitor. You pay nothing; a high figure means buyers
+                are searching.
+              </dd>
+            </div>
+          </dl>
           <div className="table-scroll">
             <table className="table">
               <thead>
@@ -190,8 +218,8 @@ export default async function KeywordsPage({
 
       {!seed?.trim() && (
         <div className="mt-6">
-          <EmptyState figure="?" title="Start with a term you want to rank for">
-            Type a seed above. A product, a service, a question your customers ask.
+          <EmptyState figure="?" title="Start with a word your customers would search">
+            Type it above: a product, a service, or a question your customers ask.
           </EmptyState>
         </div>
       )}
@@ -216,8 +244,8 @@ export default async function KeywordsPage({
           {gap && gap.subtracted !== null && (
             <p className="text-muted mt-3 mb-0 text-[13px]">
               {gap.subtracted === 0
-                ? 'Search Console removed nothing: none of these are terms you already appear for.'
-                : `Search Console removed ${gap.subtracted} keyword(s) you already appear for.`}
+                ? 'Checked against your Search Console: you do not already appear for any of these.'
+                : `${gap.subtracted} ${gap.subtracted === 1 ? 'search was' : 'searches were'} left out because your Search Console shows you already appear for ${gap.subtracted === 1 ? 'it' : 'them'}.`}
             </p>
           )}
 
@@ -225,7 +253,7 @@ export default async function KeywordsPage({
             <div className="mt-4">
               <EmptyState figure="0" title="No gap found">
                 Nothing {gap.competitor} ranks for is missing from your site, at least in this
-                market and within the rows we paid to read.
+                country and among the results we looked up.
               </EmptyState>
             </div>
           )}

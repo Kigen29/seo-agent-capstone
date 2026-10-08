@@ -125,7 +125,7 @@ export default async function FindingsPage({
       {result.findings.length === 0 ? (
         <EmptyState
           figure="0"
-          title="Nothing out of true here"
+          title={hasFilters ? 'Nothing matches' : 'Nothing to fix yet'}
           action={
             hasFilters ? (
               <Link href="/findings" className="btn btn-secondary">
@@ -140,7 +140,7 @@ export default async function FindingsPage({
         >
           {hasFilters
             ? 'No findings match these filters.'
-            : 'Run an audit and findings will land here, sorted by impact over effort.'}
+            : 'Run an audit and what it finds will be listed here, the most valuable and easiest fixes first.'}
         </EmptyState>
       ) : (
         <>
