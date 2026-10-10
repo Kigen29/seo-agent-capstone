@@ -1,7 +1,6 @@
 'use client'
 
 import { Plus, X } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { CompetitorsEditor } from '@/app/(app)/site/competitors-editor'
 
@@ -13,11 +12,17 @@ import { CompetitorsEditor } from '@/app/(app)/site/competitors-editor'
  * the page: type a domain, or ask for suggestions and tick them. It is the same component site
  * setup uses, so there is one list and one set of rules, reached from two places.
  *
- * Each change saves at once, so closing has nothing to confirm. The page is refreshed on close,
- * only if something changed, so the watch below shows the new competitor as not yet read.
+ * Each change saves at once, so closing has nothing to confirm. The page is loaded again on
+ * close, only if something changed, so the watch below shows the new competitor as not yet read.
+ *
+ * Loaded again, not refreshed in place. It was a `router.refresh()`, and on an account with a
+ * populated watch the new competitor then failed to appear on the page 8 times out of 9 until it
+ * was reloaded by hand. This route has a `loading.tsx`, and after a server action the router
+ * does not reliably show a page that arrives in two parts; `authority/not-us.tsx` has the
+ * measurements. The test that covered this passed throughout, because it ran on an account with
+ * almost nothing on the page.
  */
 export function AddCompetitor({ siteId, tracked }: { siteId: string; tracked: string[] }) {
-  const router = useRouter()
   const dialog = useRef<HTMLDialogElement>(null)
   const [open, setOpen] = useState(false)
   const changed = useRef(false)
@@ -33,7 +38,7 @@ export function AddCompetitor({ siteId, tracked }: { siteId: string; tracked: st
     setOpen(false)
     if (changed.current) {
       changed.current = false
-      router.refresh()
+      window.location.reload()
     }
   }
 
