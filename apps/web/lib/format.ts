@@ -13,6 +13,14 @@
 const DAY = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 const DAY_TIME = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
 
+const UTC_DAY = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+})
+const MONTH = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+
 type Moment = string | number | Date
 
 /** "10 Oct 2026". */
@@ -23,6 +31,22 @@ export function formatDay(moment: Moment): string {
 /** "10 Oct 2026, 12:25". For things that can happen more than once in a day. */
 export function formatDayTime(moment: Moment): string {
   return DAY_TIME.format(new Date(moment))
+}
+
+/**
+ * "Sat 10 Oct", for a `YYYY-MM-DD` day that is a UTC day and must stay one.
+ *
+ * `formatDay` would be wrong here. It reads the string as midnight UTC and prints it in the
+ * reader's own zone, which west of Greenwich is the evening before: the schedule's 10th would
+ * read as the 9th.
+ */
+export function formatUtcDay(day: string): string {
+  return UTC_DAY.format(new Date(`${day}T00:00:00.000Z`))
+}
+
+/** "October 2026", for a `YYYY-MM` month. */
+export function formatMonth(month: string): string {
+  return MONTH.format(new Date(`${month}-01T00:00:00.000Z`))
 }
 
 /**

@@ -74,6 +74,7 @@ test('every page has its own title, and one first-level heading', async ({ page 
     '/findings',
     '/audits',
     '/outcomes',
+    '/schedule',
     '/keywords',
     '/authority',
     '/visibility',

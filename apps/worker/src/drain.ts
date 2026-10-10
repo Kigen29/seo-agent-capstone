@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs'
 import { drainScope } from './drain-scope.js'
 import { publishPendingJobs } from './outbox.js'
 import { nameTopics } from '@seo/agent'
-import { runAudit, watchCompetitors } from '@seo/audit'
+import { enqueueDueAudits, runAudit, watchCompetitors } from '@seo/audit'
 import { createDb } from '@seo/db'
 import {
   createQueue,
@@ -49,6 +49,21 @@ const queue = await createQueue()
 console.log(`worker: selected queue ${scope.selected}`)
 
 try {
+  /**
+   * Scheduled audits first (ADR-0044). Each one is written to the outbox, which the next line
+   * publishes, so an audit found due on this wake is crawled on this wake. A failure here is
+   * logged and swallowed: the schedule must not stop the run that also carries the audits and
+   * fixes somebody asked for by hand.
+   */
+  if (scope.includes('audit')) {
+    try {
+      const scheduled = await enqueueDueAudits(db)
+      console.log(`worker: started ${scheduled} scheduled audit(s)`)
+    } catch (error) {
+      console.error('worker: could not start scheduled audits', error)
+    }
+  }
+
   await publishPendingJobs(db, queue)
   const result = await scope.run('audit', () =>
     drainAudits(queue, async (job) => {

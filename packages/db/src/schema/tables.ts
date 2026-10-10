@@ -127,6 +127,13 @@ export const sites = pgTable(
       .default({}),
 
     /**
+     * How often the site is audited without anybody asking: 'off', 'weekly' or 'monthly'
+     * (ADR-0044). Off until chosen, because an audit spends from the tenant's allowance.
+     * The set is held by a check constraint and by `auditCadenceSchema` in `@seo/core`.
+     */
+    auditCadence: text('audit_cadence').notNull().default('off'),
+
+    /**
      * The brand name, as a human writes it. Null until somebody says what it is.
      *
      * Not derivable from the domain, which is exactly why it is stored. `heartbeestsafaris.com`

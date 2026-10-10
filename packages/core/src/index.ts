@@ -92,3 +92,30 @@ export type { Plan, PlanId } from './plans.js'
 
 // The brand, read from a homepage title when the title plainly states it (ADR-0018).
 export { brandFromTitle } from './brand.js'
+
+export {
+  addDays,
+  AUDIT_CADENCE_DAYS,
+  auditCadenceSchema,
+  buildSchedule,
+  COMPETITOR_READ_INTERVAL_DAYS,
+  dayStart,
+  monthWindow,
+  nextAuditDay,
+  scheduleEventSchema,
+  scheduleKindSchema,
+  scheduleStateSchema,
+  shiftMonth,
+  siteScheduleSchema,
+  toIcs,
+  utcDayOf,
+} from './schedule.js'
+export type {
+  AuditCadence,
+  ScheduleEvent,
+  ScheduleInput,
+  ScheduleKind,
+  ScheduleState,
+  ScheduleWindow,
+  SiteSchedule,
+} from './schedule.js'

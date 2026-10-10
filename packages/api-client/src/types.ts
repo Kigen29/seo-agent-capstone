@@ -651,3 +651,12 @@ export interface KeywordIdeasQuery {
   language?: string
   limit?: number
 }
+
+/** The calendar's shapes are defined once, in the core package, where the schedule is computed. */
+export type {
+  AuditCadence,
+  ScheduleEvent,
+  ScheduleKind,
+  ScheduleState,
+  SiteSchedule,
+} from '@seo/core'

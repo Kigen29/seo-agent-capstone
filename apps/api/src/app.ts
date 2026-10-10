@@ -31,6 +31,7 @@ import { billingRoutes, billingWebhookRoutes } from './routes/billing.js'
 import { competitorRoutes } from './routes/competitors.js'
 import { siteProfileRoutes } from './routes/site-profile.js'
 import { outcomeRoutes } from './routes/outcomes.js'
+import { scheduleRoutes } from './routes/schedule.js'
 import { promptSuggestionRoutes } from './routes/prompt-suggestions.js'
 import { outreachRoutes } from './routes/outreach.js'
 import { identityRoutes, signinRoutes } from './routes/signin.js'
@@ -236,6 +237,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     visibilityRoutes(protectedRoutes, deps)
     promptSuggestionRoutes(protectedRoutes, deps)
     outcomeRoutes(protectedRoutes, deps)
+    scheduleRoutes(protectedRoutes, deps)
     competitorRoutes(protectedRoutes, deps)
     billingRoutes(protectedRoutes, deps)
     siteProfileRoutes(protectedRoutes, deps)
