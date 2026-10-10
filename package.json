@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @seo/web e2e",
+    "test:db": "node scripts/test-db.mjs",
     "db:migrate": "pnpm --filter @seo/db db:migrate",
     "lint": "eslint .",
     "format": "prettier --write .",

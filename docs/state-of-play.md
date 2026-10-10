@@ -366,6 +366,15 @@ a pull request, and product page rules. The public `/check` page is approved in 
 
 Each of these cost real time in a previous session.
 
+- **The local test database is empty after every Docker restart.** It keeps its data in memory
+  on purpose (`compose.test.yml`), so when Docker stops, the schema goes with it. The browser
+  suite used to answer that with "Process from config.webServer was not able to start". Run
+  `pnpm test:db`: it checks Docker is up, starts the container and applies the migrations, and
+  its address is fixed in the script so it cannot be pointed at the real database by a stray
+  variable. The suite now names that command itself when the database is not answering. Also:
+  the first run after Docker starts is slow enough to time tests out. Run it again before
+  believing a failure.
+
 - **A search engine answers the question it thinks was asked.** The authority axis searched for
   a client's brand in quotes and counted every result. Google read "Heartbeest" as a misspelling
   of "hartebeest" and returned another company, and the product reported six sites, six pitches
