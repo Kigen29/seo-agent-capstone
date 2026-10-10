@@ -1,0 +1,176 @@
+/*
+ * Motion: how the interface answers a hand.
+ *
+ * Classical is a still design, and this keeps it one. Nothing here decorates. Each rule exists
+ * because without it something happened and the page did not say so: a button was pressed and
+ * looked the same, a panel was there and then was not.
+ *
+ * The rules this file holds itself to:
+ *
+ *   - A press is answered at once. Every button gives a little under the finger.
+ *   - Only named properties are transitioned, never `all`, and only ones the compositor can
+ *     move cheaply or that are a plain colour.
+ *   - Nothing takes longer than 300ms, and what you do a hundred times a day takes far less.
+ *     Turning a page of a table is not animated at all.
+ *   - Things arrive decelerating and leave faster than they came. Nothing accelerates into view.
+ *   - Nothing grows from nothing. A panel starts at 97% and transparent, not at zero.
+ *   - A reader who asked for less motion still gets the fade, which says something changed,
+ *     and loses the movement, which is the part that can make a person unwell.
+ *
+ * Colours and type are not touched here. See `classical.css` and `docs/DESIGN.md`.
+ */
+
+.classical {
+  /* Decelerating. For anything arriving or answering a press. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* For something already on screen that moves from one place to another. */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* A sheet rising from the bottom edge of a phone. */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --motion-press: 120ms;
+  --motion-quick: 140ms;
+  --motion-enter: 220ms;
+  --motion-exit: 150ms;
+}
+
+/* ---- Press ---- */
+
+.classical .btn {
+  transition:
+    background-color var(--motion-quick) var(--ease-out),
+    border-color var(--motion-quick) var(--ease-out),
+    color var(--motion-quick) var(--ease-out),
+    transform var(--motion-press) var(--ease-out);
+}
+.classical .btn:active:not(:disabled):not([aria-disabled='true']) {
+  transform: scale(0.97);
+}
+
+.classical .side-link,
+.classical .seg-opt,
+.classical .hint > summary {
+  transition:
+    background-color var(--motion-quick) var(--ease-out),
+    color var(--motion-quick) var(--ease-out);
+}
+.classical a {
+  transition: color var(--motion-quick) var(--ease-out);
+}
+.classical .input {
+  transition: border-color var(--motion-quick) var(--ease-out);
+}
+
+/* ---- A panel over the page ---- */
+
+/*
+ * Closed is the resting state, so opening is a transition out of it and closing is one back
+ * into it. `allow-discrete` on `display` and `overlay` is what lets a native dialog play its
+ * exit: without it the browser removes the box on the same frame it is asked to close.
+ */
+.classical dialog.sheet {
+  opacity: 0;
+  transform: scale(0.97);
+  transition:
+    opacity var(--motion-exit) var(--ease-out),
+    transform var(--motion-exit) var(--ease-out),
+    overlay var(--motion-exit) allow-discrete,
+    display var(--motion-exit) allow-discrete;
+}
+.classical dialog.sheet[open] {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--motion-enter);
+}
+@starting-style {
+  .classical dialog.sheet[open] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.classical dialog.sheet::backdrop {
+  opacity: 0;
+  transition:
+    opacity var(--motion-exit) var(--ease-out),
+    overlay var(--motion-exit) allow-discrete,
+    display var(--motion-exit) allow-discrete;
+}
+.classical dialog.sheet[open]::backdrop {
+  opacity: 1;
+  transition-duration: var(--motion-enter);
+}
+@starting-style {
+  .classical dialog.sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* On a phone the sheet is anchored to the bottom edge, so that is where it comes from. */
+@media (max-width: 640px) {
+  .classical dialog.sheet {
+    transform: translateY(24px);
+  }
+  .classical dialog.sheet[open] {
+    transform: none;
+    transition-timing-function: var(--ease-drawer);
+    transition-duration: 280ms;
+  }
+  @starting-style {
+    .classical dialog.sheet[open] {
+      transform: translateY(24px);
+    }
+  }
+}
+
+/* ---- A hint beside a term ---- */
+
+/* It opens from the mark that was pressed, not from its own middle. */
+.classical .hint-body {
+  transform-origin: top left;
+}
+.classical .hint-body.hint-end {
+  transform-origin: top right;
+}
+.classical .hint[open] > .hint-body {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--motion-quick) var(--ease-out),
+    transform var(--motion-quick) var(--ease-out);
+}
+@starting-style {
+  .classical .hint[open] > .hint-body {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* ---- Less motion, when asked ---- */
+
+/*
+ * Not "no feedback". The fades stay, at their own short durations, because a fade is how the
+ * page says a panel arrived. What goes is anything that travels or changes size, and the one
+ * animation that loops.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .classical *,
+  .classical *::before,
+  .classical *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .classical .btn:active:not(:disabled):not([aria-disabled='true']),
+  .classical dialog.sheet,
+  .classical dialog.sheet[open],
+  .classical .hint[open] > .hint-body {
+    transform: none;
+  }
+  @starting-style {
+    .classical dialog.sheet[open],
+    .classical .hint[open] > .hint-body {
+      transform: none;
+    }
+  }
+}

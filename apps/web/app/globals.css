@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './classical.css';
+@import './motion.css';
 
 /*
  * The design tokens, declared once, in Tailwind's own token block.
