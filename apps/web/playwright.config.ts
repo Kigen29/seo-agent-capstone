@@ -1,5 +1,6 @@
 import { assertTestDatabase } from '@seo/core'
 import { defineConfig, devices } from '@playwright/test'
+import { spawnSync } from 'node:child_process'
 
 /**
  * Resolved from the working directory, not from `import.meta.url`. Playwright loads this
@@ -20,6 +21,34 @@ const DATABASE_URL = process.env.DATABASE_URL
 
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL must explicitly point at the disposable local test database.')
+}
+
+/**
+ * Is the database answering? Asked here, before anything is started.
+ *
+ * The local test database keeps its data in memory, so it is gone whenever Docker stops. The
+ * suite then failed with "Process from config.webServer was not able to start", which is true
+ * and says nothing: the API had died on a refused connection three layers down. This asks the
+ * question directly and answers with the command that fixes it.
+ *
+ * In a child process, because this config is loaded synchronously and a socket is not. CI is
+ * left alone: its database is a service the workflow starts and waits for.
+ */
+if (!process.env.CI) {
+  const { hostname, port } = new URL(DATABASE_URL)
+  const probe =
+    'const s=require("node:net").connect(Number(process.argv[2]),process.argv[1]);' +
+    's.setTimeout(3000);s.on("connect",()=>process.exit(0));' +
+    's.on("error",()=>process.exit(1));s.on("timeout",()=>process.exit(1))'
+  const answered = spawnSync(process.execPath, ['-e', probe, hostname, port || '5432'])
+
+  if (answered.status !== 0) {
+    throw new Error(
+      `The test database at ${hostname}:${port} is not answering. It lives in Docker and keeps ` +
+        'its data in memory, so it has to be started and migrated after every Docker restart. ' +
+        'Start Docker Desktop, then run: pnpm test:db',
+    )
+  }
 }
 
 /**
