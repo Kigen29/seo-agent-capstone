@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createApiClient } from '@seo/api-client'
 import { registerReadTools } from './tools/read.js'
+import { registerReportTools } from './tools/reports.js'
 import { DEFAULT_MAX_PRS, registerWriteTools } from './tools/write.js'
 
 /**
@@ -70,9 +71,10 @@ async function main(): Promise<void> {
     timeoutMs: TIMEOUT_MS,
   })
 
-  const server = new McpServer({ name: 'seo-agent', version: '0.1.0' })
+  const server = new McpServer({ name: 'seo-agent', version: '0.2.0' })
 
   registerReadTools(server, api)
+  registerReportTools(server, api)
   if (env.allowWrites) {
     registerWriteTools(server, api, { maxPrs: env.maxPrs })
   }

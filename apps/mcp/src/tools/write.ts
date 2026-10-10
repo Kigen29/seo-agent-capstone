@@ -1,5 +1,6 @@
 import { ApiRequestError, type ApiClient } from '@seo/api-client'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { auditCadenceSchema } from '@seo/core'
 import { z } from 'zod'
 import { guard, text, type ToolResult } from './result.js'
 
@@ -89,6 +90,38 @@ export function registerWriteTools(server: McpServer, api: ApiClient, options: W
           `Audit ${auditId} queued. Poll audit_status with this id until it reports finished, ` +
           'then call get_audit for the scorecard and the findings.'
         )
+      }),
+  )
+
+  server.registerTool(
+    'set_audit_schedule',
+    {
+      title: 'Set how often a site is audited',
+      description:
+        'Turn scheduled audits for a site on, off, or to another interval: off, weekly (every 7 ' +
+        'days) or monthly (every 30). Takes effect the next time the worker wakes. An audit ' +
+        'spends a little of the account’s monthly allowance on the topic map, which is why ' +
+        'this is off by default: do not turn it on unless the person asked for it. Check the ' +
+        'result with get_schedule.',
+      inputSchema: {
+        siteId: z.string().uuid().describe('From list_sites.'),
+        cadence: auditCadenceSchema,
+      },
+      // Changes a stored setting, and can be set straight back. Opens no pull request.
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ siteId, cadence }) =>
+      guard(async () => {
+        const saved = await api.setAuditCadence(siteId, cadence)
+        return saved === 'off'
+          ? `Scheduled audits are off for ${siteId}. An audit now runs only when asked for.`
+          : `Site ${siteId} is now audited ${saved === 'weekly' ? 'every 7 days' : 'every 30 days'}. ` +
+              'Call get_schedule to see the day the next one is due.'
       }),
   )
 

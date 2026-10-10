@@ -95,12 +95,18 @@ rule that matters: never label from engine output.
 ## Use it from your editor (MCP)
 
 The agent is also an [MCP](https://modelcontextprotocol.io) server, so Claude Code, Cursor or
-any MCP client can drive it directly. Six read tools (`list_sites`, `list_findings`,
-`get_finding`, `get_audit`, `audit_status`, `keyword_ideas`) and three write tools (`run_audit`,
-`fix_finding`, `verify_site`).
+any MCP client can drive it directly. Seventeen tools:
+
+| | Tools |
+|---|---|
+| Findings and audits | `list_sites`, `list_findings`, `get_finding`, `get_audit`, `audit_status`, `list_audits`, `audit_changes` |
+| Reports | `get_outcomes` (did each fix work), `get_visibility` (AI citations, as k of N checks), `get_competitor_watch`, `get_schedule` |
+| Billed research | `keyword_ideas`, `keyword_gap` |
+| Writes, off by default | `run_audit`, `fix_finding`, `verify_site`, `set_audit_schedule` |
 
 `fix_finding` is the one that matters. Every other SEO MCP server hands your agent a list of
-problems; this one opens the pull request that fixes it.
+problems; this one opens the pull request that fixes it, and `get_outcomes` and `audit_changes`
+then say whether it worked.
 
 ```bash
 pnpm build
