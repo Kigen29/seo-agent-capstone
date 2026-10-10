@@ -187,7 +187,12 @@ the reason we prioritise the top 100 pages by traffic plus recent publishes.
   `next.config.mjs`. `SECURITY.md` is the list of what is in place and what is knowingly not.
 - **The eval harness** (`packages/eval`): precision, recall, hallucination rate, judge-independence
   check, and a documented labelling method.
-- **MCP server** (`apps/mcp`): exposes the product to an external agent. Writes are off unless
+- **MCP server** (`apps/mcp`): exposes the product to an external agent, seventeen tools since
+  2026-10-10. It had stopped at the findings inbox and one audit while the product grew; it now
+  also reads the audit history, what an audit changed, fix outcomes, the AI-visibility report, the
+  competitor watch, the keyword gap and the schedule, and can set scheduled audits. stdio only, so
+  it runs on the user's machine against the hosted API; there is no hosted MCP endpoint, because
+  the free tier has room for one web service and the API is it. Writes are off unless
   `SEO_MCP_ALLOW_WRITES=1`, capped by `SEO_MCP_MAX_PRS`.
 - **Progress on both slow actions** (#146): `usePolledProgress` backs the audit page and the fix
   flow, so clicking "Open a pull request" no longer produces a banner and then silence. It says
