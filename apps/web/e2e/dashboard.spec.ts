@@ -667,7 +667,9 @@ test('topics shows the measured groups and the advice they produced', async ({ p
 
 test('topics that were not measured say so, and draw no map', async ({ page }) => {
   await signIn(page)
-  await page.goto('/topics')
+  // Named, not left to whichever site is listed first: another test edits the second site while
+  // this one runs, and the list is ordered by what changed last.
+  await page.goto('/topics?siteId=00000000-0000-4000-8000-000000000003')
 
   await expect(page.getByText(/Topics were not measured on the last audit/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'The map' })).toHaveCount(0)

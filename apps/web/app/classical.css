@@ -53,6 +53,7 @@
 }
 .classical h1 {
   font-size: var(--text-h1);
+  letter-spacing: -0.02em;
 }
 .classical h2 {
   font-size: var(--text-h2);
@@ -152,7 +153,7 @@
 
 /*
  * Skeleton placeholders. The shimmer is a background sweep rather than an opacity pulse so it
- * reads as "arriving" rather than "broken", and `prefers-reduced-motion` below stops it dead for
+ * reads as "arriving" rather than "broken", and `prefers-reduced-motion` in motion.css stops it dead for
  * anyone who has asked for that.
  */
 .classical .skeleton {
@@ -220,9 +221,11 @@
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
-.classical .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
-  border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+    border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+  }
 }
 .classical .btn-primary:active:not(:disabled) {
   background: color-mix(in srgb, var(--color-accent) 74%, var(--color-text));
@@ -231,22 +234,28 @@
   background: var(--color-surface);
   border-color: var(--color-divider);
 }
-.classical .btn-secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
+  }
 }
 .classical .btn-ghost {
   color: var(--color-accent-700);
   padding-inline: var(--space-2);
 }
-.classical .btn-ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
 }
 .classical .btn-danger {
   color: var(--color-danger-text);
   border-color: var(--color-danger);
 }
-.classical .btn-danger:hover:not(:disabled) {
-  background: var(--color-danger-bg);
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-bg);
+  }
 }
 .classical .btn-sm {
   font-size: 13px;
@@ -306,8 +315,10 @@
   background-color: var(--color-bg);
   color: var(--color-text);
 }
-.classical .input:hover {
-  border-color: var(--color-text-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .classical .input:hover {
+    border-color: var(--color-text-subtle);
+  }
 }
 .classical .input:focus-visible {
   border-color: var(--color-accent);
@@ -339,8 +350,10 @@
   color: var(--color-accent-700);
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
-.classical .seg-opt:not(:has(input:checked)):hover {
-  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .classical .seg-opt:not(:has(input:checked)):hover {
+    background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  }
 }
 /* Server-rendered active state, for segmented controls built from links. */
 .classical .seg-opt.is-active {
@@ -727,8 +740,10 @@
 .classical .table tbody tr:last-child td {
   border-bottom: 0;
 }
-.classical .table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .classical .table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  }
 }
 /*
  * A table wider than the viewport has to scroll inside its own box, or it pushes the whole page
@@ -814,9 +829,11 @@
   flex-shrink: 0;
   color: var(--color-text-subtle);
 }
-.classical .side-link:hover {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .classical .side-link:hover {
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  }
 }
 .classical .side-link[aria-current='page'] {
   color: var(--color-text);
@@ -945,17 +962,6 @@
   .classical .wrap,
   .classical .wrap-narrow {
     padding: var(--space-6) var(--space-4);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .classical *,
-  .classical *::before,
-  .classical *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
 
