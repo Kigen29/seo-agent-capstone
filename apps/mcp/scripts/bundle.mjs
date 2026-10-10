@@ -92,10 +92,7 @@ It runs on your machine and talks to the RankWright API with a token from your o
 Claude Code:
 
 \`\`\`bash
-claude mcp add rankwright \\
-  --env SEO_API_URL=https://seo-agent-capstone.onrender.com \\
-  --env SEO_API_TOKEN=seo_your_token \\
-  -- npx -y ${name}
+claude mcp add rankwright --env SEO_API_URL=https://seo-agent-capstone.onrender.com --env SEO_API_TOKEN=seo_your_token -- npx -y ${name}
 \`\`\`
 
 Cursor (\`.cursor/mcp.json\`) and most other editors:
