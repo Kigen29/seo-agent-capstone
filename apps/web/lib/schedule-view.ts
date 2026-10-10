@@ -131,3 +131,40 @@ export function recorded(events: ScheduleEvent[]): ScheduleEvent[] {
 export function withSite(href: string, siteId: string): string {
   return `${href}${href.includes('?') ? '&' : '?'}siteId=${siteId}`
 }
+
+const compact = (day: string) => day.replace(/-/g, '')
+
+function dayAfter(day: string): string {
+  const next = new Date(`${day}T00:00:00.000Z`)
+  next.setUTCDate(next.getUTCDate() + 1)
+  return next.toISOString().slice(0, 10)
+}
+
+/**
+ * A link that opens Google Calendar with this run filled in, ready to save.
+ *
+ * The person's own calendar, opened in their own browser where they are already signed in to
+ * Google, so this product never asks for access to anybody's calendar. Reading or writing a
+ * calendar through the API would need a sensitive OAuth scope, to do something a link does with
+ * none.
+ *
+ * An all-day entry, because a day is what is promised. A row that stands for the daily check
+ * becomes one repeating entry that ends on the row's last day, not thirty separate ones.
+ */
+export function googleCalendarUrl(
+  row: AgendaRow,
+  context: { site: string; siteId: string; origin: string },
+): string {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `${row.title} (${context.site})`,
+    // The end of an all-day entry is the day after its last day.
+    dates: `${compact(row.day)}/${compact(dayAfter(row.day))}`,
+    details:
+      row.detail +
+      (row.href ? `\n\n${context.origin}${withSite(row.href, context.siteId)}` : '') +
+      '\n\nA run happens at some point during its UTC day, not at a set hour.',
+  })
+  if (row.dailyUntil) params.set('recur', `RRULE:FREQ=DAILY;UNTIL=${compact(row.dailyUntil)}`)
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}

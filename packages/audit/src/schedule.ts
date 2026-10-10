@@ -149,6 +149,7 @@ export async function readSchedule(
           auditCadence,
           audits: inWindow,
           lastAuditAt: latest?.startedAt ?? null,
+          lastAuditFailed: latest?.status === 'failed',
           auditInFlight: Boolean(running),
           promptCount: prompts?.total ?? 0,
           polledDays: polled.map((row) => ({ day: String(row.day), checks: row.checks })),

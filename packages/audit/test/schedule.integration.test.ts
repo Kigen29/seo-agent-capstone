@@ -144,16 +144,41 @@ describe.skipIf(!shouldRun)('schedule', () => {
     expect(await auditsOf()).toHaveLength(2)
   })
 
+  it('retries a failed audit the next day, once, and not on the day it failed', async () => {
+    const queued = (await auditsOf()).find((audit) => audit.status === 'queued')
+    const failedAt = new Date('2026-10-12T00:30:00.000Z')
+    await withTenant(db, tenantId, (tx) =>
+      tx
+        .update(audits)
+        .set({ status: 'failed', startedAt: failedAt, completedAt: failedAt, error: 'unreachable' })
+        .where(eq(audits.id, queued!.id)),
+    )
+
+    // Later the same day: not again. A site that always fails must not be crawled every wake.
+    const sameDay = new Date('2026-10-12T18:00:00.000Z')
+    expect(await enqueueDueAudits(db, { now: sameDay, siteId })).toBe(0)
+
+    const schedule = await readSchedule(db, tenantId, siteId, '2026-10', sameDay)
+    const retry = schedule!.events.find((event) => event.id.startsWith('audit:next'))
+    expect(retry).toMatchObject({ day: '2026-10-13', title: 'Audit, tried again' })
+
+    // The next day: once.
+    const nextDay = new Date('2026-10-13T00:05:00.000Z')
+    expect(await enqueueDueAudits(db, { now: nextDay, siteId })).toBe(1)
+    expect(await enqueueDueAudits(db, { now: nextDay, siteId })).toBe(0)
+    expect(await auditsOf()).toHaveLength(3)
+  })
+
   it('stops when it is switched off', async () => {
     const all = await auditsOf()
     for (const audit of all.filter((entry) => entry.status === 'queued')) {
-      await finish(audit.id, new Date('2026-10-12T00:10:00.000Z'))
+      await finish(audit.id, new Date('2026-10-13T00:10:00.000Z'))
     }
     await saveAuditCadence(db, tenantId, siteId, 'off')
 
     const muchLater = new Date('2026-12-01T00:00:00.000Z')
     expect(await enqueueDueAudits(db, { now: muchLater, siteId })).toBe(0)
-    expect(await auditsOf()).toHaveLength(2)
+    expect(await auditsOf()).toHaveLength(3)
   })
 
   it('polls daily once there is a question to ask, and shows past audits where they fell', async () => {
@@ -168,7 +193,9 @@ describe.skipIf(!shouldRun)('schedule', () => {
     const done = schedule!.events.filter(
       (event) => event.kind === 'audit' && event.state === 'done',
     )
-    expect(done.map((event) => event.day)).toEqual(['2026-10-05', '2026-10-12'])
+    expect(done.map((event) => event.day)).toEqual(['2026-10-05', '2026-10-13'])
+    const failed = schedule!.events.filter((event) => event.state === 'failed')
+    expect(failed.map((event) => event.day)).toEqual(['2026-10-12'])
   })
 
   it('does not show another tenant the calendar, or let it change the cadence', async () => {

@@ -1,50 +1,25 @@
-import {
-  buildScorecard,
-  priorityScore,
-  type AuditMetrics,
-  type Finding,
-  type Scorecard,
-} from '@seo/core'
-import { canFixFinding } from '@seo/fixers'
-import {
-  buildLinkGraph,
-  crawl,
-  normaliseUrl,
-  toGraphPages,
-  type CrawledPage,
-  type CrawlResult,
-  type EgressPolicy,
-} from '@seo/crawler'
+import { CANNIBALISATION_CHECKS, QUESTION_GAP_CHECKS, QUICK_WIN_CHECKS } from '@seo/connectors'
+import { type AuditMetrics, buildScorecard, priorityScore } from '@seo/core'
+import { buildLinkGraph, crawl, type CrawledPage, toGraphPages } from '@seo/crawler'
 import {
   audits,
+  type Database,
   findings as findingsTable,
   sites,
   visibilityPrompts,
   withTenant,
-  type Database,
 } from '@seo/db'
-import {
-  budgeted,
-  budgetedBacklinks,
-  CANNIBALISATION_CHECKS,
-  createDataForSeoBacklinks,
-  createSerpApiProvider,
-  dataForSeoFromEnv,
-  googleOAuthConfigFromEnv,
-  QUESTION_GAP_CHECKS,
-  QUICK_WIN_CHECKS,
-  type BacklinkProvider,
-  type OAuthConfig,
-  type SerpProvider,
-  DEFAULT_SERP_COST_PER_QUERY_USD,
-} from '@seo/connectors'
-import { createBudgetGuard, recordSpend } from '@seo/budget'
+import { canFixFinding } from '@seo/fixers'
 import { ruleCoverage, runRules } from '@seo/rules'
 import { eq } from 'drizzle-orm'
+import { measureAuthority } from './authority.js'
+import { earlierFindings, fingerprintAll } from './fingerprint.js'
 import { checkDeployedFixes } from './fix-checks.js'
-import type { MergedFindingRef, VerificationCoverage } from './verify-fixes.js'
 import { measurePerformance } from './performance.js'
-import { measureTopics, type NameClusters, type TopicsLlm } from './topics.js'
+import { assertSiteWasReachable, servedFrom } from './run-checks.js'
+import { backlinksFromEnv, googleOAuthConfig, serpFromEnv } from './run-providers.js'
+import type { AuditResult, RunAuditOptions } from './run-types.js'
+import { measureSearch } from './search.js'
 import {
   evaluateClusterHubs,
   evaluateQuestionCoverage,
@@ -52,144 +27,22 @@ import {
   HUB_MIN_PAGES,
   QUESTION_COVERAGE_CHECKS,
 } from './topic-findings.js'
-import { measureSearch } from './search.js'
+import { measureTopics } from './topics.js'
 import { measureVisibility } from './visibility.js'
-import { measureAuthority } from './authority.js'
-import { earlierFindings, fingerprintAll } from './fingerprint.js'
-
-/** The env OAuth config, or undefined when Google is not configured. Never throws. */
-function googleOAuthConfig(): OAuthConfig | undefined {
-  try {
-    return googleOAuthConfigFromEnv()
-  } catch {
-    return undefined
-  }
-}
 
 /**
- * A budget-guarded SERP provider from the environment, or undefined when no key is configured.
+ * The audit, start to finish: crawl, evaluate, measure, score, store.
  *
- * Built here rather than taken as a required dependency so the CLI and the worker both get the
- * paid axes without either of them having to know how a provider is assembled. Undefined is the
- * normal case: this is the only paid dependency in the product and it is off by default, which
- * leaves the authority axis honestly unmeasured rather than silently spending (ADR-0016).
- */
-function serpFromEnv(db: Database, tenantId: string): SerpProvider | undefined {
-  const apiKey = process.env.SERPAPI_API_KEY
-  if (!apiKey) return undefined
-
-  const guard = createBudgetGuard(db)
-  const usd = Number(process.env.SERP_COST_PER_QUERY_USD)
-
-  return budgeted(
-    createSerpApiProvider({
-      apiKey,
-      ...(process.env.SERP_COUNTRY ? { country: process.env.SERP_COUNTRY } : {}),
-    }),
-    {
-      tenantId,
-      checkBudget: guard.checkBudget,
-      recordSpend: (id, entry) =>
-        recordSpend(db, id, {
-          kind: 'serp',
-          provider: entry.provider,
-          model: entry.model,
-          micros: entry.micros,
-          reservationId: entry.reservationId,
-        }),
-      // Errs high when unset, which is the safe direction for a cost guard.
-      costPerQueryMicros: Math.round(
-        (Number.isFinite(usd) && usd > 0 ? usd : DEFAULT_SERP_COST_PER_QUERY_USD) * 1_000_000,
-      ),
-    },
-  )
-}
-
-/**
- * A budget-guarded backlink index from the environment, or undefined when none is configured.
+ * One procedure, kept whole on purpose. Its steps share the crawl result, the running coverage
+ * and the failure handling, and a version cut into ten functions would pass the same dozen
+ * values between them. What it depends on lives beside it:
  *
- * The second paid dependency, and off by default like the first. Absent, the authority axis
- * behaves exactly as it did before it existed: mentions lead, referring domains are reported as
- * unmeasured rather than as a zero (ADR-0018, ADR-0021).
+ *   run-types      what a run is given and what it returns
+ *   run-providers  the paid data sources, built from the environment and budget-guarded
+ *   run-checks     whether the site was reached at all, and where it was served from
  */
-function backlinksFromEnv(db: Database, tenantId: string): BacklinkProvider | undefined {
-  const credentials = dataForSeoFromEnv()
-  if (!credentials) return undefined
 
-  const guard = createBudgetGuard(db)
-  const usd = Number(process.env.BACKLINK_COST_PER_QUERY_USD)
-
-  return budgetedBacklinks(createDataForSeoBacklinks(credentials), {
-    tenantId,
-    checkBudget: guard.checkBudget,
-    recordSpend: (id, entry) =>
-      recordSpend(db, id, {
-        kind: 'serp',
-        provider: entry.provider,
-        model: entry.model,
-        micros: entry.micros,
-        reservationId: entry.reservationId,
-      }),
-    // The vendor's published rate for a live referring-domains request at the default row limit,
-    // rounded up. Errs high when unset, which is the safe direction for a cost guard.
-    costPerQueryMicros: Math.round((Number.isFinite(usd) && usd > 0 ? usd : 0.03) * 1_000_000),
-  })
-}
-
-export interface RunAuditOptions {
-  tenantId: string
-  siteId: string
-  /**
-   * An existing audit row to run into, created as `queued` by the API. Omit when running
-   * directly from the CLI, and a fresh row is created.
-   */
-  auditId?: string
-  /** The homepage. Click depth and orphan status are measured from here. */
-  seed: string
-  verificationFindings?: MergedFindingRef[]
-  maxPages?: number
-  concurrency?: number
-  /** Where the crawler may connect. Only tests set this, to reach fixtures on 127.0.0.1. */
-  egress?: EgressPolicy
-  /** Called on every page, for a caller that wants to print progress to a terminal. */
-  onProgress?: (crawled: number) => void
-  /** CrUX API key for the performance axis. Falls back to GOOGLE_CRUX_API_KEY. */
-  cruxApiKey?: string
-  /** Google OAuth config for the Search Console quick-wins step. Falls back to the env. */
-  googleOAuth?: OAuthConfig
-  /**
-   * SERP data source for the authority axis. Falls back to one built from the env, and to no
-   * measurement at all when there is no key. Injectable so a test can drive the axis with a fake
-   * and no spend.
-   */
-  serp?: SerpProvider
-  /**
-   * Backlink index for the authority axis's second signal. Falls back to one built from the env,
-   * and to no measurement at all when there are no credentials. Injectable so a test can drive
-   * the finding with a fake and no spend.
-   */
-  backlinks?: BacklinkProvider
-  /**
-   * The embedding client for the topic map, and the naming call that labels what it measured.
-   *
-   * Both injected rather than built here, and for different reasons. The client is a paid
-   * dependency like every other, so a test drives it with a fake and no spend. The namer lives in
-   * `@seo/agent`, which this package does not depend on: apps compose the two, exactly as they do
-   * for the content fixer (ADR-0024).
-   *
-   * Absent means no topic map and a note saying which key is missing, never an empty treemap.
-   */
-  topics?: TopicsLlm
-  nameTopics?: NameClusters
-}
-
-export interface AuditResult {
-  auditId: string
-  findings: Finding[]
-  scorecard: Scorecard
-  pagesCrawled: number
-  verificationCoverage: Omit<VerificationCoverage, 'deploymentConfirmed'>
-}
+export type { AuditResult, RunAuditOptions } from './run-types.js'
 
 /**
  * How often the crawl writes its page count back to the database.
@@ -199,66 +52,6 @@ export interface AuditResult {
  * second is well under the threshold at which a progress bar stops feeling live.
  */
 const PROGRESS_INTERVAL_MS = 1_000
-
-/**
- * Refuse to score a site we never actually reached.
- *
- * The crawler records a page it could not fetch as status 0 with an error, rather than
- * throwing, and that is right: one dead page in a hundred must not kill the crawl. But it
- * means an unreachable *seed* produces a crawl that looks successful and contains one dead
- * page, and the rules will happily run over it. They then report, with full confidence,
- * that the site has no sitemap and no canonical tag: perfectly true statements about a
- * server that never answered, and completely worthless.
- *
- * That is the exact failure the scorecard was built to prevent, arriving through the back
- * door. An axis we could not measure reports `not_measured` rather than inventing a number;
- * an audit with no evidence at all must refuse in the same way, and louder. No data is not
- * the same as no problems.
- *
- * A 4xx or 5xx seed is a different thing entirely, and is NOT caught here. A homepage
- * returning 404 is a real, catastrophic finding about a site that genuinely responded, and
- * the rules should absolutely report it.
- */
-function assertSiteWasReachable(
-  { pages, skipped }: Pick<CrawlResult, 'pages' | 'skipped'>,
-  seed: string,
-): void {
-  const reachedSomething = pages.some((page) => page.status > 0)
-  if (reachedSomething) return
-
-  // A seed the egress policy refused is never fetched, so its reason is on the skip, not a page.
-  const why = pages[0]?.error ?? skipped[0]?.reason ?? 'no pages were fetched'
-
-  throw new Error(
-    `Could not reach ${seed}: ${why}. No page responded, so there is nothing to audit. ` +
-      'Refusing to score a site we never saw.',
-  )
-}
-
-/**
- * Crawl a site, run the rules over it, score it, and store all of it.
- *
- * This is the whole Sprint 1 loop in one function, and it is the only place the four
- * packages meet: the crawler knows nothing about rules, the rules know nothing about the
- * database, and none of them know about each other. That separation is what lets the rule
- * engine be a pure function tested against fixtures, and it is worth the one composition
- * point that has to know everything.
- *
- * Runs on the worker (a GitHub Actions runner, ADR-0006), never on Vercel: it drives a real
- * Chromium.
- */
-/**
- * The address the site's own pages were served from: the final URL of the seed if the crawl
- * followed it there, else of the first page that loaded. Falls back to the seed.
- */
-function servedFrom(
-  seed: string,
-  pages: readonly { url: string; finalUrl: string; status: number }[],
-): string {
-  const key = (url: string) => normaliseUrl(url) ?? url
-  const home = pages.find((page) => page.status === 200 && key(page.url) === key(seed))
-  return (home ?? pages.find((page) => page.status === 200))?.finalUrl ?? seed
-}
 
 export async function runAudit(db: Database, options: RunAuditOptions): Promise<AuditResult> {
   const { tenantId, siteId, seed } = options

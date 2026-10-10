@@ -279,3 +279,41 @@ describe('toIcs', () => {
     for (const line of ics.split('\r\n')) expect(line.length).toBeLessThanOrEqual(75)
   })
 })
+
+describe('a failed audit', () => {
+  const failedAt = new Date('2026-10-08T10:00:00Z')
+
+  it('is retried the next day, not a full interval later', () => {
+    expect(nextAuditDay('monthly', failedAt, NOW, true)).toBe('2026-10-10')
+    expect(nextAuditDay('weekly', new Date('2026-10-10T08:00:00Z'), NOW, true)).toBe('2026-10-11')
+    // A success waits the interval as before.
+    expect(nextAuditDay('weekly', new Date('2026-10-10T08:00:00Z'), NOW, false)).toBe('2026-10-17')
+  })
+
+  it('is not retried on the day it failed, so a site that always fails is tried once a day', () => {
+    expect(nextAuditDay('weekly', NOW, NOW, true)).not.toBe('2026-10-10')
+  })
+
+  it('shows on the calendar as a retry, and the ones after it at the usual interval', () => {
+    const events = buildSchedule(
+      {
+        ...nothing,
+        auditCadence: 'weekly',
+        lastAuditAt: new Date('2026-10-10T08:00:00Z'),
+        lastAuditFailed: true,
+      },
+      WINDOW,
+    )
+    expect(events.map((event) => [event.day, event.title])).toEqual([
+      ['2026-10-11', 'Audit, tried again'],
+      ['2026-10-18', 'Scheduled audit'],
+      ['2026-10-25', 'Scheduled audit'],
+      ['2026-11-01', 'Scheduled audit'],
+    ])
+    expect(events[0]!.detail).toMatch(/did not finish/)
+  })
+
+  it('schedules no retry when audits are off', () => {
+    expect(nextAuditDay('off', failedAt, NOW, true)).toBeNull()
+  })
+})

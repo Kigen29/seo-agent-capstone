@@ -100,6 +100,7 @@ export {
   buildSchedule,
   COMPETITOR_READ_INTERVAL_DAYS,
   dayStart,
+  FAILED_AUDIT_RETRY_DAYS,
   monthWindow,
   nextAuditDay,
   scheduleEventSchema,

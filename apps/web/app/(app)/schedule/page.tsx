@@ -11,6 +11,7 @@ import { handleApiError } from '@/lib/api-error'
 import { formatMonth, hostOf } from '@/lib/format'
 import { byDay, KIND, recorded, STATE, upcoming, withSite } from '@/lib/schedule-view'
 import { getClient } from '@/lib/session'
+import { siteUrl } from '@/lib/site'
 import { AuditCadenceControl } from './audit-cadence'
 import { RecordedTable, UpcomingTable } from './schedule-tables'
 
@@ -136,7 +137,7 @@ export default async function SchedulePage({
             className="btn btn-secondary"
             download
           >
-            Add to my calendar
+            Download calendar file
           </a>
         }
       />
@@ -230,9 +231,10 @@ export default async function SchedulePage({
           <div className="text-muted mb-3 max-w-[68ch] text-sm">
             From today to the end of the weeks shown. Days are counted in UTC, and a run happens at
             some point during its day, not at a set hour: the worker wakes several times an hour and
-            does whatever is due.
+            does whatever is due. Each row can be put in Google Calendar with one press, and the
+            button at the top of the page downloads all of them for any other calendar.
           </div>
-          <UpcomingTable rows={coming} siteId={site.id} />
+          <UpcomingTable rows={coming} siteId={site.id} site={hostOf(site.url)} origin={siteUrl} />
         </section>
       )}
 

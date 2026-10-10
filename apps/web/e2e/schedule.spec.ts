@@ -64,6 +64,14 @@ test('what already runs on a timer is on the calendar without being scheduled by
   await expect(coming.getByText('AI answers check').first()).toBeVisible()
   await expect(coming.getByText(/^Read rival-/).first()).toBeVisible()
 
+  // Each upcoming run opens in the reader's own Google Calendar, with nothing asked of Google.
+  const add = coming.getByRole('link', { name: /Google Calendar/ }).first()
+  const href = new URL((await add.getAttribute('href'))!)
+  expect(href.origin + href.pathname).toBe('https://calendar.google.com/calendar/render')
+  expect(href.searchParams.get('text')).toContain('showcase.example.com')
+  expect(href.searchParams.get('dates')).toMatch(/^[0-9]{8}\/[0-9]{8}$/)
+  await expect(add).toHaveAttribute('target', '_blank')
+
   // And what has run is listed apart from what is to come.
   await expect(page.getByRole('table', { name: 'What has already run' })).toBeVisible()
 })

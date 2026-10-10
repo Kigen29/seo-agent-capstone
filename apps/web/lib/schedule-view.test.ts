@@ -1,6 +1,14 @@
 import type { ScheduleEvent } from '@seo/api-client'
 import { describe, expect, it } from 'vitest'
-import { byDay, KIND, recorded, STATE, upcoming, withSite } from './schedule-view'
+import {
+  byDay,
+  googleCalendarUrl,
+  KIND,
+  recorded,
+  STATE,
+  upcoming,
+  withSite,
+} from './schedule-view'
 
 const event = (over: Partial<ScheduleEvent>): ScheduleEvent => ({
   id: `${over.kind ?? 'audit'}:${over.day ?? '2026-10-10'}`,
@@ -105,5 +113,80 @@ describe('withSite', () => {
   it('carries the site on a link from the calendar', () => {
     expect(withSite('/audits', 's1')).toBe('/audits?siteId=s1')
     expect(withSite('/findings?sort=title', 's1')).toBe('/findings?sort=title&siteId=s1')
+  })
+})
+
+describe('googleCalendarUrl', () => {
+  const context = { site: 'example.com', siteId: 's1', origin: 'https://app.example' }
+  const params = (url: string) => new URL(url).searchParams
+
+  it('opens Google Calendar with an all-day entry on the day', () => {
+    const url = googleCalendarUrl(
+      {
+        key: 'a',
+        kind: 'audit',
+        state: 'scheduled',
+        day: '2026-10-31',
+        title: 'Scheduled audit',
+        detail: 'Runs every 7 days.',
+        href: '/audits',
+      },
+      context,
+    )
+    expect(url.startsWith('https://calendar.google.com/calendar/render?')).toBe(true)
+    expect(params(url).get('action')).toBe('TEMPLATE')
+    expect(params(url).get('text')).toBe('Scheduled audit (example.com)')
+    // All day: it ends on the day after, here across a month end.
+    expect(params(url).get('dates')).toBe('20261031/20261101')
+    expect(params(url).get('recur')).toBeNull()
+  })
+
+  it('links back to the page that will hold the result, for the right site', () => {
+    const url = googleCalendarUrl(
+      {
+        key: 'a',
+        kind: 'audit',
+        state: 'due',
+        day: '2026-10-10',
+        title: 'Scheduled audit',
+        detail: 'Due now.',
+        href: '/audits',
+      },
+      context,
+    )
+    expect(params(url).get('details')).toContain('https://app.example/audits?siteId=s1')
+    expect(params(url).get('details')).toContain('not at a set hour')
+  })
+
+  it('makes the daily check one repeating entry that ends on its last day', () => {
+    const url = googleCalendarUrl(
+      {
+        key: 'poll:daily',
+        kind: 'visibility_poll',
+        state: 'scheduled',
+        day: '2026-10-11',
+        dailyUntil: '2026-11-01',
+        title: 'AI answers check',
+        detail: '5 questions.',
+      },
+      context,
+    )
+    expect(params(url).get('dates')).toBe('20261011/20261012')
+    expect(params(url).get('recur')).toBe('RRULE:FREQ=DAILY;UNTIL=20261101')
+  })
+
+  it('carries no account detail beyond the site and the run', () => {
+    const url = googleCalendarUrl(
+      {
+        key: 'a',
+        kind: 'competitor_read',
+        state: 'scheduled',
+        day: '2026-10-14',
+        title: 'Read rival.example',
+        detail: 'A few public pages.',
+      },
+      context,
+    )
+    expect([...params(url).keys()].sort()).toEqual(['action', 'dates', 'details', 'text'])
   })
 })
