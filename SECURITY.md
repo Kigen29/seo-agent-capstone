@@ -51,7 +51,7 @@ Each line names where it lives, so it can be checked and not just believed.
 **The build**
 
 - Every CI workflow's token is read-only or has no permissions.
-- `pnpm audit --prod` reports no known vulnerabilities as of 8 October 2026.
+- `pnpm audit --prod` reports no known vulnerabilities as of 10 October 2026.
 
 ## Known limits
 
