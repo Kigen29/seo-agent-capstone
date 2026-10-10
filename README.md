@@ -115,6 +115,16 @@ export SEO_API_TOKEN=seo_...
 export SEO_MCP_ALLOW_WRITES=1                   # writes are off by default
 ```
 
+To check the built server against your account, as an editor would drive it over stdio:
+
+```bash
+SEO_API_URL=https://seo-agent-capstone.onrender.com pnpm --filter @seo/mcp smoke
+```
+
+It calls every tool that is free and changes nothing, and exits non-zero if any call fails. Add
+`-- --write` with `SEO_MCP_ALLOW_WRITES=1` to also change one site's audit schedule and change it
+straight back.
+
 The repo ships a `.mcp.json`, so Claude Code picks the server up inside this project. Writes
 stay off unless `SEO_MCP_ALLOW_WRITES=1`, and a single server process will open at most
 `SEO_MCP_MAX_PRS` pull requests (default 3) before it refuses: nothing here can reach your

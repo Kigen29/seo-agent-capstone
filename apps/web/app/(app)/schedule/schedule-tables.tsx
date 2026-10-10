@@ -1,8 +1,9 @@
 import type { ScheduleEvent } from '@seo/api-client'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
+import { OutboundLink } from '@/components/ui/outbound-link'
 import { formatUtcDay } from '@/lib/format'
-import { KIND, STATE, withSite, type AgendaRow } from '@/lib/schedule-view'
+import { googleCalendarUrl, KIND, STATE, withSite, type AgendaRow } from '@/lib/schedule-view'
 
 /**
  * The two lists under the calendar: what is coming, and what has run.
@@ -42,7 +43,19 @@ function What({
   )
 }
 
-export function UpcomingTable({ rows, siteId }: { rows: AgendaRow[]; siteId: string }) {
+export function UpcomingTable({
+  rows,
+  siteId,
+  site,
+  origin,
+}: {
+  rows: AgendaRow[]
+  siteId: string
+  /** The site's host, for the title of a calendar entry. */
+  site: string
+  /** This app's own address, so a calendar entry can link back to the result. */
+  origin: string
+}) {
   return (
     <DataTable
       label="What is coming up"
@@ -52,6 +65,12 @@ export function UpcomingTable({ rows, siteId }: { rows: AgendaRow[]; siteId: str
         { header: 'Kind' },
         { header: 'What will run' },
         { header: 'Status', className: 'whitespace-nowrap' },
+        {
+          header: 'Add to a calendar',
+          hideHeader: true,
+          align: 'end',
+          className: 'whitespace-nowrap',
+        },
       ]}
       rows={rows.map((row) => ({
         key: row.key,
@@ -68,6 +87,13 @@ export function UpcomingTable({ rows, siteId }: { rows: AgendaRow[]; siteId: str
           </span>,
           <What key="what" title={row.title} detail={row.detail} href={row.href} siteId={siteId} />,
           <State key="state" state={row.state} />,
+          <OutboundLink
+            key="calendar"
+            href={googleCalendarUrl(row, { site, siteId, origin })}
+            className="text-[13px]"
+          >
+            Google Calendar<span className="sr-only">: add {row.title}</span>
+          </OutboundLink>,
         ],
       }))}
     />

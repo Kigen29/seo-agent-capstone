@@ -26,6 +26,15 @@ export const AUDIT_CADENCE_DAYS: Record<Exclude<AuditCadence, 'off'>, number> = 
   monthly: 30,
 }
 
+/**
+ * An audit that failed is tried again after this many days, whatever the cadence.
+ *
+ * Without it a failure costs the whole interval: a site on a monthly schedule whose host was
+ * down for an hour would go two months between audits. One day, and not at once, because a site
+ * that fails every time would otherwise be crawled on every wake of the worker, forever.
+ */
+export const FAILED_AUDIT_RETRY_DAYS = 1
+
 /** A competitor is read again once its last reading is this old (ADR-0034). */
 export const COMPETITOR_READ_INTERVAL_DAYS = 7
 
@@ -114,11 +123,14 @@ export function nextAuditDay(
   cadence: AuditCadence,
   lastAuditAt: Date | null,
   now: Date,
+  /** The newest audit did not finish, so the next is a retry and not a full interval away. */
+  lastAuditFailed = false,
 ): string | null {
   if (cadence === 'off') return null
   const today = utcDayOf(now)
   if (!lastAuditAt) return today
-  const due = addDays(utcDayOf(lastAuditAt), AUDIT_CADENCE_DAYS[cadence])
+  const wait = lastAuditFailed ? FAILED_AUDIT_RETRY_DAYS : AUDIT_CADENCE_DAYS[cadence]
+  const due = addDays(utcDayOf(lastAuditAt), wait)
   return due < today ? today : due
 }
 
@@ -128,6 +140,8 @@ export interface ScheduleInput {
   audits: { id: string; status: string; startedAt: Date; pagesCrawled: number }[]
   /** The newest audit of the site whenever it was, which is what the next one is counted from. */
   lastAuditAt: Date | null
+  /** The newest audit failed, so the next one is a retry a day later. */
+  lastAuditFailed?: boolean
   /** An audit is queued or running right now, so no other is due until it ends. */
   auditInFlight: boolean
   /** How many questions the site tracks. With none there is nothing to poll. */
@@ -194,7 +208,9 @@ export function buildSchedule(input: ScheduleInput, window: ScheduleWindow): Sch
 
   if (input.auditCadence !== 'off' && !input.auditInFlight) {
     const every = AUDIT_CADENCE_DAYS[input.auditCadence]
-    let due = nextAuditDay(input.auditCadence, input.lastAuditAt, window.now)
+    const retry = input.lastAuditFailed === true
+    let due = nextAuditDay(input.auditCadence, input.lastAuditAt, window.now, retry)
+    let first = true
     while (due && due <= window.to) {
       if (inWindow(due)) {
         events.push({
@@ -202,14 +218,17 @@ export function buildSchedule(input: ScheduleInput, window: ScheduleWindow): Sch
           kind: 'audit',
           day: due,
           state: due === today ? 'due' : 'scheduled',
-          title: 'Scheduled audit',
+          title: first && retry ? 'Audit, tried again' : 'Scheduled audit',
           detail:
-            due === today
-              ? 'Due now. It starts the next time the worker wakes, usually within the hour.'
-              : `Runs every ${every} days. Each one after the next assumes the one before ran on its day.`,
+            first && retry
+              ? 'The last audit did not finish, so it is tried again a day later and not a full interval later.'
+              : due === today
+                ? 'Due now. It starts the next time the worker wakes, usually within the hour.'
+                : `Runs every ${every} days. Each one after the next assumes the one before ran on its day.`,
           href: '/audits',
         })
       }
+      first = false
       due = addDays(due, every)
     }
   }

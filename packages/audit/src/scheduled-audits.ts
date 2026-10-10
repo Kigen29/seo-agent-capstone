@@ -59,6 +59,10 @@ export async function enqueueDueAudits(
         lastAuditAt: sql<Date | null>`(
           select max(a.started_at) from audits a where a.site_id = "sites"."id"
         )`.mapWith((value: string | null) => (value ? new Date(value) : null)),
+        lastAuditFailed: sql<boolean>`coalesce((
+          select a.status = 'failed' from audits a
+           where a.site_id = "sites"."id" order by a.started_at desc limit 1
+        ), false)`,
         inFlight: sql<boolean>`exists (
           select 1 from audits a
            where a.site_id = "sites"."id" and a.status in ('queued', 'crawling', 'evaluating')
@@ -78,7 +82,8 @@ export async function enqueueDueAudits(
     .filter(
       (site) =>
         !site.inFlight &&
-        nextAuditDay(site.cadence as AuditCadence, site.lastAuditAt, now) === today,
+        nextAuditDay(site.cadence as AuditCadence, site.lastAuditAt, now, site.lastAuditFailed) ===
+          today,
     )
     // Never audited first, then longest waiting, so a full run cannot starve anybody.
     .sort((a, b) => (a.lastAuditAt?.getTime() ?? 0) - (b.lastAuditAt?.getTime() ?? 0))
