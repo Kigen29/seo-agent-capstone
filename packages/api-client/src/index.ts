@@ -1,4 +1,4 @@
-import type { Finding } from '@seo/core'
+import type { AuditCadence, Finding, SiteSchedule } from '@seo/core'
 import { ApiRequestError } from './errors.js'
 import type {
   HostingStatus,
@@ -426,6 +426,21 @@ export function createApiClient(options: ApiClientOptions) {
      */
     /** Every fix proposed for a site and whether it worked. */
     getOutcomes: async (siteId: string) => request<SiteOutcomes>(`/sites/${siteId}/outcomes`),
+
+    /** What ran, what is due and what is coming for a site, for one month (`YYYY-MM`). */
+    getSchedule: async (siteId: string, month?: string) =>
+      request<SiteSchedule>(
+        `/sites/${siteId}/schedule${month ? `?month=${encodeURIComponent(month)}` : ''}`,
+      ),
+
+    /** How often a site is audited without anybody asking. */
+    setAuditCadence: async (siteId: string, cadence: AuditCadence) =>
+      (
+        await request<{ auditCadence: AuditCadence }>(`/sites/${siteId}/audit-cadence`, {
+          method: 'PUT',
+          body: JSON.stringify({ cadence }),
+        })
+      ).auditCadence,
 
     getSiteProfile: async (siteId: string) => request<SiteProfile>(`/sites/${siteId}/profile`),
 

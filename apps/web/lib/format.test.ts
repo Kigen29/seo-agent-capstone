@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { engineNames, formatDay, formatDayTime, hostOf, plural } from './format'
+import {
+  engineNames,
+  formatDay,
+  formatDayTime,
+  formatMonth,
+  formatUtcDay,
+  hostOf,
+  plural,
+} from './format'
 
 describe('formatDay and formatDayTime', () => {
   it('write the day unambiguously, month as a word', () => {
@@ -19,6 +27,19 @@ describe('formatDay and formatDayTime', () => {
     const moment = new Date(2026, 0, 2, 12)
     expect(formatDay(moment.toISOString())).toBe(formatDay(moment))
     expect(formatDay(moment.getTime())).toBe(formatDay(moment))
+  })
+})
+
+describe('formatUtcDay and formatMonth', () => {
+  it('print a UTC day as that day, whatever zone the reader is in', () => {
+    // 10 October 2026 is a Saturday. Read in a zone west of Greenwich, a naive format says the 9th.
+    expect(formatUtcDay('2026-10-10')).toBe('Sat 10 Oct')
+    expect(formatUtcDay('2026-01-01')).toBe('Thu 1 Jan')
+  })
+
+  it('name a month in full', () => {
+    expect(formatMonth('2026-10')).toBe('October 2026')
+    expect(formatMonth('2027-01')).toBe('January 2027')
   })
 })
 

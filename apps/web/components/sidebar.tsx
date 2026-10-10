@@ -2,17 +2,18 @@
 
 import {
   Binoculars,
+  CalendarDays,
   GitPullRequest,
   History,
   LayoutDashboard,
   Link2,
   ListChecks,
-  Shapes,
-  type LucideIcon,
   Search,
+  Shapes,
   SlidersHorizontal,
   Sparkles,
   Wrench,
+  type LucideIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -113,6 +114,12 @@ const GROUPS: {
         match: (p) => p.startsWith('/findings'),
       },
       { href: '/audits', label: 'Audits', icon: History, match: (p) => p.startsWith('/audits') },
+      {
+        href: '/schedule',
+        label: 'Schedule',
+        icon: CalendarDays,
+        match: (p) => p.startsWith('/schedule'),
+      },
       {
         href: '/outcomes',
         label: 'Outcomes',

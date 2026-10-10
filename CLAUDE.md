@@ -114,6 +114,7 @@ packages/
   vcs/          VersionControlProvider interface + GitHubProvider
   agent/        LLM orchestration, skill loading, prompt templates
   db/           Drizzle schema + migrations
+  api-client/   The typed client the web app, the CLI and the MCP server all go through
 docs/
   state-of-play.md      Where we are, what constrains us, what is left. Read first.
   research-dossier.md   The full SEO/AEO/GEO/LLMO research. Source of truth.
