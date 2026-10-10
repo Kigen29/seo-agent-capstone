@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     url: '/',
     locale: 'en_GB',
   },
-  twitter: { card: 'summary', title: TITLE, description: DESCRIPTION },
+  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

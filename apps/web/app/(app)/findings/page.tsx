@@ -8,7 +8,7 @@ import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { BulkFix, BulkFixOutcome } from './bulk-fix'
 import { FilterBar } from './filter-bar'
-import { FindingCards, FindingsTable, SORTS } from './findings-list'
+import { FindingCards, FindingsLegend, FindingsTable, SORTS } from './findings-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,6 +148,7 @@ export default async function FindingsPage({
               inFrame
             />
           </div>
+          <FindingsLegend />
         </>
       )}
     </main>

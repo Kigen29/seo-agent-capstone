@@ -148,3 +148,23 @@ test('the site has an icon', async ({ page }) => {
   const response = await page.request.get(href!)
   expect(response.status()).toBe(200)
 })
+
+test('a shared link has a picture, and the picture loads', async ({ page }) => {
+  await page.goto('/')
+  const image = await page.locator('meta[property="og:image"]').first().getAttribute('content')
+  expect(image).toBeTruthy()
+  const response = await page.request.get(new URL(image!).pathname + new URL(image!).search)
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('image/png')
+  await expect(page.locator('meta[property="og:image:alt"]')).toHaveCount(1)
+})
+
+test('the inbox explains its tags on the page, not in a tooltip', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/findings')
+  // A `title` reaches a mouse and nothing else, which is what our own advice says about them.
+  await expect(page.locator('main [title]')).toHaveCount(0)
+  await page.getByText('What the tags mean').click()
+  await expect(page.getByText('You review and merge it.')).toBeVisible()
+  await expect(page.getByText(/invented content on your site is worse than the gap/)).toBeVisible()
+})

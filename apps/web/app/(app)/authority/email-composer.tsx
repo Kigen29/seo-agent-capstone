@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { ErrorNote } from '@/components/ui/error-note'
 import { Field } from '@/components/ui/field'
 import { invalid, type UserError } from '@/lib/user-error'
+import { DraftEditor } from './draft-editor'
 import { draftOutreach } from './outreach-action'
 
 /**
@@ -243,80 +244,21 @@ function Composer({
       )}
 
       {result && (
-        <div className="flex flex-col gap-4">
-          {/* From the payload, not from this file, so the caveat cannot be dropped by a redesign. */}
-          <div className="note note-info">
-            {result.sendPolicy}. Edit it here, then send it yourself from your own mail. Nothing on
-            this page can send it for you.
-          </div>
-
-          <Field id={`${id}-subject`} label="Subject">
-            <input
-              id={`${id}-subject`}
-              className="input"
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-            />
-          </Field>
-
-          <Field id={`${id}-body`} label="Email">
-            <textarea
-              id={`${id}-body`}
-              className="input"
-              rows={12}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              style={{ resize: 'vertical', lineHeight: 1.6 }}
-            />
-          </Field>
-
-          <ErrorNote error={error} />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="btn btn-primary" onClick={copy}>
-              {copied ? 'Copied' : 'Copy email'}
-            </button>
-            <a
-              className="btn btn-secondary"
-              href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-            >
-              Open in my mail app
-            </a>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setResult(null)
-                setError(null)
-              }}
-            >
-              Change the fact
-            </button>
-          </div>
-
-          <details>
-            <summary className="cursor-pointer text-[13px]">
-              Why this publication, and what the draft is built on
-            </summary>
-            <div className="mt-2 flex flex-col gap-2 text-[13px]">
-              <div className="text-muted">{result.draft.angle}</div>
-              <ul className="m-0 pl-4">
-                {result.groundedOn.map((entry) => (
-                  <li key={entry.sourceUrl}>
-                    {entry.claim}{' '}
-                    <a href={entry.sourceUrl} target="_blank" rel="noreferrer">
-                      check it
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <div className="text-muted">
-                The draft was allowed to use these facts and no others. If it states something that
-                is not on this list, that is a fault worth reporting.
-              </div>
-            </div>
-          </details>
-        </div>
+        <DraftEditor
+          id={id}
+          result={result}
+          subject={subject}
+          body={body}
+          onSubject={setSubject}
+          onBody={setBody}
+          error={error}
+          copied={copied}
+          onCopy={copy}
+          onChangeFact={() => {
+            setResult(null)
+            setError(null)
+          }}
+        />
       )}
     </div>
   )
