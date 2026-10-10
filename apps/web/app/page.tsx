@@ -34,7 +34,7 @@ export default function Home() {
       >
         <span className="nav-brand">RankWright</span>
         <a href="#how">How it works</a>
-        <a href="#axes">The eight axes</a>
+        <a href="#areas">The eight areas</a>
         <Link href="/login" className="btn btn-primary" style={{ marginLeft: 'var(--space-2)' }}>
           Sign in
         </Link>
@@ -59,9 +59,9 @@ export default function Home() {
                 marginBottom: 'var(--space-6)',
               }}
             >
-              RankWright checks your search presence across eight separate axes and proposes pull
+              RankWright checks your search presence across eight separate areas and proposes pull
               requests for supported fixes. You review and merge. We recheck the deployed change and
-              report what we can measure. Some axes need connected accounts or paid data.
+              report what we can measure. Some areas need connected accounts or paid data.
             </p>
             {/*
             The address is asked for here, before sign-in, and carried through it. Somebody who
@@ -219,7 +219,7 @@ export default function Home() {
 
         {/* Eight axes */}
         <section
-          id="axes"
+          id="areas"
           style={{ maxWidth: 1120, margin: '0 auto', padding: 'var(--space-8) var(--space-4)' }}
         >
           <h2

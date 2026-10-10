@@ -2,6 +2,7 @@ import type { CompetitorChange, CompetitorWatch } from '@seo/api-client'
 import { DataTable } from '@/components/ui/data-table'
 import { OutboundLink, pathOf } from '@/components/ui/outbound-link'
 import { citationSentence, COINCIDENCE_NOTE } from '@/lib/citation-sentence'
+import { formatDay } from '@/lib/format'
 
 /**
  * The two tables on the competitor watch: who is being read, and what they changed.
@@ -17,8 +18,6 @@ const KIND: Record<CompetitorChange['kind'], string> = {
   h1: 'Main heading',
   new_url: 'New page',
 }
-
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 
 /** Each competitor and the state of its last reading. */
 export function WatchedTable({ competitors }: { competitors: CompetitorWatch['competitors'] }) {
@@ -40,7 +39,7 @@ export function WatchedTable({ competitors }: { competitors: CompetitorWatch['co
             {competitor.lastSnapshotAt === null
               ? 'Not read yet. The first snapshot is taken on the next weekly run.'
               : (competitor.note ??
-                `Read ${day.format(new Date(competitor.lastSnapshotAt))}, ${competitor.pagesRead} page${competitor.pagesRead === 1 ? '' : 's'}`)}
+                `Read ${formatDay(competitor.lastSnapshotAt)}, ${competitor.pagesRead} page${competitor.pagesRead === 1 ? '' : 's'}`)}
           </span>,
         ],
       }))}
@@ -103,7 +102,7 @@ export function ChangesTable({
             <div className="font-semibold break-all">{batch.competitor}</div>
             <div className="text-muted mt-0.5 text-[13px]">
               {batch.changes.length} change{batch.changes.length === 1 ? '' : 's'}, seen{' '}
-              {day.format(new Date(batch.detectedAt))}
+              {formatDay(batch.detectedAt)}
             </div>
           </div>,
           <ul key="changes" className="m-0 flex list-none flex-col gap-3 p-0">

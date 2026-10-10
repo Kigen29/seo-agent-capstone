@@ -11,6 +11,7 @@ import { getClient, getSites } from '@/lib/session'
 import { SetupChecklist } from '../dashboard/setup-checklist'
 import { CompetitorsEditor } from './competitors-editor'
 import { ProfileForm } from './profile-form'
+import { hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,14 +25,6 @@ export const dynamic = 'force-dynamic'
  * dashboard. Somebody looking for "where do I say who my competitors are" had no page to go to.
  * This is that page, and the others now link here.
  */
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}
 
 export const metadata = { title: 'Site setup' }
 

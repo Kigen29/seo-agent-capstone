@@ -2,6 +2,7 @@ import type { AuditHistoryEntry } from '@seo/api-client'
 import Link from 'next/link'
 import { AXIS_LABEL } from '@/app/(app)/findings/labels'
 import { DataTable } from '@/components/ui/data-table'
+import { formatDayTime } from '@/lib/format'
 
 /**
  * One site's audits, newest first, a page at a time.
@@ -18,8 +19,6 @@ const STATUS: Record<string, { label: string; className: string }> = {
   evaluating: { label: 'Checking', className: 'tag tag-dot tag-accent' },
   queued: { label: 'Waiting to start', className: 'tag tag-dot tag-neutral' },
 }
-
-const when = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
 
 /** The measured axes at their lowest, which is where a reader's eye should go. */
 function lowest(entry: AuditHistoryEntry): string {
@@ -68,7 +67,7 @@ export function HistoryTable({ site, audits }: { site: string; audits: AuditHist
       rows={audits.map((audit) => ({
         key: audit.id,
         cells: [
-          when.format(new Date(audit.startedAt)),
+          formatDayTime(audit.startedAt),
           <span key="status" className={STATUS[audit.status]?.className ?? 'tag tag-neutral'}>
             {STATUS[audit.status]?.label ?? audit.status}
           </span>,
@@ -84,11 +83,7 @@ export function HistoryTable({ site, audits }: { site: string; audits: AuditHist
           </span>,
           <Link key="open" href={`/audits/${audit.id}`}>
             View
-            <span className="sr-only">
-              {' '}
-              the audit of {when.format(new Date(audit.startedAt))}
-            </span>{' '}
-            &rarr;
+            <span className="sr-only"> the audit of {formatDayTime(audit.startedAt)}</span> &rarr;
           </Link>,
         ],
       }))}

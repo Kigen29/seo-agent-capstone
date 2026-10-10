@@ -9,6 +9,7 @@ import { handleApiError } from '@/lib/api-error'
 import { readPendingSite } from '@/lib/pending-site'
 import { getClient, getSites, getToken } from '@/lib/session'
 import { BusinessStep, CompetitorsStep, QuestionsStep, SiteStep } from './steps'
+import { hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,14 +63,6 @@ const HEADINGS: Record<StepId, { title: string; lead: string }> = {
     title: 'Ready for the first audit',
     lead: 'The audit crawls your site and checks it against every rule. It takes a few minutes and needs nothing else from you.',
   },
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
 }
 
 export default async function Onboarding({

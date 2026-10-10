@@ -76,7 +76,7 @@ export function TopicMapFigure({ map }: { map: TopicMap }) {
         ))}
       </div>
 
-      <ul className="mt-4 grid gap-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul className="m-0 mt-4 grid list-none gap-2 p-0">
         {groups.map(({ cluster, index }) => (
           <li key={cluster.name + String(index)} className="flex items-baseline gap-3">
             <span
@@ -90,7 +90,7 @@ export function TopicMapFigure({ map }: { map: TopicMap }) {
               }}
             />
             <span className="min-w-0 flex-1 truncate text-sm">{cluster.name}</span>
-            <span className="tnum shrink-0 text-[13px]" style={{ opacity: 0.7 }}>
+            <span className="tnum text-muted shrink-0 text-[13px]">
               {cluster.pages.length} page{cluster.pages.length === 1 ? '' : 's'} ·{' '}
               {percent(cluster.share)}
             </span>

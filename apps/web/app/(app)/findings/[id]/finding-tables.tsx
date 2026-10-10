@@ -1,6 +1,7 @@
 import type { FixAttempt } from '@seo/api-client'
 import { DataTable } from '@/components/ui/data-table'
 import { OutboundLink } from '@/components/ui/outbound-link'
+import { formatDayTime } from '@/lib/format'
 
 /**
  * The two tables on a finding: the pages it affects, and every attempt to fix it.
@@ -39,8 +40,6 @@ const ATTEMPT_LABEL: Record<FixAttempt['outcome'], { label: string; tag: string 
   failed: { label: 'Failed', tag: 'tag tag-critical' },
 }
 
-const attemptTime = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
-
 /** What became of the pull request an attempt opened, when it opened one. */
 function Resolution({ attempt }: { attempt: FixAttempt }) {
   if (attempt.revertedAt) return <span className="tag tag-critical">Merged, then reverted</span>
@@ -73,7 +72,7 @@ export function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
           key: `${attempt.startedAt}-${index}`,
           cells: [
             <span key="when" className="text-muted text-[13px]">
-              {attemptTime.format(new Date(attempt.finishedAt ?? attempt.startedAt))}
+              {formatDayTime(attempt.finishedAt ?? attempt.startedAt)}
             </span>,
             <div key="what" className="flex flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2">

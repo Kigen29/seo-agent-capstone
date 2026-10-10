@@ -11,6 +11,7 @@ import { VisibilityPrompts } from './tracked-questions'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { engineNames, hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -174,16 +175,13 @@ export default async function VisibilityPage({
                   </>
                 )}
               </div>
-              <ShareTable
-                share={report.share}
-                you={site ? site.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : ''}
-              />
+              <ShareTable share={report.share} you={site ? hostOf(site.url) : ''} />
             </section>
           )}
 
           {report.engines.length > 0 && (
             <p className="text-muted m-0 text-[13px]">
-              Checked on {report.engines.join(', ')}, over the last {report.windowDays} days.
+              Checked on {engineNames(report.engines)}, over the last {report.windowDays} days.
             </p>
           )}
         </>

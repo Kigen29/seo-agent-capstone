@@ -1,0 +1,187 @@
+/* a monospace evidence / diff block */
+.classical .mono {
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  padding: var(--space-3);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * Status banners: four tones that must read differently.
+ *
+ * They did not. `note-ok` and `note-warn` shared `--color-accent-100` as a background and
+ * differed only in a border tint, and `note-error` was grey, so "your fix is verified" and "your
+ * fix was rejected" arrived in nearly the same colour. Each now uses its own semantic token.
+ */
+.classical .note {
+  border: 1px solid var(--color-divider);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: 14px;
+}
+.classical .note-ok {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.classical .note-warn {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+.classical .note-error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+.classical .note-info {
+  border-color: var(--color-info);
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+}
+
+/* one row of the eight-axis scorecard: name | hairline with a dot | score */
+.classical .score-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-divider);
+}
+.classical .score-track {
+  position: relative;
+  height: 1px;
+  background: var(--color-divider);
+}
+.classical .score-dot {
+  position: absolute;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+.classical .score-val {
+  font-size: 15px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The coverage note sits under the axis name, indented to the track. See `scorecard.tsx`. */
+.classical .score-note {
+  grid-column: 1 / -1;
+  margin: 0 0 var(--space-2);
+  padding-left: calc(150px + var(--space-4));
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.classical .tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The one breakpoint the design system owns.
+ *
+ * Everything else is a Tailwind responsive utility at the call site, which is the right place for
+ * layout. These two are here because they are properties of the component, not of any one page:
+ * a 150px label column and a right-aligned score do not fit a phone, whatever the page wants.
+ */
+@media (max-width: 640px) {
+  .classical .score-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+  }
+  .classical .score-track {
+    display: none;
+  }
+  .classical .score-note {
+    padding-left: 0;
+  }
+  .classical .wrap,
+  .classical .wrap-narrow {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+/*
+ * A table that becomes stacked, labelled rows on a phone, instead of scrolling sideways.
+ * `<DataTable stack>` asks for it, and puts each column's heading on the cell as `data-label`.
+ */
+@media (max-width: 767px) {
+  .classical .table-stack,
+  .classical .table-stack tbody,
+  .classical .table-stack tr,
+  .classical .table-stack td {
+    display: block;
+    width: 100%;
+  }
+  /* Out of sight and still read: the headings name the cells for a screen reader. */
+  .classical .table-stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .classical .table-stack tr {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .classical .table-stack tr:last-child {
+    border-bottom: 0;
+  }
+  .classical .table-stack td,
+  .classical .table-stack td.num {
+    border: 0;
+    padding: var(--space-1) 0;
+    text-align: start;
+  }
+  .classical .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+}
+
+/*
+ * A panel that opens over the page, for one focused piece of work: writing an email.
+ *
+ * A native <dialog>, so the browser traps focus, closes on Escape and makes the page behind it
+ * inert. Bottom-anchored on a phone, where a centred box leaves the keyboard covering its buttons.
+ */
+.classical dialog.sheet {
+  width: min(680px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  margin: auto;
+  padding: var(--space-6);
+  overflow-y: auto;
+  color: var(--color-text);
+  background: var(--color-raised);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.classical dialog.sheet::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+@media (max-width: 640px) {
+  .classical dialog.sheet {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    padding: var(--space-5) var(--space-4);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}

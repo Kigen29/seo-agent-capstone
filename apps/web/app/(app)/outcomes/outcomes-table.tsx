@@ -2,6 +2,7 @@ import type { FixOutcome } from '@seo/api-client'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
 import { OutboundLink } from '@/components/ui/outbound-link'
+import { formatDay, plural } from '@/lib/format'
 
 /**
  * Every fix the agent proposed for a site, and what became of it.
@@ -34,13 +35,11 @@ const STATUS: Record<FixOutcome['status'], { label: string; tag: string; detail:
   },
 }
 
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
-
 function metricLine(outcome: FixOutcome): string | null {
   const before = outcome.verification?.before.metrics[0] ?? outcome.baseline?.metrics[0]
   const after = outcome.verification?.after.metrics[0]
   if (!before) return null
-  const pages = (n: number) => `${n} page${n === 1 ? '' : 's'}`
+  const pages = (n: number) => plural(n, 'page')
   if (!after) return `Before: ${pages(before.value)} failing ${outcome.ruleId}.`
   return `Before: ${pages(before.value)} failing. After: ${pages(after.value)} failing.`
 }
@@ -63,7 +62,7 @@ function trafficLine(outcome: FixOutcome): string | null {
     const ready = new Date(
       new Date(verification.verifiedAt).getTime() + TRAFFIC_READY_DAYS * 86_400_000,
     )
-    return `Search traffic before and after: ready around ${day.format(ready)}, if Search Console is connected.`
+    return `Search traffic before and after: ready around ${formatDay(ready)}, if Search Console is connected.`
   }
   const clicksBefore = value(verification.before.metrics, CLICKS_METRIC) ?? 0
   const impressionsBefore = value(verification.before.metrics, IMPRESSIONS_METRIC) ?? 0
@@ -87,8 +86,7 @@ function Evidence({ outcome }: { outcome: FixOutcome }) {
     <div className="flex max-w-[60ch] flex-col gap-2 text-[13px]">
       <div className="text-muted">
         {outcome.verification?.summary ?? status.detail}
-        {outcome.verification &&
-          ` Checked ${day.format(new Date(outcome.verification.verifiedAt))}.`}
+        {outcome.verification && ` Checked ${formatDay(outcome.verification.verifiedAt)}.`}
       </div>
       {outcome.note && <div className="text-muted">{outcome.note}</div>}
       {metrics && <div className="mono tnum text-[12px]">{metrics}</div>}

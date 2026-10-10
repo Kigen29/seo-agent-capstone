@@ -14,6 +14,7 @@ import { manualReasonFor } from '@/lib/manual-reason'
 import { AffectedPages, FixAttempts } from './finding-tables'
 import { FixButton } from './fix-button'
 import { FixProgress } from './fix-progress'
+import { formatDay } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,7 +110,7 @@ export default async function FindingPage({
 
       <h1 className="mb-2">{finding.title}</h1>
       <p className="text-muted mt-0 mb-4 text-[13px]">
-        First seen {firstSeen.format(new Date(finding.firstSeenAt))}
+        First seen {formatDay(finding.firstSeenAt)}
       </p>
 
       {/* The action that closes the loop: turn this finding into a pull request. */}
@@ -276,5 +277,3 @@ export default async function FindingPage({
     </main>
   )
 }
-
-const firstSeen = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })

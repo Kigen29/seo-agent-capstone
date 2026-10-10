@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { HistoryTable } from './history-table'
+import { formatDay, hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,8 +19,6 @@ export const dynamic = 'force-dynamic'
  * This page used to show only the newest audit per site, because that was all the API could
  * serve, which left the record in the database and nowhere a person could look.
  */
-
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 
 /**
  * The eight axes of a site's latest completed audit, as tiles.
@@ -35,8 +34,7 @@ function LatestScorecard({ entry }: { entry: AuditHistoryEntry }) {
         <div>
           <h3 className="card-heading">Latest scorecard</h3>
           <div className="text-muted mt-1 text-[13px]">
-            Eight areas, each scored on its own, from the audit of{' '}
-            {day.format(new Date(entry.startedAt))}.
+            Eight areas, each scored on its own, from the audit of {formatDay(entry.startedAt)}.
           </div>
         </div>
         <Link href={`/audits/${entry.id}`} className="shrink-0 text-[13px]">
@@ -66,14 +64,6 @@ function LatestScorecard({ entry }: { entry: AuditHistoryEntry }) {
       </div>
     </div>
   )
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
 }
 
 /** Newest first, so the first completed entry is the latest one with scores to show. */

@@ -1,0 +1,171 @@
+/* navigation */
+.classical .nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-divider);
+}
+.classical .nav-brand {
+  font-family: var(--font-heading);
+  font-weight: var(--font-weight-strong);
+  font-size: 18px;
+  margin-right: auto;
+}
+.classical .nav a {
+  color: inherit;
+  text-decoration: none;
+  font-size: 14px;
+}
+.classical .nav a:hover,
+.classical .nav a[aria-current='page'] {
+  color: var(--color-accent-700);
+}
+
+/* tables */
+.classical .table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.classical .table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-text-subtle);
+  background: var(--color-surface);
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+}
+.classical .table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: top;
+}
+/*
+ * Figures and the row's action sit against the right edge. A class rather than `text-right`,
+ * which loses to `.classical .table th` on specificity.
+ */
+.classical .table .num {
+  text-align: right;
+}
+/* The frame draws the bottom edge, so the last row must not draw a second one inside it. */
+.classical .table tbody tr:last-child td {
+  border-bottom: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  }
+}
+/*
+ * A table wider than the viewport has to scroll inside its own box, or it pushes the whole page
+ * sideways. Every table in the app was previously unwrapped, which is most of why the app is
+ * unusable on a phone.
+ *
+ * It is also the table's frame: border, rounded corners and the raised surface. Every table in the
+ * app is already inside one, so the frame lives here and no table can be half-dressed. The
+ * overflow is what clips the header row's fill to the rounded corners.
+ */
+.classical .table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+}
+
+/* page containers */
+/*
+ * A fluid stage: the page takes the room the sidebar leaves, up to a cap, so a wide table is not
+ * squeezed into a column while half the screen sits empty. Prose keeps its own `max-w-[..ch]`.
+ */
+.classical .wrap {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+.classical .wrap-narrow {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+/*
+ * The bar across the top of the stage: where you are on the left, the site's standing connection
+ * and its one global action on the right. Display is left to utilities at the call site, because
+ * a `display` here would outrank `hidden` (see DESIGN.md, Layout).
+ */
+.classical .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: 56px;
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid var(--color-divider);
+  background: color-mix(in srgb, var(--color-bg) 90%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+}
+
+/*
+ * Sidebar and section navigation.
+ *
+ * One class for the app sidebar and the settings sections, which were the same two inline styles
+ * written out twice. The current page is marked three ways (wash, bar, ink) so it does not depend
+ * on colour alone.
+ */
+.classical .side-label {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+.classical .side-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.classical .side-link svg {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .side-link:hover {
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  }
+}
+.classical .side-link[aria-current='page'] {
+  color: var(--color-text);
+  background: var(--color-accent-100);
+}
+.classical .side-link[aria-current='page'] svg {
+  color: var(--color-accent);
+}
+.classical .side-link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: 2px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}

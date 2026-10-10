@@ -1,5 +1,4 @@
 import type { Audit, SiteProfile, VisibilityReport } from '@seo/api-client'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleCallbackNote } from '@/components/google-connection'
@@ -13,6 +12,7 @@ import { AddSite } from '../add-site'
 import { SetupStrip } from '../setup-strip'
 import { Overview } from './overview'
 import { SitesTable } from './sites-table'
+import { hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,15 +42,6 @@ const AUDIT_NOT_QUEUED: Outcome = {
   title: 'The audit was not started',
   detail:
     'The service was starting up. It sleeps after about fifteen minutes without use and takes up to a minute to wake. Nothing was lost. Press Run audit again.',
-}
-
-/** The host, for a page title. A full URL as an h1 reads as a string rather than a name. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
 }
 
 export const metadata = { title: 'Dashboard' }
@@ -125,7 +116,6 @@ export default async function Dashboard({
         kicker="Overview"
         title={activeSite ? hostOf(activeSite.url) : 'Your sites'}
         description="How this site is doing in each area we measure. Anything we could not measure says why, and never shows a zero."
-        actions={<Link href="/findings">All findings &rarr;</Link>}
       />
 
       <GoogleCallbackNote callback={googleCallback} />
@@ -168,7 +158,7 @@ export default async function Dashboard({
         <AddSite />
       </div>
 
-      <SitesTable sites={sites} activeId={activeSite?.id} hostOf={hostOf} />
+      <SitesTable sites={sites} activeId={activeSite?.id} />
     </main>
   )
 }

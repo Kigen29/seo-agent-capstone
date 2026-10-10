@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { SignedInIdentity } from '@seo/api-client'
 import { AccountMenu } from '@/components/account-menu'
 import { useActiveSite } from '@/lib/active-site'
+import { hostOf } from '@/lib/format'
 
 /**
  * The app shell: where you are, what else there is, and which site you are looking at.
@@ -139,14 +140,6 @@ const GROUPS: {
     ],
   },
 ]
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}
 
 export function Sidebar({
   sites,

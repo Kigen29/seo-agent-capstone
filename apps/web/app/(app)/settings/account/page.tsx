@@ -5,6 +5,7 @@ import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { Credentials } from './credentials'
 import { PlanSection } from './plan'
+import { formatDay } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,11 +93,7 @@ export default async function AccountSettingsPage({
             <div className="sm:text-right">
               <dt className="card-kicker">Created</dt>
               <dd className="m-0 mt-1 font-semibold">
-                {account.createdAt
-                  ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(
-                      new Date(account.createdAt),
-                    )
-                  : '\u2014'}
+                {account.createdAt ? formatDay(account.createdAt) : 'Not recorded'}
               </dd>
             </div>
           </dl>

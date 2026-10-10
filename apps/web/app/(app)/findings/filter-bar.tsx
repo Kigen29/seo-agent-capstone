@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { AXIS_LABEL, SEVERITIES, STATUSES } from './labels'
+import { hostOf } from '@/lib/format'
 
 /**
  * Search, and four filters, all of which the server applies.
@@ -103,7 +104,7 @@ export function FilterBar({ siteOptions }: { siteOptions: { id: string; url: str
 
       {select(
         'axis',
-        'Axis',
+        'Area',
         Object.entries(AXIS_LABEL).map(([value, label]) => ({ value, label })),
       )}
       {select(
@@ -132,12 +133,4 @@ export function FilterBar({ siteOptions }: { siteOptions: { id: string; url: str
       )}
     </div>
   )
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
 }

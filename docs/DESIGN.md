@@ -71,7 +71,7 @@ column. This product is mostly tables of numbers; without it they wobble.
 
 ## Components that already exist
 
-Use these before writing anything new. They live in `apps/web/components/` and `classical.css`.
+Use these before writing anything new. They live in `apps/web/components/`, in `apps/web/lib/format.ts`, and in `classical.css`, which is an index of five files under `app/classical/` (base, controls, surfaces, layout, content) loaded in that order.
 
 | Need | Use |
 |---|---|
@@ -94,6 +94,7 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | A list filtered and paged on the server, with the page in the address | `.table` inside `.frame > .table-scroll`, with `<Pagination inFrame>` as the `.panel-foot` strip. Only the findings inbox, where a filter has to be linkable |
 | A key to the terms a table uses | `<Legend items>` under or over the table. Never a `title` tooltip, which reaches a mouse and nothing else |
 | A link to somebody else's page | `<OutboundLink href>`. New tab, says so to a screen reader, carries the mark, and sends `noopener noreferrer nofollow` |
+| A date, a site's name, a count with its noun, an answer engine's name | `formatDay`, `formatDayTime`, `hostOf`, `plural`, `engineNames` from `@/lib/format`. Never `toLocaleString()`, which prints a different date on a different machine, and never a second copy of any of these in a page file |
 | A rule id beside a title | `.rule-id` |
 | Parts of a whole | `.meter` with one `<span>` per part |
 | Sidebar or section navigation | `.side-link` with `aria-current="page"`, under a `.side-label` group heading |
@@ -138,6 +139,27 @@ Two rules follow, and they are the ones to hold the line on:
 `components.json` exists so `npx shadcn add` drops a component in the right place with the right
 aliases. Anything it generates arrives in the default look and has to be restyled onto the tokens
 before it ships.
+
+## Motion
+
+Classical is a still design. Motion is in `app/motion.css` and exists only where, without it,
+something happened and the page did not say so.
+
+- **A press is answered.** Every `.btn` scales to 0.97 while it is held, over 120ms. Do not add
+  a second pressed style to a button.
+- **Name the property.** `transition: all` is not used. Colours ease over 140ms on
+  `--ease-out`; nothing takes longer than 300ms.
+- **What is done constantly is not animated.** Turning a page of a table, switching a tab and
+  sorting a column change at once.
+- **Things arrive decelerating and leave faster than they came.** The dialog sheet enters in
+  220ms and leaves in 150ms. Nothing eases in, and nothing grows from zero: a panel starts at
+  97% and transparent.
+- **A popover opens from what was pressed**, not from its own centre. A dialog is centred, and
+  rises from the bottom edge on a phone, where it is anchored.
+- **Hover is for pointers.** Hover styles sit inside `@media (hover: hover) and (pointer: fine)`,
+  so a tap on a touch screen does not leave a row highlighted.
+- **Less motion still gets feedback.** Under `prefers-reduced-motion` the fades stay and anything
+  that moves or changes size does not.
 
 ## Layout
 
