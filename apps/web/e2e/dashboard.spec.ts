@@ -223,7 +223,8 @@ test('every finding says who fixes it: the agent, or a named reason it is left t
   ]
   for (const text of await tags.allTextContents()) expect(allowed).toContain(text.trim())
   // The old label said a person was needed and did not say why.
-  await expect(page.locator('main')).not.toContainText('Needs you')
+  // "Needs your content" is one of the named reasons, so the old label is matched whole.
+  await expect(page.locator('main')).not.toContainText(/Needs you(?!r content)/)
 })
 
 test('opens a finding and shows how we would know we were wrong', async ({ page }) => {

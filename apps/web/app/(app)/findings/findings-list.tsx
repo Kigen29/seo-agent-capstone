@@ -2,7 +2,8 @@ import type { EarlierWork, FindingListItem } from '@seo/api-client'
 import Link from 'next/link'
 import { SeverityBadge } from '@/components/severity'
 import { hostOf, plural } from '@/lib/format'
-import { manualReasonFor } from '@/lib/manual-reason'
+import { Legend } from '@/components/ui/legend'
+import { MANUAL_REASON, manualReasonFor } from '@/lib/manual-reason'
 import { AXIS_LABEL, STATUS_LABEL } from './labels'
 
 /**
@@ -110,9 +111,7 @@ export function FindingsTable({
                     <span className="tag tag-success">Agent can fix</span>
                   ) : (
                     // Says why there is no pull request, instead of only that there is none.
-                    <span className="tag tag-neutral" title={manualReasonFor(finding).why}>
-                      {manualReasonFor(finding).label}
-                    </span>
+                    <span className="tag tag-neutral">{manualReasonFor(finding).label}</span>
                   )}
                 </td>
                 <td>
@@ -142,24 +141,14 @@ export function FindingsTable({
                     tried and failed identical to one nobody had touched, which is the
                     same mistake as not rendering status at all, one level down.
                   */}
-                    {finding.fixFailed && (
-                      <span
-                        className="tag tag-critical"
-                        title="The last fix attempt failed. Open the finding for the reason."
-                      >
-                        Fix failed
-                      </span>
-                    )}
+                    {finding.fixFailed && <span className="tag tag-critical">Fix failed</span>}
                     {/*
                     The same issue from an earlier audit. Without this, a finding whose
                     fix is already open as a pull request reads as untouched after the
                     next audit, and one that was fixed and came back reads as brand new.
                   */}
                     {finding.earlier && (
-                      <span
-                        className={EARLIER_TAG[finding.earlier.work].className}
-                        title={EARLIER_TAG[finding.earlier.work].title}
-                      >
+                      <span className={EARLIER_TAG[finding.earlier.work].className}>
                         {EARLIER_TAG[finding.earlier.work].label}
                       </span>
                     )}
@@ -196,23 +185,54 @@ function SortLink({ href, active, label }: { href: string; active: boolean; labe
 }
 
 /** How earlier work on the same issue is named on an inbox row. */
-const EARLIER_TAG: Record<
-  EarlierWork['work'],
-  { label: string; className: string; title: string }
-> = {
-  in_progress: {
-    label: 'Fix in progress',
-    className: 'tag tag-success',
-    title: 'A pull request for this issue was opened from an earlier audit.',
-  },
-  regressed: {
-    label: 'Back after a fix',
-    className: 'tag tag-critical',
-    title: 'This was fixed and verified before, and has returned.',
-  },
-  fix_failed: {
-    label: 'Earlier fix did not work',
-    className: 'tag tag-neutral',
-    title: 'A merged fix for this issue was checked and did not resolve it.',
-  },
+const EARLIER_TAG: Record<EarlierWork['work'], { label: string; className: string; what: string }> =
+  {
+    in_progress: {
+      label: 'Fix in progress',
+      className: 'tag tag-success',
+      what: 'A pull request for this issue was opened from an earlier audit.',
+    },
+    regressed: {
+      label: 'Back after a fix',
+      className: 'tag tag-critical',
+      what: 'This was fixed and verified before, and has returned.',
+    },
+    fix_failed: {
+      label: 'Earlier fix did not work',
+      className: 'tag tag-neutral',
+      what: 'A merged fix for this issue was checked and did not resolve it.',
+    },
+  }
+
+/**
+ * What the tags in the inbox mean, said once under it.
+ *
+ * Each of these used to be a `title` on its tag, which a mouse can read and nothing else can:
+ * not a keyboard, not a screen reader, not a finger. Why a finding has no pull request is the
+ * question the Type column raises on every row, so the answer is on the page.
+ */
+export function FindingsLegend() {
+  return (
+    <details className="mt-3">
+      <summary className="cursor-pointer text-[13px]">What the tags mean</summary>
+      <Legend
+        className="mt-2"
+        items={[
+          {
+            term: 'Agent can fix',
+            meaning: 'The agent can open a pull request for this. You review and merge it.',
+          },
+          ...Object.values(MANUAL_REASON).map((reason) => ({
+            term: reason.label,
+            meaning: reason.why,
+          })),
+          {
+            term: 'Fix failed',
+            meaning: 'The last attempt to fix this failed. Open the finding for the reason.',
+          },
+          ...Object.values(EARLIER_TAG).map((tag) => ({ term: tag.label, meaning: tag.what })),
+        ]}
+      />
+    </details>
+  )
 }

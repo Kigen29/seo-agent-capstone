@@ -108,6 +108,14 @@ export default async function AuditsPage({
         kicker="Audits"
         title="Audit history"
         description="Every audit of each site, newest first. Earlier audits are kept, so you can see what each one found and what changed since the one before."
+        actions={
+          <Link
+            href={siteId ? `/schedule?siteId=${siteId}` : '/schedule'}
+            className="btn btn-secondary"
+          >
+            Schedule audits
+          </Link>
+        }
       />
 
       {audited.length === 0 ? (
