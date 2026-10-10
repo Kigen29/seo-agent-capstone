@@ -12,6 +12,7 @@ import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { formatDayTime, hostOf, plural } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,13 +67,13 @@ export default async function AuditPage({
       <Breadcrumbs
         trail={[
           { label: 'Audits', href: `/audits?siteId=${audit.siteId}` },
-          { label: audit.siteUrl },
+          { label: hostOf(audit.siteUrl) },
         ]}
       />
       <PageHeader
         kicker="Audit"
-        title={audit.siteUrl}
-        description={`${audit.pagesCrawled} pages crawled · ${new Date(audit.startedAt).toLocaleString()}`}
+        title={hostOf(audit.siteUrl)}
+        description={`${plural(audit.pagesCrawled, 'page')} read · ${formatDayTime(audit.startedAt)}`}
         actions={
           <>
             <Link href={`/audits?siteId=${audit.siteId}`} className="btn btn-secondary btn-sm">

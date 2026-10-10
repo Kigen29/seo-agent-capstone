@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { startAudit } from '../actions'
+import { formatDay, hostOf } from '@/lib/format'
 
 /** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
@@ -15,8 +16,6 @@ const AUDIT_STATE: Record<string, string> = {
   queued: 'Waiting to start',
 }
 
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
-
 /**
  * Every site on the account, with the three things to do to one: set it up, read its last audit,
  * run another.
@@ -27,12 +26,10 @@ const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 export function SitesTable({
   sites,
   activeId,
-  hostOf,
 }: {
   sites: Site[]
   /** The site the overview above is showing. */
   activeId: string | undefined
-  hostOf: (url: string) => string
 }) {
   return (
     <DataTable
@@ -58,7 +55,7 @@ export function SitesTable({
             </span>,
             <span key="audit" className="text-muted">
               {site.latestAudit
-                ? `${AUDIT_STATE[site.latestAudit.status] ?? site.latestAudit.status}, ${day.format(new Date(site.latestAudit.startedAt))}`
+                ? `${AUDIT_STATE[site.latestAudit.status] ?? site.latestAudit.status}, ${formatDay(site.latestAudit.startedAt)}`
                 : 'Never audited'}
             </span>,
             <span key="pages" className="tnum text-muted">

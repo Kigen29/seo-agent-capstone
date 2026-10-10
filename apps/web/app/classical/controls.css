@@ -1,0 +1,184 @@
+/* buttons */
+.classical .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: var(--font-weight-strong);
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+  /* 44px is the WCAG 2.2 target minimum; these sit just under, so pad the hit area on touch. */
+  min-height: 36px;
+}
+.classical .btn:disabled,
+.classical .btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/*
+ * Primary is filled, so the one action a view is asking for is the heaviest thing on it.
+ *
+ * The colour is repeated on `:hover` on purpose. A primary button is very often a `<Link>`, and
+ * `.classical a:hover` at (0,2,1) outranks `.classical .btn-primary` at (0,2,0): without the
+ * second selector the label turns gold on a gold fill the moment the pointer arrives.
+ */
+.classical .btn-primary,
+.classical .btn-primary:hover {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+    border-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text));
+  }
+}
+.classical .btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 74%, var(--color-text));
+}
+.classical .btn-secondary {
+  background: var(--color-surface);
+  border-color: var(--color-divider);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
+  }
+}
+.classical .btn-ghost {
+  color: var(--color-accent-700);
+  padding-inline: var(--space-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+}
+.classical .btn-danger {
+  color: var(--color-danger-text);
+  border-color: var(--color-danger);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-bg);
+  }
+}
+.classical .btn-sm {
+  font-size: 13px;
+  min-height: 30px;
+  padding: var(--space-1) var(--space-2);
+}
+.classical .btn-block {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+/* forms */
+.classical .field > label,
+.classical .label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+  color: var(--color-text-muted);
+}
+.classical .input,
+.classical select.input,
+.classical textarea.input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  /* The page colour, so a field reads as cut into whatever surface, well or sidebar holds it. */
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+/*
+  Native dropdowns are painted by the browser, and on Windows Chrome the option list takes its
+  colours from the select itself. A transparent select therefore opened a white list in dark mode.
+  A solid themed surface, and inheriting color-scheme, keeps the control and its list on theme.
+*/
+.classical select.input {
+  background-color: var(--color-bg);
+  color-scheme: inherit;
+  /*
+    The browser's own arrow sits hard against the border and cannot be moved. So it is turned off
+    and drawn here, inset by the same 10px the text has on the left, with room reserved so a long
+    option never runs underneath it. Mid-grey reads on both the light and the dark surface.
+  */
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238a8a8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  text-overflow: ellipsis;
+}
+.classical select.input option {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .input:hover {
+    border-color: var(--color-text-subtle);
+  }
+}
+.classical .input:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 0;
+}
+.classical .input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+.classical .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.classical .seg-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: inherit;
+}
+.classical .seg-opt + .seg-opt {
+  border-left: 1px solid var(--color-divider);
+}
+.classical .seg-opt:has(input:checked) {
+  color: var(--color-accent-700);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .classical .seg-opt:not(:has(input:checked)):hover {
+    background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  }
+}
+/* Server-rendered active state, for segmented controls built from links. */
+.classical .seg-opt.is-active {
+  color: var(--color-accent-700);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.classical .seg-opt input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}

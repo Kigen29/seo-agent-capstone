@@ -1,0 +1,319 @@
+/* cards */
+.classical .card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  border: 1px solid var(--color-divider);
+}
+/*
+ * A labelled figure: quiet label, large tabular number, optional line of context underneath.
+ * See `<Stat>`. The label is muted rather than gold because a row of four of these would
+ * otherwise put four accents side by side, and the number is the thing to read.
+ */
+.classical .stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  border: 1px solid var(--color-divider);
+}
+.classical .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.classical .stat-value {
+  margin-top: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* The same figure inside a card that holds three of them, where 30px would crowd. */
+.classical .stat-value-sm {
+  margin-top: var(--space-1);
+  font-size: 24px;
+}
+.classical .stat-hint {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+/* The one figure in a row that is in motion right now. At most one per row. */
+.classical .stat-accent {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.classical .stat-accent .stat-label,
+.classical .stat-accent .stat-value {
+  color: var(--color-accent-700);
+}
+.classical .stat-success .stat-value {
+  color: var(--color-success-text);
+}
+
+/*
+ * A card's title when the card is one of a grid: a small uppercase label, so the figure under it
+ * is the loudest thing in the card and four titles in a row do not compete with the page's h1.
+ */
+.classical .card-heading {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+/* The last row of a card: a rule, then context on the left and a link or figure on the right. */
+.classical .card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/*
+ * A frame holds a table and the strip under it (paging, a count, the action that applies to every
+ * row) as one object. Inside a frame the table's own wrapper gives up its border to the frame.
+ */
+.classical .frame {
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+}
+.classical .frame > .table-scroll {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.classical .panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/*
+ * The helper icon and its panel. See `<InfoHint>`. The panel floats over what follows instead of
+ * pushing it down, so opening one does not make the page jump.
+ */
+.classical .hint {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.classical .hint > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-subtle);
+}
+.classical .hint > summary::-webkit-details-marker {
+  display: none;
+}
+.classical .hint > summary:hover,
+.classical .hint[open] > summary {
+  color: var(--color-accent-700);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.classical .hint-body {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(320px, 78vw);
+  padding: var(--space-3);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--color-text);
+}
+.classical .hint-body.hint-end {
+  left: auto;
+  right: 0;
+}
+
+/* A rule id beside the title it belongs to: monospace, small, and out of the way. */
+.classical .rule-id {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--color-text-subtle);
+}
+.classical .dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* Parts of a whole on one bar: what is spent, what is held, and what is left unfilled. */
+.classical .meter {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--color-neutral-200);
+}
+.classical .meter > span {
+  display: block;
+  height: 100%;
+}
+.classical .card-kicker {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+}
+/* A kicker that is also the section's heading: the label's look, a heading's place in the outline. */
+.classical h2.card-kicker,
+.classical h3.card-kicker {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
+.classical .card-title {
+  font-family: var(--font-heading);
+  font-weight: var(--font-weight-strong);
+  font-size: 17px;
+  line-height: 1.2;
+}
+.classical .card-body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  flex: 1;
+}
+.classical .elev-sm {
+  box-shadow: var(--shadow-sm);
+}
+.classical .elev-md {
+  box-shadow: var(--shadow-md);
+}
+.classical .elev-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+/* tags */
+.classical .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  /* A small rectangle with a hairline in its own text colour, so it holds its edge on any surface. */
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  white-space: nowrap;
+}
+/*
+ * The state of a running thing (an audit, a connection): a pill led by a dot. The only fully
+ * rounded tag, so "this is live status" has a shape of its own.
+ */
+.classical .tag-dot {
+  border-radius: 9999px;
+  padding-inline: 10px;
+}
+.classical .tag-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.classical .tag-accent {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.classical .tag-neutral {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
+}
+.classical .tag-outline {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent-700);
+}
+
+/*
+ * Severity, in one place.
+ *
+ * These five tints were previously written out three separate times: a `Record<Severity,
+ * CSSProperties>` in `severity.tsx`, a near-identical one in the findings inbox, and
+ * `.tag-accent` in this file. Three copies of one decision is three chances to drift, and they
+ * already had: the inbox and the badge disagreed about nothing yet, but nothing stopped them.
+ *
+ * Critical and high now carry real status colour rather than the gold accent. The original
+ * instinct (keep the page from reading as a wall of alarm) was right, and it is preserved by
+ * leaving medium, low and info in neutral: only the top two bands shout.
+ */
+.classical .tag-critical {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+/*
+ * One declaration, two names. `.tag-high` is a severity; `.tag-warn` is "real, but do not rely on
+ * it", which is what an unstable citation is. They want the same amber and they are not the same
+ * idea, so an alias is right where a second copy of the rule would be the drift this file warns
+ * about three comments above.
+ */
+.classical .tag-high,
+.classical .tag-warn {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+.classical .tag-medium {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.classical .tag-low {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
+}
+.classical .tag-info {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-600);
+}
+.classical .tag-success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}

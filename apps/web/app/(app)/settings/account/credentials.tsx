@@ -3,9 +3,9 @@ import { DataTable } from '@/components/ui/data-table'
 import { OutcomeNote } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { revokeCredential, revokeOtherCredentials } from './actions'
+import { formatDay } from '@/lib/format'
 
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
-const when = (iso: string | null, none: string) => (iso ? day.format(new Date(iso)) : none)
+const when = (iso: string | null, none: string) => (iso ? formatDay(iso) : none)
 
 /**
  * Every session and token that can act as this account, each with a way to switch it off.
@@ -92,7 +92,7 @@ export function Credentials({
               {credential.kind === 'session' ? 'Browser session' : 'Token'}
             </span>,
             <span key="created" className="text-muted">
-              {day.format(new Date(credential.createdAt))}
+              {formatDay(credential.createdAt)}
             </span>,
             <span key="used" className="text-muted">
               {when(credential.lastUsedAt, 'Never')}

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { AXIS_LABEL, STATUS_LABEL } from '@/app/(app)/findings/labels'
 import { DataTable } from '@/components/ui/data-table'
 import { OutboundLink } from '@/components/ui/outbound-link'
+import { formatDayTime } from '@/lib/format'
 
 /**
  * What this audit resolved and raised, against the completed audit before it.
@@ -91,7 +92,7 @@ export function AuditChangesSection({ changes }: { changes: AuditChanges }) {
           <p className="text-muted mb-4 max-w-[68ch] text-sm">
             Compared with the audit of{' '}
             <Link href={`/audits/${changes.previous.id}`}>
-              {new Date(changes.previous.startedAt).toLocaleString()}
+              {formatDayTime(changes.previous.startedAt)}
             </Link>
             . <strong>{changes.resolved.length}</strong> resolved,{' '}
             <strong>{changes.added.length}</strong> new, <strong>{changes.carried}</strong> still
@@ -176,7 +177,7 @@ export function AuditChangesSection({ changes }: { changes: AuditChanges }) {
         <p className="text-muted mt-4 mb-0 text-[13px]">
           This is not the latest audit of this site.{' '}
           <Link href={`/audits/${changes.next.id}`}>
-            See the next one, from {new Date(changes.next.startedAt).toLocaleString()} &rarr;
+            See the next one, from {formatDayTime(changes.next.startedAt)} &rarr;
           </Link>
         </p>
       )}

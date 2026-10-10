@@ -16,7 +16,7 @@ import { Legend } from '@/components/ui/legend'
  * reading "Cited unstably" beside a legend that explained "Unstable" would be two vocabularies
  * for one thing.
  */
-export const STABILITY: Record<
+const STABILITY: Record<
   PromptSummary['stability'],
   { label: string; className: string; help: string }
 > = {
@@ -81,7 +81,6 @@ export function QuestionsTable({ prompts }: { prompts: PromptSummary[] }) {
       />
       <Legend
         className="mt-3"
-        columns={2}
         items={Object.values(STABILITY).map((verdict) => ({
           term: verdict.label,
           meaning: verdict.help,
@@ -100,6 +99,9 @@ export function ShareTable({
   /** The client's own site, as a bare host. */
   you: string
 }) {
+  const total =
+    share.client + share.competitors.reduce((sum, competitor) => sum + competitor.citations, 0)
+
   return (
     <DataTable
       label="Share of voice against your competitors"
@@ -139,10 +141,9 @@ export function ShareTable({
             <span key="count" className="tnum">
               {competitor.citations}
             </span>,
-            // Only the client's share is a figure the report states. Each competitor's is left
-            // to be read off the counts, which are what was measured.
-            <span key="share" className="text-subtle" aria-hidden="true">
-              &ndash;
+            // The same sum the client's share comes from: this site's citations over everybody's.
+            <span key="share" className="tnum text-muted">
+              {total > 0 ? percent(competitor.citations / total) : percent(0)}
             </span>,
           ],
         })),

@@ -10,6 +10,7 @@ import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { MentionList } from './mention-list'
 import { OutreachWorkbench } from './outreach-workbench'
+import { formatDay } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -215,12 +216,8 @@ export default async function AuthorityPage({
 
           {/* A div: a paragraph here takes the stylesheet margin and ignores the utility. */}
           <div className="text-muted mt-8 text-[13px]">
-            Measured on the audit of{' '}
-            {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(
-              new Date(audit.startedAt),
-            )}
-            . Sites are counted once each, because ten pages on one news site is still one
-            publication that covered you.
+            Measured on the audit of {formatDay(audit.startedAt)}. Sites are counted once each,
+            because ten pages on one news site is still one publication that covered you.
           </div>
         </>
       )}

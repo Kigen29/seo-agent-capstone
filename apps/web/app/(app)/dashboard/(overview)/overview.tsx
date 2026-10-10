@@ -3,6 +3,7 @@ import type { Severity } from '@seo/core'
 import Link from 'next/link'
 import { severityLabel } from '@/components/severity'
 import { AXIS_LABEL } from '@/app/(app)/findings/labels'
+import { engineNames } from '@/lib/format'
 
 /**
  * The overview: what this site's state actually is, before anything asks you to do something.
@@ -173,7 +174,7 @@ export function Overview({
           visibility && !visibility.note && visibility.engines.length > 0 ? (
             <>
               <span>Checked on</span>
-              <span>{visibility.engines.join(', ')}</span>
+              <span>{engineNames(visibility.engines)}</span>
             </>
           ) : undefined
         }
