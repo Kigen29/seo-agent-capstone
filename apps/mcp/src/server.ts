@@ -42,7 +42,8 @@ function readEnv() {
     const missing = [!baseUrl && 'SEO_API_URL', !token && 'SEO_API_TOKEN'].filter(Boolean)
     throw new Error(
       `Missing ${missing.join(' and ')}. Set SEO_API_URL to the API's origin and SEO_API_TOKEN ` +
-        'to a token minted with: pnpm --filter @seo/api mint-token <tenant-name>',
+        'to a token from your account: sign in to RankWright, open Settings, Account and spend, ' +
+        'and create one under Connect your editor.',
     )
   }
 
@@ -71,7 +72,7 @@ async function main(): Promise<void> {
     timeoutMs: TIMEOUT_MS,
   })
 
-  const server = new McpServer({ name: 'seo-agent', version: '0.2.0' })
+  const server = new McpServer({ name: 'seo-agent', version: '0.2.1' })
 
   registerReadTools(server, api)
   registerReportTools(server, api)

@@ -224,7 +224,9 @@ describe('errors', () => {
     const result = await call(client, 'list_sites')
 
     expect(result.isError).toBe(true)
-    expect(result.text).toContain('mint-token')
+    // It sends the person to where a token is made, and not to a command that needs the database.
+    expect(result.text).toContain('Connect your editor')
+    expect(result.text).not.toContain('mint-token')
   })
 
   it('does not claim a 404 means the thing does not exist', async () => {

@@ -44,7 +44,8 @@ function describe(error: unknown): string {
       case 401:
         return (
           'Not authorised. SEO_API_TOKEN is missing, wrong, or revoked. ' +
-          'Mint a new one with: pnpm --filter @seo/api mint-token <tenant-name>'
+          'Create a new one in RankWright under Settings, Account and spend, Connect your editor. ' +
+          'Tokens made there expire, so an old one may simply have run out.'
         )
       case 404:
         return (
