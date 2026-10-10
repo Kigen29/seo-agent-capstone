@@ -148,6 +148,11 @@ stay off unless `SEO_MCP_ALLOW_WRITES=1`, and a single server process will open 
 default branch, but a model in a loop can still flood a reviewer. See
 [ADR-0020](docs/adr/0020-mcp-server-as-a-second-door.md).
 
+## Licence
+
+[MIT](LICENSE). The two typefaces in `apps/web/app/fonts` are under the SIL Open Font License,
+with their licence texts beside them.
+
 ## The one architectural law
 
 **Deterministic detection first, LLM second.** A parser finds the issue. The LLM only explains it and writes the fix. See [ADR-0001](docs/adr/0001-deterministic-first-llm-second.md).

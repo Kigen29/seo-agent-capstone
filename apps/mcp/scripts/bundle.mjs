@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import console from 'node:console'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -61,13 +61,12 @@ writeFileSync(
         'MCP server for RankWright: read SEO findings, audits, fix outcomes, AI visibility and the schedule from your editor, and open a fix as a pull request.',
       type: 'module',
       bin: { [name.replace(/^@[^/]+\//, '')]: 'server.js' },
-      files: ['server.js', 'README.md'],
+      files: ['server.js', 'README.md', 'LICENSE'],
       engines: { node: '>=20' },
       keywords: ['mcp', 'model-context-protocol', 'seo', 'pull-request', 'claude', 'cursor'],
       repository: { type: 'git', url: 'git+https://github.com/Kigen29/seo-agent-capstone.git' },
       homepage: 'https://seo-agent-capstone.vercel.app',
-      // The repository carries no licence file, so the package does not claim one.
-      license: 'UNLICENSED',
+      license: 'MIT',
     },
     null,
     2,
@@ -143,8 +142,15 @@ your default branch, a person still merges it, and one session opens at most thr
 
 The first call after a quiet spell can take up to a minute: the API runs on a free instance that
 sleeps when idle.
+
+## Licence
+
+MIT.
 `,
 )
+
+// The licence travels with the code. It is the repository's own file, copied and not retyped.
+copyFileSync(resolve(root, '../../LICENSE'), resolve(out, 'LICENSE'))
 
 const bytes = Object.values(result.metafile.outputs)[0].bytes
 console.log(`${name}@${version}: ${out} (server.js, ${Math.round(bytes / 1024)} KB)`)
