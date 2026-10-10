@@ -108,12 +108,29 @@ any MCP client can drive it directly. Seventeen tools:
 problems; this one opens the pull request that fixes it, and `get_outcomes` and `audit_changes`
 then say whether it worked.
 
+To connect: sign in, open **Settings, Account and spend**, and under **Connect your editor**
+create a token. It is shown once, with the config for Claude Code and for other editors already
+filled in. Tokens made there expire (30, 90 or 365 days) and are listed and revoked on the same
+page. An operator with the database can still mint one from the command line:
+
 ```bash
 pnpm build
 pnpm --filter @seo/api mint-token my-tenant     # prints a token, once
 export SEO_API_TOKEN=seo_...
 export SEO_MCP_ALLOW_WRITES=1                   # writes are off by default
 ```
+
+The server can be published to npm as a single file, so nobody has to clone this repository to
+use it:
+
+```bash
+pnpm build && pnpm --filter @seo/mcp bundle     # writes apps/mcp/publish/
+cd apps/mcp/publish && npm publish --access public
+```
+
+Then set `NEXT_PUBLIC_MCP_PACKAGE` on the web app to the package name, and the dashboard offers
+an `npx` config in place of the clone-and-build one. See
+[ADR-0046](docs/adr/0046-a-person-makes-their-own-token-and-a-token-cannot-make-one.md).
 
 To check the built server against your account, as an editor would drive it over stdio:
 

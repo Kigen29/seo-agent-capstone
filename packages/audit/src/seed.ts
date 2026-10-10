@@ -32,6 +32,11 @@ export const E2E = {
   otherTenant: 'e2e-other-tenant',
   token: 'seo_e2e_fixed_token_do_not_use_in_production',
   otherToken: 'seo_e2e_other_tenant_token_do_not_use',
+  /**
+   * A browser session for the second tenant. The fixed tokens above are tokens, and a token may
+   * not create a token, so the one flow that needs a signed-in person needs one of these.
+   */
+  otherSession: 'seo_e2e_other_tenant_session_do_not_use',
   tenantId: '00000000-0000-4000-8000-000000000001',
   otherTenantId: '00000000-0000-4000-8000-000000000002',
   siteId: '00000000-0000-4000-8000-000000000003',
@@ -135,6 +140,13 @@ export async function seedE2E(): Promise<void> {
       await tx.insert(apiTokens).values([
         { tenantId: E2E.tenantId, name: 'e2e', tokenHash: hash(E2E.token) },
         { tenantId: E2E.otherTenantId, name: 'e2e', tokenHash: hash(E2E.otherToken) },
+        {
+          tenantId: E2E.otherTenantId,
+          name: 'e2e browser',
+          kind: 'session',
+          tokenHash: hash(E2E.otherSession),
+          expiresAt: new Date(Date.now() + 30 * 86_400_000),
+        },
       ])
     })
 

@@ -33,9 +33,9 @@ export function Credentials({
         Sessions and tokens
       </h2>
       <p className="text-muted mt-0 mb-3 max-w-[62ch] text-sm">
-        Everything that can act as this account. Browser sessions end after thirty days; tokens
-        minted for the CLI or the MCP server last until they expire or you revoke them. Revoking one
-        stops it working immediately.
+        Everything that can act as this account. Browser sessions end after thirty days. Tokens are
+        made above, for an editor or the command line, and last until they expire or you revoke
+        them. Revoking one stops it working immediately.
       </p>
 
       {/*

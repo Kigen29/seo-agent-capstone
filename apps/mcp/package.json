@@ -1,6 +1,6 @@
 {
   "name": "@seo/mcp",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "./dist/server.js",
@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@seo/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
+    "esbuild": "^0.25.0",
     "typescript": "^5.7.2",
     "vitest": "^2.0.0"
   }

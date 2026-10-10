@@ -28,7 +28,10 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
  * Exits 1 if any call fails, so it can gate a release.
  */
 
-const server = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/server.js')
+// `SEO_MCP_SERVER` points this at another build of the server: the bundle that gets published.
+const server = process.env.SEO_MCP_SERVER
+  ? resolve(process.env.SEO_MCP_SERVER)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '../dist/server.js')
 const write = process.argv.includes('--write')
 
 if (!process.env.SEO_API_URL || !process.env.SEO_API_TOKEN) {

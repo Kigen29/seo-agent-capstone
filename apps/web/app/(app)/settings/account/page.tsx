@@ -2,7 +2,8 @@ import { ApiAsleep } from '@/components/api-asleep'
 import { Note } from '@/components/ui/note'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
-import { getClient } from '@/lib/session'
+import { apiUrl, getClient } from '@/lib/session'
+import { ConnectEditor } from './connect-editor'
 import { Credentials } from './credentials'
 import { PlanSection } from './plan'
 import { formatDay } from '@/lib/format'
@@ -196,6 +197,14 @@ export default async function AccountSettingsPage({
         )}
       </section>
 
+      {/*
+        The address an editor on somebody else's machine reaches the API at. The same one this
+        server uses, unless the deployment reaches it by a private name and says so.
+      */}
+      <ConnectEditor
+        apiUrl={process.env.PUBLIC_API_URL || apiUrl()}
+        packageName={process.env.NEXT_PUBLIC_MCP_PACKAGE || undefined}
+      />
       <Credentials credentials={credentials} revoked={revoked} notRevoked={Boolean(asleep)} />
     </div>
   )

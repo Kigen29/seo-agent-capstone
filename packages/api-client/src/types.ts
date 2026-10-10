@@ -213,6 +213,14 @@ export interface ApiCredential {
 }
 
 /** The three scalars the finding page polls while a fix job is in flight. */
+/** A token just made. `token` is the only time its value is ever sent. */
+export interface CreatedToken {
+  id: string
+  name: string
+  token: string
+  expiresAt: string
+}
+
 export interface FixProgress {
   id: string
   status: string

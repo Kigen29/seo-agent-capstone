@@ -94,6 +94,7 @@ const TIGHTER: Record<string, keyof Pick<RateLimits, 'costly' | 'queued'>> = {
   'GET /sites/:id/keywords/gap': 'costly',
   'GET /sites/:id/questions': 'costly',
   'POST /sites': 'costly',
+  'POST /auth/tokens': 'costly',
   'POST /billing/checkout': 'costly',
   'POST /findings/:id/fix': 'costly',
   'POST /audits': 'queued',

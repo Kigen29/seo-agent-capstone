@@ -63,6 +63,8 @@ export default tseslint.config(
     ignores: [
       'artifacts/**',
       '**/dist/**',
+      // The MCP server bundled for npm. Generated, and mostly other people's code.
+      'apps/mcp/publish/**',
       '**/node_modules/**',
       '**/.turbo/**',
       '**/.next/**',

@@ -1,8 +1,9 @@
 import { apiTokens, withTenant } from '@seo/db'
-import { asc, eq, gt, isNull, ne, or } from 'drizzle-orm'
+import { and, asc, count, eq, gt, isNull, ne, or } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-import { bearerToken, hashToken } from '../auth.js'
+import { z } from 'zod'
+import { bearerToken, generateToken, hashToken } from '../auth.js'
 import { notFound, uuidParam } from '../http.js'
 import type { RouteDeps } from '../options.js'
 
@@ -19,6 +20,14 @@ import type { RouteDeps } from '../options.js'
  * human to recognise it. Every query runs under the tenant's row-level security, so another
  * tenant's token id is a 404, indistinguishable from one that never existed.
  */
+/** How long a token made in the dashboard may live. There is no "never" on this list. */
+export const TOKEN_LIFETIMES_DAYS = [30, 90, 365] as const
+
+/** The most tokens an account may hold at once. A person has a handful of machines, not fifty. */
+export const MAX_TOKENS_PER_ACCOUNT = 10
+
+const NAME_MAX = 60
+
 export function tokenRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db } = deps
 
@@ -60,6 +69,89 @@ export function tokenRoutes(app: FastifyInstance, deps: RouteDeps): void {
       })),
     }
   })
+
+  /**
+   * Make a token, for the MCP server or the command line (ADR-0046).
+   *
+   * The token is returned once, in this response, and never again: only its hash is stored, so
+   * there is nothing to show a second time.
+   *
+   * Three limits, each for a reason:
+   *
+   *   - Only a browser session may call this. A token cannot make a token. If one leaks, whoever
+   *     holds it can use the account until it is revoked, and must not be able to mint a second
+   *     credential that outlives the revocation.
+   *   - Every token expires. The choices are a month, three months and a year. A credential
+   *     nobody remembers making is the one that turns up in a screenshot three years later.
+   *   - An account holds at most ten. Past that the answer is to revoke one, which is also the
+   *     moment a person looks at the list.
+   */
+  app.withTypeProvider<ZodTypeProvider>().post(
+    '/auth/tokens',
+    {
+      schema: {
+        body: z.object({
+          name: z.string().trim().min(1).max(NAME_MAX),
+          expiresInDays: z
+            .number()
+            .int()
+            .refine((days) => (TOKEN_LIFETIMES_DAYS as readonly number[]).includes(days), {
+              message: `Choose ${TOKEN_LIFETIMES_DAYS.join(', ')} days.`,
+            }),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const current = currentHash(request.headers.authorization)
+      const token = generateToken()
+      const expiresAt = new Date(Date.now() + request.body.expiresInDays * 86_400_000)
+
+      const result = await withTenant(db, request.tenantId, async (tx) => {
+        const [caller] = await tx
+          .select({ kind: apiTokens.kind })
+          .from(apiTokens)
+          .where(eq(apiTokens.tokenHash, current))
+          .limit(1)
+        if (caller?.kind !== 'session') return 'not_a_session' as const
+
+        const [held] = await tx
+          .select({ total: count() })
+          .from(apiTokens)
+          .where(and(eq(apiTokens.kind, 'token'), live()))
+        if ((held?.total ?? 0) >= MAX_TOKENS_PER_ACCOUNT) return 'too_many' as const
+
+        const [row] = await tx
+          .insert(apiTokens)
+          .values({
+            tenantId: request.tenantId,
+            name: request.body.name,
+            kind: 'token',
+            tokenHash: hashToken(token),
+            expiresAt,
+          })
+          .returning({ id: apiTokens.id, name: apiTokens.name })
+        return row!
+      })
+
+      if (result === 'not_a_session') {
+        return reply.status(403).send({
+          error: 'Forbidden',
+          message:
+            'A token cannot create another token. Sign in to the dashboard and create it there.',
+        })
+      }
+      if (result === 'too_many') {
+        return reply.status(409).send({
+          error: 'Conflict',
+          message: `This account already has ${MAX_TOKENS_PER_ACCOUNT} tokens, which is the limit. Revoke one you no longer use, then create another.`,
+        })
+      }
+
+      return reply
+        .status(201)
+        .send({ id: result.id, name: result.name, token, expiresAt: expiresAt.toISOString() })
+    },
+  )
 
   /**
    * Revoke one credential by id. Revoking the one on this request is allowed and is simply a
