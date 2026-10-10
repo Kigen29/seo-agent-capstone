@@ -1,5 +1,7 @@
 'use server'
 
+import type { CreatedToken } from '@seo/api-client'
+import { act, type ActionResult } from '@/lib/action'
 import { ApiRequestError } from '@seo/api-client'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -96,4 +98,19 @@ async function ownCredentialRevoked(
     // Anything but a 401 (a sleeping API, say) is not evidence of a sign-out; keep the cookie.
     return error instanceof ApiRequestError && error.status === 401
   }
+}
+
+/**
+ * Make a token for an editor or the command line. The value comes back once, to be shown once.
+ *
+ * Returned to the browser and never put in the address or a cookie: a token in a URL is a token
+ * in a history file and a server log.
+ */
+export async function createToken(
+  name: string,
+  expiresInDays: number,
+): Promise<ActionResult<CreatedToken>> {
+  const result = await act('create that token', (api) => api.createToken({ name, expiresInDays }))
+  if (result.ok) revalidatePath(ACCOUNT)
+  return result
 }

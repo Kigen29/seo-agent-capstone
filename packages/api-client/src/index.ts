@@ -15,6 +15,7 @@ import type {
   SignedInIdentity,
   Account,
   ApiCredential,
+  CreatedToken,
   FixProgress,
   Audit,
   ConnectRepoResult,
@@ -262,6 +263,13 @@ export function createApiClient(options: ApiClientOptions) {
     /** Every live session and token for this account, oldest first. */
     listCredentials: async () =>
       (await request<{ tokens: ApiCredential[] }>('/auth/tokens')).tokens,
+
+    /**
+     * Make a token for the MCP server or the command line. The value is in this answer and
+     * nowhere else afterwards. Only a browser session may call it.
+     */
+    createToken: async (input: { name: string; expiresInDays: number }) =>
+      request<CreatedToken>('/auth/tokens', { method: 'POST', body: JSON.stringify(input) }),
 
     /** Revoke one session or token by id. Revoking the current one signs this caller out. */
     revokeCredential: async (id: string) => {

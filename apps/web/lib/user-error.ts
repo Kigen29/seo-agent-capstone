@@ -41,7 +41,13 @@ export function toUserError(error: unknown, doing: string): UserError {
     const said = error.message?.trim()
 
     // A 409 is the API refusing because something else has to be true first, in words it chose.
-    if (error.status === 400 || error.status === 409 || error.status === 422) {
+    // A 403 with a sentence is the same thing: allowed for somebody, and not for this caller.
+    if (
+      error.status === 400 ||
+      error.status === 409 ||
+      error.status === 422 ||
+      (error.status === 403 && Boolean(said))
+    ) {
       return {
         kind: 'invalid',
         title: `We could not ${doing}`,

@@ -2361,6 +2361,94 @@ describe.skipIf(!shouldRun)('the API', () => {
         expect(days).toBeLessThanOrEqual(30)
       })
 
+      describe('creating a token (ADR-0046)', () => {
+        const create = (bearer: string, payload: object) =>
+          app.inject({
+            method: 'POST',
+            url: '/auth/tokens',
+            headers: { authorization: `Bearer ${bearer}` },
+            payload,
+          })
+
+        it('gives a session a token once, that works, expires, and is stored only as a hash', async () => {
+          const session = await sessionFor('acct-create-token')
+          const res = await create(session, { name: '  My laptop  ', expiresInDays: 90 })
+          expect(res.statusCode).toBe(201)
+          const made = res.json() as { id: string; name: string; token: string; expiresAt: string }
+          expect(made.name).toBe('My laptop')
+          expect(made.token).toMatch(/^seo_/)
+
+          const days = (new Date(made.expiresAt).getTime() - Date.now()) / 86_400_000
+          expect(days).toBeGreaterThan(89.9)
+          expect(days).toBeLessThanOrEqual(90)
+
+          // It is a working credential for the same account.
+          expect((await call('GET', '/sites', made.token)).statusCode).toBe(200)
+
+          // Only the hash is kept, and the listing shows the token without its value.
+          const [row] = await asOwner(db, (tx) =>
+            tx.select().from(apiTokens).where(eq(apiTokens.id, made.id)),
+          )
+          expect(row?.kind).toBe('token')
+          expect(row?.tokenHash).toBe(hashToken(made.token))
+          const listing = await call('GET', '/auth/tokens', session)
+          expect(listing.body).not.toContain(made.token)
+          expect(listing.body).toContain('My laptop')
+        })
+
+        it('does not let a token create another token', async () => {
+          const session = await sessionFor('acct-token-makes-token')
+          const { token } = (await create(session, { name: 'first', expiresInDays: 30 })).json()
+          const res = await create(token, { name: 'second', expiresInDays: 30 })
+          expect(res.statusCode).toBe(403)
+          expect(res.json().message).toMatch(/cannot create another token/)
+        })
+
+        it('stops working the moment it is revoked', async () => {
+          const session = await sessionFor('acct-revoke-made-token')
+          const made = (await create(session, { name: 'short-lived', expiresInDays: 30 })).json()
+          expect((await call('GET', '/sites', made.token)).statusCode).toBe(200)
+          expect((await call('DELETE', `/auth/tokens/${made.id}`, session)).statusCode).toBe(204)
+          expect((await call('GET', '/sites', made.token)).statusCode).toBe(401)
+        })
+
+        it('refuses a lifetime that is not offered, a token with no name, and one that never expires', async () => {
+          const session = await sessionFor('acct-token-validation')
+          expect((await create(session, { name: 'x', expiresInDays: 7 })).statusCode).toBe(400)
+          expect((await create(session, { name: 'x', expiresInDays: 3650 })).statusCode).toBe(400)
+          expect((await create(session, { name: '   ', expiresInDays: 30 })).statusCode).toBe(400)
+          expect((await create(session, { name: 'x' })).statusCode).toBe(400)
+          expect(
+            (await create(session, { name: 'a'.repeat(61), expiresInDays: 30 })).statusCode,
+          ).toBe(400)
+        })
+
+        it('holds an account to ten tokens, and says what to do about it', async () => {
+          // A fresh account each run: the tokens outlive the test, and a second run against the same
+          // database would start at the limit.
+          const account = 'acct-token-cap-' + Date.now()
+          const session = await sessionFor(account)
+          for (let index = 0; index < 10; index += 1) {
+            const res = await create(session, { name: `token ${index}`, expiresInDays: 30 })
+            expect(res.statusCode).toBe(201)
+          }
+          const eleventh = await create(session, { name: 'one too many', expiresInDays: 30 })
+          expect(eleventh.statusCode).toBe(409)
+          expect(eleventh.json().message).toMatch(/Revoke one/)
+          // Sessions do not count towards it: signing in on another browser still works.
+          expect((await call('GET', '/sites', await sessionFor(account))).statusCode).toBe(200)
+        })
+
+        it('needs a credential at all', async () => {
+          const res = await app.inject({
+            method: 'POST',
+            url: '/auth/tokens',
+            payload: { name: 'x', expiresInDays: 30 },
+          })
+          expect(res.statusCode).toBe(401)
+        })
+      })
+
       it('lists live credentials, marks the current one, and never returns a hash', async () => {
         const first = await sessionFor('acct-list')
         const second = await sessionFor('acct-list')
