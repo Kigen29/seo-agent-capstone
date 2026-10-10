@@ -34,6 +34,8 @@ function hostOf(url: string): string {
 /** What the last bulk request did. Shown once, not carried onto sort and paging links. */
 const OUTCOME_KEYS = new Set(['bulk', 'queued', 'skipped', 'remaining', 'why'])
 
+export const metadata = { title: 'Findings' }
+
 export default async function FindingsPage({
   searchParams,
 }: {

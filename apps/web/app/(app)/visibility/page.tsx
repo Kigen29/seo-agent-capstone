@@ -27,6 +27,8 @@ export const dynamic = 'force-dynamic'
  * the honesty.
  */
 
+export const metadata = { title: 'AI visibility' }
+
 export default async function VisibilityPage({
   searchParams,
 }: {

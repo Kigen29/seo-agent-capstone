@@ -13,6 +13,8 @@ import { OutreachWorkbench } from './outreach-workbench'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Authority' }
+
 /**
  * Authority: who talks about you, and who links to you, in that order.
  *

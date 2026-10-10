@@ -16,6 +16,8 @@ const PROVIDER_LABEL: Record<string, string> = {
   google: 'Google',
 }
 
+export const metadata = { title: 'Profile' }
+
 /**
  * Who you are signed in as.
  *

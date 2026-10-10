@@ -15,6 +15,7 @@ import { apiUrl } from '@/lib/session'
  * expires after 30 days, and neither of those is worth much if Google has a copy (ADR-0025).
  */
 export const metadata: Metadata = {
+  title: 'Page check result',
   robots: { index: false, follow: false },
 }
 

@@ -24,6 +24,8 @@ export const dynamic = 'force-dynamic'
  * else's site on demand is a different product from one that looks once a week.
  */
 
+export const metadata = { title: 'Competitors' }
+
 export default async function CompetitorsPage({
   searchParams,
 }: {

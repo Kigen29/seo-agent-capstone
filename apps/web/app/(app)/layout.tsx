@@ -18,6 +18,12 @@ import { getClient, getToken, getSites } from '@/lib/session'
  * them can forget to check for a session: a page would have to be physically moved out of the
  * group, which is a visible act rather than an omission.
  */
+/**
+ * Nothing behind the sign-in is a search result. An anonymous crawler is redirected before it
+ * sees any of it, and this says the same thing to anything that is not.
+ */
+export const metadata = { robots: { index: false, follow: false } }
+
 /** Statuses that mean an audit is on the queue or running. */
 const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 

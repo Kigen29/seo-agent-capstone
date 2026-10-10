@@ -33,6 +33,8 @@ function hostOf(url: string): string {
   }
 }
 
+export const metadata = { title: 'Site setup' }
+
 export default async function SiteSetupPage({
   searchParams,
 }: {

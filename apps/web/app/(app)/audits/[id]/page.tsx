@@ -29,6 +29,8 @@ export const dynamic = 'force-dynamic'
  * cold-start case is covered by `<ApiAsleep />` instead.
  */
 
+export const metadata = { title: 'Audit' }
+
 export default async function AuditPage({
   params,
   searchParams,

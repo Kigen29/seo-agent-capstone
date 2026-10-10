@@ -37,6 +37,8 @@ const money = (micros: number): string =>
     micros / MICROS_PER_USD,
   )
 
+export const metadata = { title: 'Account' }
+
 export default async function AccountSettingsPage({
   searchParams,
 }: {

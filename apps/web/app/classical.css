@@ -573,6 +573,13 @@
   text-transform: uppercase;
   color: var(--color-accent-700);
 }
+/* A kicker that is also the section's heading: the label's look, a heading's place in the outline. */
+.classical h2.card-kicker,
+.classical h3.card-kicker {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
 .classical .card-title {
   font-family: var(--font-heading);
   font-weight: var(--font-weight-strong);

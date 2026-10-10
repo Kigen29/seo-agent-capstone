@@ -46,6 +46,8 @@ const FIX: Record<string, Outcome> = {
   },
 }
 
+export const metadata = { title: 'Finding' }
+
 export default async function FindingPage({
   params,
   searchParams,
