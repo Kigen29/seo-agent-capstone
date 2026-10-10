@@ -1,4 +1,4 @@
-import type { PromptSummary, VisibilityReport } from '@seo/api-client'
+import type { VisibilityReport } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -6,6 +6,7 @@ import { InfoHint } from '@/components/ui/info-hint'
 import { Note } from '@/components/ui/note'
 import { PageHeader } from '@/components/ui/page-header'
 import { QuestionMiner } from './question-miner'
+import { percent, QuestionsTable, ShareTable } from './report-tables'
 import { VisibilityPrompts } from './tracked-questions'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
@@ -25,35 +26,6 @@ export const dynamic = 'force-dynamic'
  * as one. Every count is rendered as "k of N", never as a bare percentage, because the sample is
  * the honesty.
  */
-
-/** How a stability verdict should read, and what it means. Never a bare word on its own. */
-const STABILITY: Record<
-  PromptSummary['stability'],
-  { label: string; className: string; help: string }
-> = {
-  stable: {
-    label: 'Cited',
-    className: 'tag tag-success',
-    help: 'Cited consistently enough across the window to report as a citation.',
-  },
-  unstable: {
-    label: 'Cited unstably',
-    className: 'tag tag-warn',
-    help: 'Cited in some checks and not others. Real, but not something to rely on.',
-  },
-  absent: {
-    label: 'Not cited',
-    className: 'tag tag-critical',
-    help: 'Checked enough times to be sure: the engines do not cite you for this.',
-  },
-  insufficient: {
-    label: 'Still checking',
-    className: 'tag tag-neutral',
-    help: 'Not enough checks, or not over enough days, to say anything yet.',
-  },
-}
-
-const percent = (fraction: number) => `${Math.round(fraction * 100)}%`
 
 export default async function VisibilityPage({
   searchParams,
@@ -176,56 +148,7 @@ export default async function VisibilityPage({
                 <h2 className="h-section m-0">Question by question</h2>
                 <span className="text-muted text-[12px]">Last {report.windowDays} days</span>
               </div>
-              <div className="table-scroll">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Question we asked</th>
-                      <th className="num">Cited</th>
-                      <th className="num">Over</th>
-                      <th className="num">Verdict</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.prompts.map((prompt) => {
-                      const verdict = STABILITY[prompt.stability]
-                      return (
-                        <tr key={prompt.prompt}>
-                          <td>{prompt.prompt}</td>
-                          {/*
-                            "2 of 6", never "33%". The sample is what makes the number checkable,
-                            and a percentage hides whether it rests on three polls or thirty.
-                          */}
-                          <td className="num tnum text-muted whitespace-nowrap">
-                            {prompt.citedCount} of {prompt.pollsRun}
-                          </td>
-                          <td className="num tnum text-muted whitespace-nowrap">
-                            {prompt.daysPolled} day{prompt.daysPolled === 1 ? '' : 's'}
-                          </td>
-                          <td className="num whitespace-nowrap">
-                            <span className={verdict.className}>{verdict.label}</span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/*
-                A visible legend rather than a `title` tooltip on each tag. `title` on a
-                non-interactive span reaches a mouse and nothing else: no keyboard, no screen
-                reader, no touch. Four short definitions in the open serve everyone and cost a
-                line.
-              */}
-              <dl className="text-muted mt-3 mb-0 grid gap-1 text-[13px] sm:grid-cols-2">
-                {Object.values(STABILITY).map((verdict) => (
-                  <div key={verdict.label} className="flex min-w-0 gap-2">
-                    <dt className="shrink-0 font-[600]">{verdict.label}:</dt>
-                    <dd className="m-0 min-w-0">{verdict.help}</dd>
-                  </div>
-                ))}
-              </dl>
+              <QuestionsTable prompts={report.prompts} />
             </section>
           )}
 
@@ -249,39 +172,10 @@ export default async function VisibilityPage({
                   </>
                 )}
               </div>
-              <div className="frame">
-                <ul className="m-0 list-none p-0">
-                  <li className="flex items-baseline justify-between gap-4 px-4 py-3">
-                    <span className="flex min-w-0 items-baseline gap-3">
-                      <span className="card-kicker shrink-0">You</span>
-                      <span className="truncate">
-                        {site
-                          ? site.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
-                          : ''}
-                      </span>
-                    </span>
-                    <span className="tnum text-muted shrink-0 text-[13px]">
-                      {report.share.client} citation{report.share.client === 1 ? '' : 's'} ·{' '}
-                      {percent(report.share.clientShare)}
-                    </span>
-                  </li>
-                  {report.share.competitors.map((competitor) => (
-                    <li
-                      key={competitor.domain}
-                      className="flex items-baseline justify-between gap-4 px-4 py-3"
-                      style={{ borderTop: '1px solid var(--color-divider)' }}
-                    >
-                      <span className="flex min-w-0 items-baseline gap-3">
-                        <span className="stat-label shrink-0">Rival</span>
-                        <span className="truncate">{competitor.domain}</span>
-                      </span>
-                      <span className="tnum text-muted shrink-0 text-[13px]">
-                        {competitor.citations} citation{competitor.citations === 1 ? '' : 's'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ShareTable
+                share={report.share}
+                you={site ? site.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : ''}
+              />
             </section>
           )}
 

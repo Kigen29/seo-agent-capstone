@@ -3,12 +3,40 @@
 import type { MinedQuestion } from '@seo/api-client'
 import { useState, useTransition } from 'react'
 import { ErrorNote, SavedNote } from '@/components/ui/error-note'
+import { PickTable } from '@/components/ui/pick-table'
 import type { UserError } from '@/lib/user-error'
 import { addPrompts, mineQuestions, suggestPrompts } from './actions'
 
 /** One row in the list: a mined question, or one the agent drafted with its reason. */
 type Candidate =
   MinedQuestion | { question: string; source: 'agent'; reason: string; variants: string[] }
+
+/** Where a candidate came from, and the figures that came with it. Said on every row. */
+function Provenance({ entry }: { entry: Candidate }) {
+  const also =
+    entry.variants.length > 0
+      ? ` · also asked ${entry.variants.length} other way${entry.variants.length === 1 ? '' : 's'}`
+      : ''
+  if (entry.source === 'agent') {
+    return (
+      <>
+        Suggested by the agent · {entry.reason}
+        {also}
+      </>
+    )
+  }
+  if (entry.source !== 'search-console') return <>People Also Ask{also}</>
+  return (
+    <>
+      Search Console
+      {entry.impressions === undefined
+        ? ''
+        : ` · ${entry.impressions.toLocaleString('en-US')} impressions`}
+      {entry.position === undefined ? '' : ` · position ${entry.position.toFixed(1)}`}
+      {also}
+    </>
+  )
+}
 
 /**
  * Questions a site's customers actually ask, and a way to start tracking them.
@@ -76,15 +104,6 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
       setQuestions(result.questions)
       setNote(result.note ?? null)
       setChosen(new Set())
-    })
-  }
-
-  function toggle(question: string) {
-    setChosen((current) => {
-      const next = new Set(current)
-      if (next.has(question)) next.delete(question)
-      else next.add(question)
-      return next
     })
   }
 
@@ -167,46 +186,18 @@ export function QuestionMiner({ siteId }: { siteId: string }) {
 
       {questions && questions.length > 0 && (
         <>
-          <div className="card elev-sm mt-3 gap-0 p-0">
-            {questions.map((entry, index) => (
-              <label
-                key={entry.question}
-                className="flex cursor-pointer items-start gap-3 p-3"
-                style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-              >
-                <input
-                  type="checkbox"
-                  checked={chosen.has(entry.question)}
-                  onChange={() => toggle(entry.question)}
-                  className="mt-1"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm">{entry.question}</span>
-                  <span className="text-muted mt-1 block text-[12px]">
-                    {entry.source === 'agent' ? (
-                      <>Suggested by the agent · {entry.reason}</>
-                    ) : entry.source === 'search-console' ? (
-                      <>
-                        Search Console
-                        {entry.impressions === undefined
-                          ? ''
-                          : ` · ${entry.impressions.toLocaleString('en-US')} impressions`}
-                        {entry.position === undefined
-                          ? ''
-                          : ` · position ${entry.position.toFixed(1)}`}
-                      </>
-                    ) : (
-                      'People Also Ask'
-                    )}
-                    {entry.variants.length > 0 &&
-                      ` · also asked ${entry.variants.length} other way${
-                        entry.variants.length === 1 ? '' : 's'
-                      }`}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
+          <PickTable
+            label="Questions you could track"
+            heading="Question, and where it came from"
+            className="mt-3"
+            picked={chosen}
+            onChange={setChosen}
+            items={questions.map((entry) => ({
+              key: entry.question,
+              title: <span className="font-normal">{entry.question}</span>,
+              detail: <Provenance entry={entry} />,
+            }))}
+          />
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button

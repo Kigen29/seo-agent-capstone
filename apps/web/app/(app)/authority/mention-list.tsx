@@ -1,6 +1,7 @@
 import type { AuthorityMetrics } from '@seo/api-client'
-import { ExternalLink } from 'lucide-react'
+import { DataTable } from '@/components/ui/data-table'
 import { InfoHint } from '@/components/ui/info-hint'
+import { OutboundLink, pathOf } from '@/components/ui/outbound-link'
 import { ExcludedSites, NotUsButton } from './not-us'
 
 /**
@@ -15,13 +16,11 @@ import { ExcludedSites, NotUsButton } from './not-us'
  * the business can post to itself (a social profile, a directory listing) are real mentions and
  * are not coverage, so they sit behind a disclosure and do not pad the list.
  *
- * A server component: it is a list of links, and it should be readable with JavaScript off.
+ * A table, a page of sites at a time, so a brand with sixty mentions gets the same page as one
+ * with six and the section below is never forty rows away.
  */
 
 type Mention = NonNullable<AuthorityMetrics['mentions']>[number]
-
-/** How many sites are shown before the rest fold away. Enough to see the shape of the coverage. */
-const SHOWN = 8
 
 interface Site {
   domain: string
@@ -43,70 +42,69 @@ function bySite(mentions: Mention[]): Site[] {
   return [...sites.values()]
 }
 
-/** The path, since the site is already named on the row above it. */
-function pathOf(url: string): string {
-  try {
-    const parsed = new URL(url)
-    const path = `${parsed.pathname}${parsed.search}`
-    return path === '/' ? 'Home page' : decodeURI(path)
-  } catch {
-    return url
-  }
-}
-
-function SiteRows({
+/** One row per site: what it is, which of its pages name the brand, and whether it links back. */
+function SiteTable({
+  label,
   sites,
   siteId,
   excluded,
 }: {
+  label: string
   sites: Site[]
   siteId: string
   excluded: string[]
 }) {
+  // Only worth a column when links were checked for at least one site. An all-blank column
+  // would read as "none of them link", which is not what an unchecked audit knows.
+  const linksChecked = sites.some((site) => site.linked !== undefined)
+
   return (
-    <ul className="frame m-0 list-none p-0">
-      {sites.map((site, index) => (
-        <li
-          key={site.domain}
-          className="px-4 py-3"
-          style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="min-w-0 font-semibold break-all">{site.domain}</span>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <span className="text-muted tnum text-[13px]">
-                {site.pages.length} {site.pages.length === 1 ? 'page' : 'pages'}
-              </span>
-              {/* Nothing at all when links were not checked: unknown is not "no link". */}
-              {site.linked === true && <span className="tag tag-success">Links to you</span>}
-              {site.linked === false && <span className="tag tag-accent">No link yet</span>}
-              <NotUsButton siteId={siteId} domain={site.domain} excluded={excluded} />
-            </div>
-          </div>
-          <ul className="m-0 mt-1.5 flex list-none flex-col gap-1 p-0">
+    <DataTable
+      label={label}
+      columns={[
+        { header: 'Site' },
+        { header: 'Pages that name you' },
+        ...(linksChecked ? [{ header: 'Link back' }] : []),
+        { header: 'Not your business?', hideHeader: true, align: 'end' as const },
+      ]}
+      rows={sites.map((site) => ({
+        key: site.domain,
+        cells: [
+          <div key="site" className="font-semibold break-all">
+            {site.domain}
+          </div>,
+          <ul key="pages" className="m-0 flex list-none flex-col gap-1.5 p-0">
             {site.pages.map((page) => (
               <li key={page.url} className="min-w-0">
-                <a
-                  href={page.url}
-                  target="_blank"
-                  // The page being opened is somebody else's. It gets no handle on this tab and
-                  // is not told which account was looking.
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex max-w-full items-baseline gap-1.5 text-sm"
-                >
-                  <span className="min-w-0 break-words">{page.title ?? pathOf(page.url)}</span>
-                  <ExternalLink size={12} aria-hidden="true" className="shrink-0 self-center" />
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
+                <OutboundLink href={page.url}>{page.title ?? pathOf(page.url)}</OutboundLink>
                 {page.title && (
                   <div className="text-muted text-[12px] break-all">{pathOf(page.url)}</div>
                 )}
               </li>
             ))}
-          </ul>
-        </li>
-      ))}
-    </ul>
+          </ul>,
+          ...(linksChecked
+            ? [
+                site.linked === true ? (
+                  <span key="link" className="tag tag-success">
+                    Links to you
+                  </span>
+                ) : site.linked === false ? (
+                  <span key="link" className="tag tag-accent">
+                    No link yet
+                  </span>
+                ) : (
+                  // Unknown is not "no link", so it is said in words and not left blank.
+                  <span key="link" className="text-muted text-[13px]">
+                    Not checked
+                  </span>
+                ),
+              ]
+            : []),
+          <NotUsButton key="not-us" siteId={siteId} domain={site.domain} excluded={excluded} />,
+        ],
+      }))}
+    />
   )
 }
 
@@ -202,20 +200,12 @@ export function MentionList({
         </div>
       )}
 
-      {earned.length > 0 && (
-        <SiteRows sites={earned.slice(0, SHOWN)} siteId={siteId} excluded={excluded} />
-      )}
-
-      {earned.length > SHOWN && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-[13px]">
-            Show {earned.length - SHOWN} more {earned.length - SHOWN === 1 ? 'site' : 'sites'}
-          </summary>
-          <div className="mt-3">
-            <SiteRows sites={earned.slice(SHOWN)} siteId={siteId} excluded={excluded} />
-          </div>
-        </details>
-      )}
+      <SiteTable
+        label="Sites that mention you"
+        sites={earned}
+        siteId={siteId}
+        excluded={excluded}
+      />
 
       {platforms.length > 0 && (
         <details className="mt-3">
@@ -227,7 +217,12 @@ export function MentionList({
             Profiles and listings. They are real mentions and worth keeping accurate, and they are
             not counted as coverage, because nobody else chose to write them.
           </div>
-          <SiteRows sites={platforms} siteId={siteId} excluded={excluded} />
+          <SiteTable
+            label="Platforms you can post to yourself"
+            sites={platforms}
+            siteId={siteId}
+            excluded={excluded}
+          />
         </details>
       )}
 

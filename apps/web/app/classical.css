@@ -959,28 +959,47 @@
   }
 }
 
-/* Site summaries become readable stacked rows on narrow screens. */
+/*
+ * A table that becomes stacked, labelled rows on a phone, instead of scrolling sideways.
+ * `<DataTable stack>` asks for it, and puts each column's heading on the cell as `data-label`.
+ */
 @media (max-width: 767px) {
-  .classical .site-table,
-  .classical .site-table tbody,
-  .classical .site-table tr,
-  .classical .site-table td {
+  .classical .table-stack,
+  .classical .table-stack tbody,
+  .classical .table-stack tr,
+  .classical .table-stack td {
     display: block;
     width: 100%;
   }
-  .classical .site-table thead {
-    display: none;
+  /* Out of sight and still read: the headings name the cells for a screen reader. */
+  .classical .table-stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
-  .classical .site-table tr {
+  .classical .table-stack tr {
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--color-divider);
   }
-  .classical .site-table tr:last-child {
+  .classical .table-stack tr:last-child {
     border-bottom: 0;
   }
-  .classical .site-table td {
+  .classical .table-stack td,
+  .classical .table-stack td.num {
     border: 0;
     padding: var(--space-1) 0;
+    text-align: start;
+  }
+  .classical .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
   }
 }
 

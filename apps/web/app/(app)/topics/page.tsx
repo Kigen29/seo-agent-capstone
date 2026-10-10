@@ -1,6 +1,5 @@
 import type { Audit, FindingListItem, Site } from '@seo/api-client'
 import Link from 'next/link'
-import { STATUS_LABEL } from '@/app/(app)/findings/labels'
 import { ApiAsleep } from '@/components/api-asleep'
 import { TopicMapFigure } from '@/components/topic-map'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -9,6 +8,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { AdviceTable, GroupsTable } from './topic-tables'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,15 +26,6 @@ export const dynamic = 'force-dynamic'
 
 /** Every rule the topic map raises shares this prefix, which is what the inbox is searched for. */
 const TOPIC_RULES = 'TOPIC-'
-
-const pathOf = (url: string): string => {
-  try {
-    const parsed = new URL(url)
-    return parsed.pathname || '/'
-  } catch {
-    return url
-  }
-}
 
 export default async function TopicsPage({
   searchParams,
@@ -183,27 +174,7 @@ export default async function TopicsPage({
               tracked questions. The audit&rsquo;s scorecard says which checks ran.
             </Note>
           ) : (
-            <div className="frame">
-              <ul className="m-0 list-none p-0">
-                {advice.map((finding, index) => (
-                  <li
-                    key={finding.rowId}
-                    className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 px-4 py-3"
-                    style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="rule-id">{finding.ruleId}</span>
-                      <Link href={`/findings/${finding.rowId}?siteId=${finding.siteId}`}>
-                        {finding.title}
-                      </Link>
-                    </div>
-                    <span className={STATUS_LABEL[finding.status].className}>
-                      {STATUS_LABEL[finding.status].label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <AdviceTable advice={advice} />
           )}
         </section>
       )}
@@ -215,32 +186,7 @@ export default async function TopicsPage({
             Open a group to see which pages were put together. If they are not about one subject,
             the grouping is wrong and any advice built on it can be dismissed.
           </p>
-          <div className="frame">
-            {groups.map((cluster, index) => (
-              <details
-                key={`${cluster.name}-${index}`}
-                className="px-4 py-3"
-                style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-              >
-                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2">
-                  <span>{cluster.name}</span>
-                  <span className="tnum text-muted text-[13px]">
-                    {cluster.pages.length} pages, {Math.round(cluster.share * 100)}% of those
-                    grouped
-                  </span>
-                </summary>
-                <ul className="mt-3 grid list-none gap-1 p-0 sm:grid-cols-2">
-                  {cluster.pages.map((url) => (
-                    <li key={url} className="min-w-0 truncate">
-                      <a href={url} target="_blank" rel="noreferrer" className="rule-id m-0">
-                        {pathOf(url)}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </div>
+          <GroupsTable groups={groups} />
         </section>
       )}
     </main>

@@ -2,7 +2,9 @@
 
 import type { CompetitorSuggestion } from '@seo/api-client'
 import { useState, useTransition } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import { ErrorNote } from '@/components/ui/error-note'
+import { PickTable } from '@/components/ui/pick-table'
 import { invalid, type UserError } from '@/lib/user-error'
 import { saveCompetitors, suggestCompetitors } from './actions'
 import { CompetitorName } from './competitor-name'
@@ -131,37 +133,35 @@ export function CompetitorsEditor({
   return (
     <div className="flex flex-col gap-4">
       {tracked.length > 0 ? (
-        <div className="frame">
-          <ul className="m-0 list-none p-0">
-            {tracked.map((domain, index) => (
-              <li
-                key={domain}
-                className="flex items-start justify-between gap-3 px-4 py-2.5"
-                style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
+        <DataTable
+          label="Competitors you are compared with"
+          columns={[{ header: 'Competitor' }, { header: 'Remove', hideHeader: true, align: 'end' }]}
+          rows={tracked.map((domain) => ({
+            key: domain,
+            cells: [
+              <div key="who" className="min-w-0">
+                <div className="break-all">{domain}</div>
+                {names && (
+                  <CompetitorName
+                    siteId={siteId}
+                    domain={domain}
+                    name={names[domain]}
+                    onSaved={setNames}
+                  />
+                )}
+              </div>,
+              <button
+                key="remove"
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={pending}
+                onClick={() => store(tracked.filter((entry) => entry !== domain))}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate">{domain}</div>
-                  {names && (
-                    <CompetitorName
-                      siteId={siteId}
-                      domain={domain}
-                      name={names[domain]}
-                      onSaved={setNames}
-                    />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm shrink-0"
-                  disabled={pending}
-                  onClick={() => store(tracked.filter((entry) => entry !== domain))}
-                >
-                  Remove<span className="sr-only"> {domain}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+                Remove<span className="sr-only"> {domain}</span>
+              </button>,
+            ],
+          }))}
+        />
       ) : (
         <div className="text-muted text-sm">
           No competitors yet. Share of voice and the weekly competitor watch both need at least one.
@@ -192,32 +192,27 @@ export function CompetitorsEditor({
 
         {offered.length > 0 && (
           <>
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {offered.map((entry) => (
-                <li key={entry.domain}>
-                  <label className="flex cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={picked.has(entry.domain)}
-                      onChange={(event) => {
-                        const next = new Set(picked)
-                        if (event.target.checked) next.add(entry.domain)
-                        else next.delete(entry.domain)
-                        setPicked(next)
-                      }}
-                    />
-                    <span className="min-w-0">
-                      <span className="font-semibold">{entry.domain}</span>
-                      {entry.title && (
-                        <span className="text-muted text-[13px]"> &middot; {entry.title}</span>
-                      )}
-                      <span className="text-muted block text-[13px]">{entry.reason}</span>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <PickTable
+              label="Suggested competitors"
+              heading="Suggested competitor"
+              picked={picked}
+              onChange={setPicked}
+              items={offered.map((entry) => ({
+                key: entry.domain,
+                title: (
+                  <>
+                    {entry.domain}
+                    {entry.title && (
+                      <span className="text-muted text-[13px] font-normal">
+                        {' '}
+                        &middot; {entry.title}
+                      </span>
+                    )}
+                  </>
+                ),
+                detail: entry.reason,
+              }))}
+            />
             <div>
               <button
                 type="button"

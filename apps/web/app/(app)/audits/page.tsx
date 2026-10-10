@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { HistoryTable } from './history-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,18 +17,7 @@ export const dynamic = 'force-dynamic'
  * of keeping them is to read them in order: what was found, what a fix resolved, what came back.
  * This page used to show only the newest audit per site, because that was all the API could
  * serve, which left the record in the database and nowhere a person could look.
- *
- * Each row carries what changed since the completed audit before it. That comparison is by
- * finding identity (ADR-0029), so "3 resolved" means three issues the earlier audit raised and
- * this one did not, not three fewer rows.
  */
-const STATUS_TONE: Record<string, string> = {
-  complete: 'tag tag-dot tag-success',
-  failed: 'tag tag-dot tag-critical',
-  crawling: 'tag tag-dot tag-accent',
-  evaluating: 'tag tag-dot tag-accent',
-  queued: 'tag tag-dot tag-neutral',
-}
 
 const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 
@@ -90,18 +80,6 @@ function hostOf(url: string): string {
 const latestComplete = (audits: AuditHistoryEntry[]) =>
   audits.find((audit) => audit.status === 'complete')
 
-/** The measured axes at their lowest, which is where a reader's eye should go. */
-function lowest(entry: AuditHistoryEntry): string {
-  const measured = entry.scores
-    .filter((point): point is { axis: typeof point.axis; score: number } => point.score !== null)
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 2)
-  if (measured.length === 0) return 'Not scored'
-  return measured
-    .map((point) => `${AXIS_LABEL[point.axis] ?? point.axis} ${Math.round(point.score)}`)
-    .join(' · ')
-}
-
 export default async function AuditsPage({
   searchParams,
 }: {
@@ -163,65 +141,7 @@ export default async function AuditsPage({
                 · {history.audits.length} audit{history.audits.length === 1 ? '' : 's'}
               </span>
             </h2>
-            <div className="table-scroll">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Run</th>
-                    <th>Status</th>
-                    <th>Pages</th>
-                    <th>Findings</th>
-                    <th>Since the audit before</th>
-                    <th>Lowest areas</th>
-                    <th className="num">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.audits.map((audit) => (
-                    <tr key={audit.id}>
-                      <td className="whitespace-nowrap">
-                        {new Date(audit.startedAt).toLocaleString()}
-                      </td>
-                      <td>
-                        <span className={STATUS_TONE[audit.status] ?? 'tag tag-neutral'}>
-                          {audit.status}
-                        </span>
-                      </td>
-                      <td className="tnum text-muted">{audit.pagesCrawled}</td>
-                      <td className="tnum">{audit.status === 'complete' ? audit.findings : ''}</td>
-                      <td className="whitespace-nowrap">
-                        {audit.changes ? (
-                          audit.changes.resolved === 0 && audit.changes.added === 0 ? (
-                            <span className="text-muted">No change</span>
-                          ) : (
-                            <>
-                              {audit.changes.resolved > 0 && (
-                                <span className="tag tag-success mr-1">
-                                  {audit.changes.resolved} resolved
-                                </span>
-                              )}
-                              {audit.changes.added > 0 && (
-                                <span className="tag tag-outline">{audit.changes.added} new</span>
-                              )}
-                            </>
-                          )
-                        ) : (
-                          <span className="text-muted">
-                            {audit.status === 'complete' ? 'First audit' : ''}
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-muted text-[13px]">
-                        {audit.status === 'complete' ? lowest(audit) : (audit.error ?? '')}
-                      </td>
-                      <td className="num whitespace-nowrap">
-                        <Link href={`/audits/${audit.id}`}>View &rarr;</Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <HistoryTable site={hostOf(history.url)} audits={history.audits} />
             {latestComplete(history.audits) && (
               <LatestScorecard entry={latestComplete(history.audits)!} />
             )}

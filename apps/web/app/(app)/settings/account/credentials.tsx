@@ -1,4 +1,5 @@
 import type { ApiCredential } from '@seo/api-client'
+import { DataTable } from '@/components/ui/data-table'
 import { OutcomeNote } from '@/components/ui/outcome-note'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { revokeCredential, revokeOtherCredentials } from './actions'
@@ -68,63 +69,61 @@ export function Credentials({
         />
       )}
 
-      <div className="frame">
-        <div className="table-scroll">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Kind</th>
-                <th>Created</th>
-                <th>Last used</th>
-                <th>Expires</th>
-                <th className="num">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {credentials.map((credential) => (
-                <tr key={credential.id}>
-                  <td>
-                    {credential.name}
-                    {credential.current ? (
-                      <span className="tag tag-neutral ml-2">This browser</span>
-                    ) : null}
-                  </td>
-                  <td className="text-muted">
-                    {credential.kind === 'session' ? 'Browser session' : 'Token'}
-                  </td>
-                  <td className="text-muted">{day.format(new Date(credential.createdAt))}</td>
-                  <td className="text-muted">{when(credential.lastUsedAt, 'Never')}</td>
-                  <td className="text-muted">{when(credential.expiresAt, 'Never')}</td>
-                  <td className="num whitespace-nowrap">
-                    <form action={revokeCredential}>
-                      <input type="hidden" name="id" value={credential.id} />
-                      <SubmitButton
-                        className="btn btn-ghost btn-sm"
-                        pendingLabel={credential.current ? 'Signing out...' : 'Revoking...'}
-                      >
-                        {credential.current ? 'Sign out' : 'Revoke'}
-                        <span className="sr-only"> {credential.name}</span>
-                      </SubmitButton>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <DataTable
+        label="Sessions and tokens"
+        columns={[
+          { header: 'Name' },
+          { header: 'Kind' },
+          { header: 'Created' },
+          { header: 'Last used' },
+          { header: 'Expires' },
+          { header: 'Revoke', hideHeader: true, align: 'end', className: 'whitespace-nowrap' },
+        ]}
+        rows={credentials.map((credential) => ({
+          key: credential.id,
+          cells: [
+            <span key="name">
+              {credential.name}
+              {credential.current ? (
+                <span className="tag tag-neutral ml-2">This browser</span>
+              ) : null}
+            </span>,
+            <span key="kind" className="text-muted">
+              {credential.kind === 'session' ? 'Browser session' : 'Token'}
+            </span>,
+            <span key="created" className="text-muted">
+              {day.format(new Date(credential.createdAt))}
+            </span>,
+            <span key="used" className="text-muted">
+              {when(credential.lastUsedAt, 'Never')}
+            </span>,
+            <span key="expires" className="text-muted">
+              {when(credential.expiresAt, 'Never')}
+            </span>,
+            <form key="revoke" action={revokeCredential}>
+              <input type="hidden" name="id" value={credential.id} />
+              <SubmitButton
+                className="btn btn-ghost btn-sm"
+                pendingLabel={credential.current ? 'Signing out...' : 'Revoking...'}
+              >
+                {credential.current ? 'Sign out' : 'Revoke'}
+                <span className="sr-only"> {credential.name}</span>
+              </SubmitButton>
+            </form>,
+          ],
+        }))}
+      />
 
-        <div className="panel-foot">
-          <form action={revokeOtherCredentials}>
-            <SubmitButton
-              className="btn btn-danger btn-sm"
-              pendingLabel="Signing out everywhere else..."
-              disabled={others === 0}
-            >
-              Sign out everywhere else
-            </SubmitButton>
-          </form>
-        </div>
+      <div className="mt-3">
+        <form action={revokeOtherCredentials}>
+          <SubmitButton
+            className="btn btn-danger btn-sm"
+            pendingLabel="Signing out everywhere else..."
+            disabled={others === 0}
+          >
+            Sign out everywhere else
+          </SubmitButton>
+        </form>
       </div>
     </section>
   )
