@@ -15,12 +15,25 @@ import { setMentionExclusions } from './not-us-action'
  * The whole list is sent on every change, and the page is then loaded again, so the figures at
  * the top and the lists below always agree with what was stored.
  *
- * A full reload, and not the router's in-place refresh. With a refresh, the browser test showed
- * the change stored and the API answering with the new figures while this page went on showing
- * the old ones, in every arrangement tried: inside a transition, outside one, with the path
- * revalidated and without. Why was not established. A reload was measured to show the right
- * page every time, the browser puts the reader back where they were, and marking a site is a
- * rare enough act that the difference is not worth an unexplained stale screen.
+ * A full reload, and not an in-place update, and the reason is measured (10 October 2026).
+ *
+ * An in-place update left the old figures on screen about half the time. The save was stored,
+ * the API answered with the new figures, the server rendered the right page and the browser read
+ * every byte of it; the router then did or did not show it. That held for every arrangement: a
+ * `router.refresh()` after the action, inside a transition and outside one, deferred or not, and
+ * `revalidatePath` in the action with no refresh at all. It did not depend on how long the page
+ * had been idle.
+ *
+ * The cause is this route's `loading.tsx`. Clicking the button nine times in a row landed the
+ * update 4 times with the loading file in place and 9 times with it taken away, nothing else
+ * changed. A loading file makes the page arrive in two parts, and after a server action the
+ * router does not reliably apply the second.
+ *
+ * The loading file stays, because it is what a reader sees while the sleeping API wakes up,
+ * which is the more common wait by far. So these two controls reload, which was right every
+ * time it was measured. The browser puts the reader back where they were, and marking a site is
+ * a rare act. Do not replace this with a refresh without repeating that measurement: a single
+ * passing run proves nothing here, and misled this file's author twice.
  */
 function reloadPage(): void {
   window.location.reload()

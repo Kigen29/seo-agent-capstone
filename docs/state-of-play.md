@@ -366,6 +366,20 @@ a pull request, and product page rules. The public `/check` page is approved in 
 
 Each of these cost real time in a previous session.
 
+- **On a route with a `loading.tsx`, a page does not reliably update in place after a server
+  action.** Measured on 10 October: the save is stored, the API answers with the new data, the
+  server renders the right page and the browser reads all of it, and the router then shows it
+  about half the time. `router.refresh()` after the action and `revalidatePath` inside it both
+  behave this way; with the route's loading file removed, the update landed 9 times out of 9.
+  It shipped twice before it was seen: "Not us" on the authority page, and "Add competitor" on
+  the competitors page, where the new competitor failed to appear 8 times out of 9 on a
+  populated account while its test passed on an empty one. Both now reload the page, which was
+  right every time. The loading files stay, because they are what a reader sees while the API
+  wakes. **A single passing run proves nothing here**, so the test for it runs three rounds on
+  the account with history. Routes with a loading file: authority, competitors, dashboard,
+  findings, keywords, topics, visibility. On those, show a save's result from what the action
+  returned, or reload; do not rely on the server-rendered part of the page changing by itself.
+
 - **The local test database is empty after every Docker restart.** It keeps its data in memory
   on purpose (`compose.test.yml`), so when Docker stops, the schema goes with it. The browser
   suite used to answer that with "Process from config.webServer was not able to start". Run

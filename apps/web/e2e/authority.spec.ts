@@ -218,3 +218,49 @@ test('a site can be marked as not us, leaves the page at once, and can be put ba
   await expect(section.getByRole('link', { name: /Tourism season opens/ })).toBeVisible()
   await expect(section.getByText('you marked as not you')).toHaveCount(0)
 })
+
+/**
+ * A competitor added from the panel on the competitors page appears on that page.
+ *
+ * On the account with history, on purpose, and three times over. This shipped with a test on a
+ * nearly empty account, which passed, while on a populated one the page stayed stale 8 times out
+ * of 9: the route has a loading file, and after a server action the router does not reliably
+ * show a page that arrives in two parts. A fault that shows most of the time and not always
+ * needs more than one attempt to be believed either way.
+ */
+test('a competitor added from the panel shows on a populated competitors page, every time', async ({
+  page,
+}) => {
+  await signIn(page)
+
+  for (const round of [1, 2, 3]) {
+    const domain = `added-in-round-${round}.example.com`
+    await page.goto('/competitors')
+    await page.waitForLoadState('networkidle')
+
+    await page.getByRole('button', { name: 'Add competitor' }).click()
+    const panel = page.getByRole('dialog')
+    await panel.getByLabel('Add one yourself').fill(domain)
+    await panel.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(panel.getByRole('listitem').filter({ hasText: domain })).toBeVisible()
+    await panel.getByRole('button', { name: 'Done' }).click()
+
+    // On the page itself, with the panel gone, and without anybody reloading by hand.
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.locator('main').getByText(domain).first()).toBeVisible({ timeout: 10_000 })
+
+    // Take it off again, so the next round and the next run start from the same list.
+    await page.getByRole('button', { name: 'Add competitor' }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('listitem')
+      .filter({ hasText: domain })
+      .getByRole('button', { name: /Remove/ })
+      .click()
+    await expect(
+      page.getByRole('dialog').getByRole('listitem').filter({ hasText: domain }),
+    ).toHaveCount(0)
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
+    await expect(page.locator('main').getByText(domain)).toHaveCount(0, { timeout: 10_000 })
+  }
+})
