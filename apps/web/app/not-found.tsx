@@ -12,12 +12,14 @@ import Link from 'next/link'
  * The copy states both possibilities without choosing, because we genuinely do not know which it
  * is: row-level security means the query came back empty, and the handler cannot tell either.
  */
+export const metadata = { title: 'Not found' }
+
 export default function NotFound() {
   return (
     <main id="main" className="wrap">
       <div className="card elev-sm" style={{ maxWidth: 620 }}>
         <div className="card-kicker">Not found</div>
-        <h3 style={{ margin: '0 0 var(--space-3)' }}>There is nothing here</h3>
+        <h1 className="h-section mb-3">There is nothing here</h1>
 
         <p style={{ fontSize: 14 }}>
           This page does not exist, or it belongs to another account. We do not say which, and that

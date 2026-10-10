@@ -15,6 +15,9 @@ import { SignInProviders } from './providers'
  */
 export const dynamic = 'force-dynamic'
 
+/** A sign-in form is not a page anybody searches for, and it has nothing to rank with. */
+export const metadata = { title: 'Sign in', robots: { index: false, follow: true } }
+
 /**
  * What went wrong, in words rather than a code.
  *

@@ -6,6 +6,8 @@ import { getClient } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Connections' }
+
 /**
  * What this account is connected to, in one place.
  *

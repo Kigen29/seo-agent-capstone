@@ -82,6 +82,8 @@ function TokenHelp() {
   )
 }
 
+export const metadata = { title: 'Hosting' }
+
 export default async function HostingPage({
   searchParams,
 }: {

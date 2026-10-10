@@ -27,11 +27,36 @@ const lora = localFont({
   display: 'swap',
 })
 
+const TITLE = 'RankWright: the SEO agent that opens pull requests'
+const DESCRIPTION =
+  'RankWright audits your site across eight separate areas and opens pull requests that fix what it finds. You review and merge, and it rechecks the result once it is live.'
+
+/**
+ * What every page inherits, and so only what is true of every page.
+ *
+ * There is no canonical here, and that is the point. It used to be set to `/` in this file, and
+ * a layout's metadata is inherited: every page that did not set its own, which was all of them,
+ * told search engines it was a copy of the homepage. Our own rule for that is TECH-023. Each
+ * indexable page now names itself, and a page that says nothing has no canonical, which is
+ * honest.
+ *
+ * The title is a template for the same reason. One title on twenty pages is TECH-012, and it is
+ * also twenty identical browser tabs.
+ */
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: 'RankWright: the SEO agent that opens pull requests',
-  description: 'Most SEO tools hand you a report. We hand your repo a pull request.',
-  alternates: { canonical: '/' },
+  applicationName: 'RankWright',
+  title: { default: TITLE, template: '%s | RankWright' },
+  description: DESCRIPTION,
+  openGraph: {
+    type: 'website',
+    siteName: 'RankWright',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: '/',
+    locale: 'en_GB',
+  },
+  twitter: { card: 'summary', title: TITLE, description: DESCRIPTION },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

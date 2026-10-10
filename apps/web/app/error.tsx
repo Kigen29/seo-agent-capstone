@@ -26,7 +26,7 @@ export default function AppError({
     <main id="main" className="wrap">
       <div className="card elev-sm" style={{ maxWidth: 620 }}>
         <div className="card-kicker">Something broke</div>
-        <h3 style={{ margin: '0 0 var(--space-3)' }}>That did not work</h3>
+        <h1 className="h-section mb-3">That did not work</h1>
 
         <p style={{ fontSize: 14 }}>
           The page failed to load, and the failure was not one we recognise. Nothing you did caused

@@ -53,6 +53,8 @@ function hostOf(url: string): string {
   }
 }
 
+export const metadata = { title: 'Dashboard' }
+
 export default async function Dashboard({
   searchParams,
 }: {

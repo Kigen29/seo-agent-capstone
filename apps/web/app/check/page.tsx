@@ -3,9 +3,10 @@ import type { Metadata } from 'next'
 import { CheckForm } from './check-form'
 
 export const metadata: Metadata = {
-  title: 'Check a page — Rankwright',
+  title: 'Check one page, free',
   description:
-    'Paste a URL and see the eight-axis breakdown, with the evidence for every finding. No account.',
+    'Paste a web address and see what is wrong with that page across eight separate areas, with the evidence for every finding. No account and no email address.',
+  alternates: { canonical: '/check' },
 }
 
 /**

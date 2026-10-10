@@ -80,6 +80,8 @@ function hostOf(url: string): string {
 const latestComplete = (audits: AuditHistoryEntry[]) =>
   audits.find((audit) => audit.status === 'complete')
 
+export const metadata = { title: 'Audit history' }
+
 export default async function AuditsPage({
   searchParams,
 }: {

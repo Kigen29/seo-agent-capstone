@@ -27,6 +27,8 @@ export const dynamic = 'force-dynamic'
 /** Every rule the topic map raises shares this prefix, which is what the inbox is searched for. */
 const TOPIC_RULES = 'TOPIC-'
 
+export const metadata = { title: 'Topics' }
+
 export default async function TopicsPage({
   searchParams,
 }: {

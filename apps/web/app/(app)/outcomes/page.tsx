@@ -19,6 +19,8 @@ export const dynamic = 'force-dynamic'
  * showed successes would be an advertisement.
  */
 
+export const metadata = { title: 'Outcomes' }
+
 export default async function OutcomesPage({
   searchParams,
 }: {

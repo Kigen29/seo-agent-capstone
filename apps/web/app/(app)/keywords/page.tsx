@@ -12,6 +12,8 @@ import { SeedForm } from './seed-form'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = { title: 'Keywords' }
+
 /**
  * Keyword research.
  *
