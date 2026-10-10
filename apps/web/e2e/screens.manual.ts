@@ -85,7 +85,7 @@ test('capture', async ({ page }) => {
   // Mobile, and dark.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/findings')
-  await expect(page.locator('article').first()).toBeVisible()
+  await expect(page.locator('article, table').first()).toBeVisible()
   await page.screenshot({ path: `${OUT}/07-findings-mobile.png`, fullPage: true })
   // The dashboard is a two-column grid from md and one column below it, and the sidebar is now
   // three groups rather than three links, so the mobile disclosure is taller than it was.

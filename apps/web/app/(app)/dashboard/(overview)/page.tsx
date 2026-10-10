@@ -6,14 +6,13 @@ import { GoogleCallbackNote } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
 import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
 import { PageHeader } from '@/components/ui/page-header'
-import { SubmitButton } from '@/components/ui/submit-button'
 import { handleApiError } from '@/lib/api-error'
 import { getClient, getSites } from '@/lib/session'
 import { setupSteps } from '@/lib/setup-progress'
-import { startAudit } from '../actions'
 import { AddSite } from '../add-site'
 import { SetupStrip } from '../setup-strip'
 import { Overview } from './overview'
+import { SitesTable } from './sites-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,9 +43,6 @@ const AUDIT_NOT_QUEUED: Outcome = {
   detail:
     'The service was starting up. It sleeps after about fifteen minutes without use and takes up to a minute to wake. Nothing was lost. Press Run audit again.',
 }
-
-/** Statuses that mean an audit is on the queue or running, so "Run audit" should read differently. */
-const RUNNING = new Set(['queued', 'crawling', 'evaluating'])
 
 /** The host, for a page title. A full URL as an h1 reads as a string rather than a name. */
 function hostOf(url: string): string {
@@ -170,58 +166,7 @@ export default async function Dashboard({
         <AddSite />
       </div>
 
-      <div className="table-scroll">
-        <table className="table site-table">
-          <thead>
-            <tr>
-              <th>Site</th>
-              <th>Last audit</th>
-              <th>Pages</th>
-              <th className="num">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sites.map((site) => {
-              const running = site.latestAudit && RUNNING.has(site.latestAudit.status)
-              const isActive = site.id === activeSite?.id
-              return (
-                <tr key={site.id}>
-                  <td className="break-words">
-                    {hostOf(site.url)}
-                    {isActive && <span className="text-muted ml-2 text-[12px]">(shown above)</span>}
-                  </td>
-                  <td className="text-muted">
-                    {site.latestAudit
-                      ? `${site.latestAudit.status}, ${new Date(site.latestAudit.startedAt).toLocaleDateString()}`
-                      : 'Never audited'}
-                  </td>
-                  <td className="tnum text-muted">{site.latestAudit?.pagesCrawled ?? '\u2013'}</td>
-                  <td>
-                    <div className="flex flex-wrap items-center justify-end gap-3">
-                      <Link href={`/site?siteId=${site.id}`}>Set up</Link>
-                      {site.latestAudit && (
-                        <Link href={`/audits/${site.latestAudit.id}?siteId=${site.id}`}>
-                          {running ? 'View progress' : 'View audit'}
-                        </Link>
-                      )}
-                      <form action={startAudit}>
-                        <input type="hidden" name="siteId" value={site.id} />
-                        <SubmitButton
-                          className="btn btn-secondary btn-sm"
-                          pendingLabel="Queueing..."
-                          disabled={Boolean(running)}
-                        >
-                          {running ? 'Running...' : 'Run audit'}
-                        </SubmitButton>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <SitesTable sites={sites} activeId={activeSite?.id} hostOf={hostOf} />
     </main>
   )
 }

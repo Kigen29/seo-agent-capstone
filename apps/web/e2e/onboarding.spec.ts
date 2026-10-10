@@ -112,7 +112,7 @@ test('a competitor can be typed, is stored as a bare domain, and can be removed'
   await field.fill('https://www.Typed-Rival.example.com/pricing')
   await page.getByRole('button', { name: 'Add', exact: true }).click()
 
-  const row = page.getByRole('listitem').filter({ hasText: 'typed-rival.example.com' })
+  const row = page.getByRole('row').filter({ hasText: 'typed-rival.example.com' })
   await expect(row).toBeVisible()
   await expect(field).toHaveValue('')
 
@@ -186,9 +186,7 @@ test('a competitor can be added from the top of the competitors page', async ({ 
 
   await panel.getByLabel('Add one yourself').fill('from-the-top.example.com')
   await panel.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(
-    panel.getByRole('listitem').filter({ hasText: 'from-the-top.example.com' }),
-  ).toBeVisible()
+  await expect(panel.getByRole('row').filter({ hasText: 'from-the-top.example.com' })).toBeVisible()
 
   // Closing shows it on the page behind, without a reload by hand.
   await panel.getByRole('button', { name: 'Done' }).click()
@@ -199,12 +197,12 @@ test('a competitor can be added from the top of the competitors page', async ({ 
   await page.getByRole('button', { name: 'Add competitor' }).click()
   await page
     .getByRole('dialog')
-    .getByRole('listitem')
+    .getByRole('row')
     .filter({ hasText: 'from-the-top.example.com' })
     .getByRole('button', { name: /Remove/ })
     .click()
   await expect(
-    page.getByRole('dialog').getByRole('listitem').filter({ hasText: 'from-the-top.example.com' }),
+    page.getByRole('dialog').getByRole('row').filter({ hasText: 'from-the-top.example.com' }),
   ).toHaveCount(0)
 })
 
@@ -214,7 +212,7 @@ test('a competitor can be given the name it goes by, and it is kept', async ({ p
 
   await page.getByLabel('Add one yourself').fill('named-by-hand.example.com')
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  const row = page.getByRole('listitem').filter({ hasText: 'named-by-hand.example.com' })
+  const row = page.getByRole('row').filter({ hasText: 'named-by-hand.example.com' })
   // Just added, so nothing has read its homepage yet, and the page says exactly that.
   await expect(row).toContainText('Name not read yet')
 

@@ -8,6 +8,7 @@ import { addQuestions, suggestQuestions } from '@/app/(app)/site/actions'
 import { CompetitorsEditor } from '@/app/(app)/site/competitors-editor'
 import { ProfileForm } from '@/app/(app)/site/profile-form'
 import { ErrorNote } from '@/components/ui/error-note'
+import { PickTable } from '@/components/ui/pick-table'
 import type { UserError } from '@/lib/user-error'
 import { createSite } from './actions'
 
@@ -183,29 +184,17 @@ export function QuestionsStep({ siteId, tracked }: { siteId: string; tracked: nu
         </div>
 
         {suggestions && suggestions.length > 0 && (
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {suggestions.map((entry) => (
-              <li key={entry.prompt}>
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={picked.has(entry.prompt)}
-                    onChange={(event) => {
-                      const next = new Set(picked)
-                      if (event.target.checked) next.add(entry.prompt)
-                      else next.delete(entry.prompt)
-                      setPicked(next)
-                    }}
-                  />
-                  <span className="min-w-0">
-                    <span className="font-semibold">{entry.prompt}</span>
-                    <span className="text-muted block text-[13px]">{entry.reason}</span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+          <PickTable
+            label="Suggested questions"
+            heading="Suggested question"
+            picked={picked}
+            onChange={setPicked}
+            items={suggestions.map((entry) => ({
+              key: entry.prompt,
+              title: entry.prompt,
+              detail: entry.reason,
+            }))}
+          />
         )}
 
         {note && <div className="text-muted text-[13px]">{note}</div>}

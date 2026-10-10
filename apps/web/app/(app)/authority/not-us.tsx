@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import { ErrorNote } from '@/components/ui/error-note'
 import type { UserError } from '@/lib/user-error'
 import { setMentionExclusions } from './not-us-action'
@@ -117,25 +118,27 @@ export function ExcludedSites({ siteId, excluded }: { siteId: string; excluded: 
         Left out of the figures and lists on this page, and of every audit from now on. A finding
         already raised about one of them stays until the next audit.
       </div>
-      <ul className="frame m-0 list-none p-0">
-        {excluded.map((domain, index) => (
-          <li
-            key={domain}
-            className="flex items-center justify-between gap-3 px-4 py-2.5"
-            style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-          >
-            <span className="min-w-0 break-all">{domain}</span>
+      <DataTable
+        label="Sites you marked as not you"
+        columns={[{ header: 'Site' }, { header: 'Undo', hideHeader: true, align: 'end' }]}
+        rows={excluded.map((domain) => ({
+          key: domain,
+          cells: [
+            <span key="site" className="break-all">
+              {domain}
+            </span>,
             <button
+              key="undo"
               type="button"
-              className="btn btn-ghost btn-sm shrink-0"
+              className="btn btn-ghost btn-sm"
               disabled={pending}
               onClick={() => restore(domain)}
             >
               Put back<span className="sr-only"> {domain}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+            </button>,
+          ],
+        }))}
+      />
       <ErrorNote error={error} className="mt-2" />
     </details>
   )

@@ -120,8 +120,8 @@ test('every mention is a link to the page that carried it', async ({ page }) => 
   await expect(section).toBeVisible()
 
   // A site, how many of its pages name the brand, and whether it links back.
-  const site = section.getByRole('listitem').filter({ hasText: 'field-notes.example.org' }).first()
-  await expect(site).toContainText('2 pages')
+  const site = section.getByRole('row').filter({ hasText: 'field-notes.example.org' }).first()
+  await expect(site.getByRole('link')).toHaveCount(2)
   await expect(site).toContainText('No link yet')
 
   // The link goes to the mention itself, in a new tab, telling that site nothing about this one.
@@ -147,7 +147,7 @@ test('a publication to contact opens on what it wrote, not on its front page', a
 
   const row = page
     .getByRole('tabpanel')
-    .getByRole('listitem')
+    .getByRole('row')
     .filter({ hasText: 'travel-desk.example.net' })
   await expect(row.getByRole('link', { name: 'travel-desk.example.net' })).toHaveAttribute(
     'href',
@@ -195,7 +195,7 @@ test('a site can be marked as not us, leaves the page at once, and can be put ba
     await expect(section.getByText('you marked as not you')).toHaveCount(0)
   }
 
-  const site = section.getByRole('listitem').filter({ hasText: 'regional-news.example.net' })
+  const site = section.getByRole('row').filter({ hasText: 'regional-news.example.net' })
   await expect(site.first()).toBeVisible()
   await page.waitForLoadState('networkidle')
 
@@ -242,7 +242,7 @@ test('a competitor added from the panel shows on a populated competitors page, e
     const panel = page.getByRole('dialog')
     await panel.getByLabel('Add one yourself').fill(domain)
     await panel.getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(panel.getByRole('listitem').filter({ hasText: domain })).toBeVisible()
+    await expect(panel.getByRole('row').filter({ hasText: domain })).toBeVisible()
     await panel.getByRole('button', { name: 'Done' }).click()
 
     // On the page itself, with the panel gone, and without anybody reloading by hand.
@@ -253,13 +253,13 @@ test('a competitor added from the panel shows on a populated competitors page, e
     await page.getByRole('button', { name: 'Add competitor' }).click()
     await page
       .getByRole('dialog')
-      .getByRole('listitem')
+      .getByRole('row')
       .filter({ hasText: domain })
       .getByRole('button', { name: /Remove/ })
       .click()
-    await expect(
-      page.getByRole('dialog').getByRole('listitem').filter({ hasText: domain }),
-    ).toHaveCount(0)
+    await expect(page.getByRole('dialog').getByRole('row').filter({ hasText: domain })).toHaveCount(
+      0,
+    )
     await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
     await expect(page.locator('main').getByText(domain)).toHaveCount(0, { timeout: 10_000 })
   }

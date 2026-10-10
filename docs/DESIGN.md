@@ -88,9 +88,12 @@ Use these before writing anything new. They live in `apps/web/components/` and `
 | A labelled input | `<Field id label hint help>`. The hint sits beside the label, not inside it |
 | Severity | `<SeverityBadge>` — never a raw coloured span |
 | A status chip | `.tag` + `.tag-neutral\|outline\|accent\|success\|critical\|low`. Add `.tag-dot` only for live status |
-| A table | `.table` inside `.table-scroll`, always. The wrapper is the frame: border, rounded corners, raised surface. Figures and the action column take `.num` |
-| A table with paging, a count, or an action for every row | `.frame` around the `.table-scroll` and a `.panel-foot` strip. `<Pagination inFrame>` is that strip |
-| A list of rows that is not a table | `.frame`, rows divided by a top border |
+| A list of records: sites, audits, mentions, keywords, anything with more than one of it | `<DataTable label columns rows>`. Never a hand-drawn `<ul>` of bordered rows and never a bare `<table>`. It pages at ten rows, shows "11 to 20 of 37" in its footer, and draws no footer when everything fits on one page. Cells are passed already rendered, so a server page and a client panel use the same component. Put a page's tables in a `*-tables.tsx` file beside it, so the page file stays what is fetched and what is said when there is nothing |
+| A table whose last column is the thing to press | `<DataTable stack>`. On a phone each row becomes a block of labelled lines instead of scrolling sideways |
+| Offers to tick: suggested competitors, suggested questions | `<PickTable heading items picked onChange>`. The caller holds the choice, so a tick survives paging, and owns the button that applies it |
+| A list filtered and paged on the server, with the page in the address | `.table` inside `.frame > .table-scroll`, with `<Pagination inFrame>` as the `.panel-foot` strip. Only the findings inbox, where a filter has to be linkable |
+| A key to the terms a table uses | `<Legend items>` under or over the table. Never a `title` tooltip, which reaches a mouse and nothing else |
+| A link to somebody else's page | `<OutboundLink href>`. New tab, says so to a screen reader, carries the mark, and sends `noopener noreferrer nofollow` |
 | A rule id beside a title | `.rule-id` |
 | Parts of a whole | `.meter` with one `<span>` per part |
 | Sidebar or section navigation | `.side-link` with `aria-current="page"`, under a `.side-label` group heading |

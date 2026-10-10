@@ -7,6 +7,7 @@ import { handleApiError } from '@/lib/api-error'
 import { countryFromUrl, isCountryCode } from '@/lib/countries'
 import { getClient } from '@/lib/session'
 import { GapForm } from './gap-form'
+import { GapTable, IdeasTable } from './keyword-tables'
 import { SeedForm } from './seed-form'
 
 export const dynamic = 'force-dynamic'
@@ -128,80 +129,7 @@ export default async function KeywordsPage({
 
       {result && result.ideas.length > 0 && (
         <section className="mt-6">
-          {/*
-            The three figures, said once in the open. Two of them are about advertising, which
-            is easy to misread as "how hard is it to rank", and a tooltip on a column heading
-            reaches a mouse and nothing else.
-          */}
-          <dl className="text-muted mb-3 grid max-w-[80ch] gap-1 text-[13px]">
-            <div className="flex gap-2">
-              <dt className="shrink-0 font-semibold">Monthly searches:</dt>
-              <dd className="m-0">
-                Google&apos;s estimate of how often this is searched in the chosen country.
-              </dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="shrink-0 font-semibold">Ad competition:</dt>
-              <dd className="m-0">
-                How many advertisers bid on it. A sign that the search is worth money, not of how
-                hard it is to rank for.
-              </dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="shrink-0 font-semibold">Cost per click:</dt>
-              <dd className="m-0">
-                What an advertiser pays for one visitor. You pay nothing; a high figure means buyers
-                are searching.
-              </dd>
-            </div>
-          </dl>
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Keyword</th>
-                  <th>Monthly searches</th>
-                  <th>Ad competition</th>
-                  <th>Cost per click</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.ideas]
-                  .sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1))
-                  .map((idea) => (
-                    <tr key={idea.keyword}>
-                      <td>{idea.keyword}</td>
-                      {/*
-                        A dash, never a zero. The vendor not reporting a volume and a keyword
-                        nobody searches for are different facts, and only one of them is a reason
-                        to drop the keyword.
-                      */}
-                      <td className="tnum">
-                        {idea.searchVolume === null ? (
-                          <span className="text-subtle">&mdash;</span>
-                        ) : (
-                          idea.searchVolume.toLocaleString('en-US')
-                        )}
-                      </td>
-                      <td className="tnum">
-                        {idea.competition === null ? (
-                          <span className="text-subtle">&mdash;</span>
-                        ) : (
-                          idea.competition.toFixed(2)
-                        )}
-                      </td>
-                      <td className="tnum">
-                        {idea.cpc === null ? (
-                          <span className="text-subtle">&mdash;</span>
-                        ) : (
-                          `$${idea.cpc.toFixed(2)}`
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <IdeasTable ideas={result.ideas} />
 
           {/*
             Said plainly, and said every time. The industry renders this column as "difficulty" and
@@ -258,55 +186,7 @@ export default async function KeywordsPage({
             </div>
           )}
 
-          {gap && gap.keywords.length > 0 && (
-            <div className="table-scroll mt-4">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Keyword</th>
-                    <th>Monthly searches</th>
-                    <th>Their position</th>
-                    <th>Their page</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gap.keywords.map((entry) => (
-                    <tr key={entry.keyword}>
-                      <td>{entry.keyword}</td>
-                      <td className="tnum">
-                        {entry.searchVolume === null ? (
-                          <span className="text-subtle">&mdash;</span>
-                        ) : (
-                          entry.searchVolume.toLocaleString('en-US')
-                        )}
-                      </td>
-                      <td className="tnum">
-                        {entry.competitorPosition === null ? (
-                          <span className="text-subtle">&mdash;</span>
-                        ) : (
-                          entry.competitorPosition
-                        )}
-                      </td>
-                      <td>
-                        {entry.competitorUrl ? (
-                          <a
-                            href={entry.competitorUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[13px] break-all"
-                          >
-                            {entry.competitorUrl.replace(/^https?:\/\//, '')}
-                          </a>
-                        ) : (
-                          <span className="text-subtle">&mdash;</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {gap && gap.keywords.length > 0 && <GapTable keywords={gap.keywords} />}
 
           {gap && gap.keywords.length > 0 && (
             /*

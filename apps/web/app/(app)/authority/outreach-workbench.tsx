@@ -2,8 +2,10 @@
 
 import type { ContributorSearch } from '@seo/api-client'
 import { useId, useState, useTransition } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import { ErrorNote } from '@/components/ui/error-note'
 import { Field } from '@/components/ui/field'
+import { OutboundLink } from '@/components/ui/outbound-link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserError } from '@/lib/user-error'
 import { findContributors } from './contributor-action'
@@ -188,25 +190,23 @@ function TargetList({
   onWrite: (domain: string) => void
 }) {
   return (
-    <ul className="frame m-0 list-none p-0">
-      {targets.map((target, index) => (
-        <li
-          key={target.domain}
-          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-          style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-        >
-          <div className="min-w-0 flex-1">
-            <a
-              href={target.url ?? `https://${target.domain}`}
-              target="_blank"
-              rel="noreferrer"
-              className="break-all"
-            >
-              {target.domain}
-            </a>
-            {target.detail && <div className="text-muted mt-0.5 text-[13px]">{target.detail}</div>}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+    <DataTable
+      label="Publications to contact"
+      columns={[
+        { header: 'Publication' },
+        { header: 'What they published' },
+        { header: 'Email', hideHeader: true, align: 'end' },
+      ]}
+      rows={targets.map((target) => ({
+        key: target.domain,
+        cells: [
+          <OutboundLink key="site" href={target.url ?? `https://${target.domain}`}>
+            {target.domain}
+          </OutboundLink>,
+          <span key="detail" className="text-muted text-[13px]">
+            {target.detail ?? 'Open the site to see what they cover.'}
+          </span>,
+          <div key="write" className="flex items-center justify-end gap-2">
             {drafted.has(target.domain) && <span className="tag tag-success">Drafted</span>}
             <button
               type="button"
@@ -216,10 +216,10 @@ function TargetList({
               {drafted.has(target.domain) ? 'Write again' : 'Write email'}
               <span className="sr-only"> to {target.domain}</span>
             </button>
-          </div>
-        </li>
-      ))}
-    </ul>
+          </div>,
+        ],
+      }))}
+    />
   )
 }
 

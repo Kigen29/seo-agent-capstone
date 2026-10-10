@@ -11,6 +11,7 @@ import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { manualReasonFor } from '@/lib/manual-reason'
+import { AffectedPages, FixAttempts } from './finding-tables'
 import { FixButton } from './fix-button'
 import { FixProgress } from './fix-progress'
 
@@ -269,103 +270,8 @@ export default async function FindingPage({
         <EvidenceBlock evidence={finding.evidence} />
       </section>
 
-      <section>
-        <h2 className="h-section" style={{ marginBottom: 'var(--space-3)' }}>
-          Affected pages ({finding.affectedUrls.length})
-        </h2>
-
-        <div className="card elev-sm" style={{ gap: 0, padding: 0 }}>
-          {finding.affectedUrls.map((url, i) => (
-            <a
-              key={url}
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                padding: 'var(--space-3)',
-                fontSize: 13,
-                wordBreak: 'break-all',
-                borderTop: i === 0 ? 'none' : '1px solid var(--color-divider)',
-              }}
-            >
-              {url}
-            </a>
-          ))}
-        </div>
-      </section>
+      <AffectedPages urls={finding.affectedUrls} />
     </main>
-  )
-}
-
-const ATTEMPT_LABEL: Record<FixAttempt['outcome'], { label: string; tag: string }> = {
-  running: { label: 'Checking repository / preparing fix', tag: 'tag tag-outline' },
-  pr_opened: { label: 'Opened a pull request', tag: 'tag tag-success' },
-  pr_adopted: {
-    label: 'Reused the pull request an earlier attempt opened',
-    tag: 'tag tag-success',
-  },
-  failed: { label: 'Failed', tag: 'tag tag-critical' },
-}
-
-const attemptTime = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
-
-/**
- * Every attempt to fix this finding, newest first.
- *
- * The note above shows only the latest failure. This keeps the rest, so a person can see how many
- * times the agent tried, why each failed, and which attempt opened the pull request.
- */
-function FixAttempts({ attempts }: { attempts: FixAttempt[] }) {
-  return (
-    <section className="mb-6" aria-labelledby="attempts-heading">
-      <h2 id="attempts-heading" className="h-section mb-2">
-        Fix attempts ({attempts.length})
-      </h2>
-      <ol className="card elev-sm m-0 list-none gap-0" style={{ padding: 0 }}>
-        {attempts.map((attempt, index) => {
-          const label = ATTEMPT_LABEL[attempt.outcome]
-          return (
-            <li
-              key={`${attempt.finishedAt}-${index}`}
-              className="flex flex-col gap-1 p-3"
-              style={{ borderTop: index === 0 ? 'none' : '1px solid var(--color-divider)' }}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={label.tag}>{label.label}</span>
-                <span className="text-muted text-[12px]">
-                  {attemptTime.format(new Date(attempt.finishedAt ?? attempt.startedAt))}
-                </span>
-                {attempt.revertedAt ? (
-                  <span className="tag tag-critical">Merged, then reverted</span>
-                ) : attempt.prResolution === 'merged' ? (
-                  <span className="tag tag-success">Merged</span>
-                ) : attempt.prResolution === 'closed' ? (
-                  <span className="tag">Closed without merging</span>
-                ) : null}
-                {attempt.prUrl && (
-                  <a href={attempt.prUrl} target="_blank" rel="noreferrer" className="text-[13px]">
-                    View the pull request &rarr;
-                  </a>
-                )}
-                {attempt.revertPrUrl && (
-                  <a
-                    href={attempt.revertPrUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[13px]"
-                  >
-                    View the revert &rarr;
-                  </a>
-                )}
-              </div>
-              {attempt.error && (
-                <p className="text-muted m-0 text-[13px] break-words">{attempt.error}</p>
-              )}
-            </li>
-          )
-        })}
-      </ol>
-    </section>
   )
 }
 

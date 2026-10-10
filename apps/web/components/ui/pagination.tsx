@@ -1,30 +1,14 @@
 import Link from 'next/link'
+import { lastPage, pageRange, pagesAround } from '../../lib/paging'
 
 /**
- * Page numbers, as links.
+ * Page numbers, as links, for a list the server pages.
  *
  * Links rather than buttons on purpose: each page is a real URL, so it is shareable, it survives a
  * refresh, the browser's back button does what it should, and the whole control works with
- * JavaScript disabled. A click handler calling `router.push` would have none of those properties
- * and would need a client component to hold state the URL is already holding.
- *
- * The window is deliberately small. A tenant with sixty pages does not need sixty links; they need
- * the first, the last, and a few either side of where they are.
+ * JavaScript disabled. For a list that is already in the browser and only too long to show at
+ * once, use `<DataTable>`, which pages with buttons. Both take their sums from `lib/paging`.
  */
-function pagesAround(current: number, last: number): (number | 'gap')[] {
-  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1)
-
-  const window = new Set([1, last, current, current - 1, current + 1])
-  const pages = [...window].filter((page) => page >= 1 && page <= last).sort((a, b) => a - b)
-
-  const out: (number | 'gap')[] = []
-  for (const [i, page] of pages.entries()) {
-    if (i > 0 && page - pages[i - 1]! > 1) out.push('gap')
-    out.push(page)
-  }
-  return out
-}
-
 export function Pagination({
   page,
   pageSize,
@@ -40,9 +24,8 @@ export function Pagination({
   /** Rendered as the footer strip of a `.frame`, under the table it pages. */
   inFrame?: boolean
 }) {
-  const last = Math.max(1, Math.ceil(total / pageSize))
-  const first = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const shown = Math.min(page * pageSize, total)
+  const last = lastPage(total, pageSize)
+  const { first, shown } = pageRange(page, pageSize, total)
 
   return (
     <nav

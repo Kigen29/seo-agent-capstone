@@ -1,4 +1,4 @@
-import type { FixOutcome, SiteOutcomes } from '@seo/api-client'
+import type { SiteOutcomes } from '@seo/api-client'
 import Link from 'next/link'
 import { ApiAsleep } from '@/components/api-asleep'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
+import { OutcomesTable } from './outcomes-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,71 +18,6 @@ export const dynamic = 'force-dynamic'
  * words, including the ones that did not work, which is the point: an outcome report that only
  * showed successes would be an advertisement.
  */
-
-const STATUS: Record<FixOutcome['status'], { label: string; tag: string; detail: string }> = {
-  pr_open: {
-    label: 'Waiting for your review',
-    tag: 'tag tag-accent',
-    detail: 'The pull request is open. Merge it and the agent checks the result once it is live.',
-  },
-  merged: {
-    label: 'Merged, checking',
-    tag: 'tag tag-outline',
-    detail:
-      'Merged. The agent re-audits once the change is deployed and records whether it worked.',
-  },
-  verified: {
-    label: 'Worked',
-    tag: 'tag tag-success',
-    detail: 'Checked after deployment: the problem is gone.',
-  },
-  rejected: {
-    label: 'Did not work',
-    tag: 'tag tag-critical',
-    detail: 'Checked after deployment: the problem is still there.',
-  },
-}
-
-const day = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
-
-function metricLine(outcome: FixOutcome): string | null {
-  const before = outcome.verification?.before.metrics[0] ?? outcome.baseline?.metrics[0]
-  const after = outcome.verification?.after.metrics[0]
-  if (!before) return null
-  const pages = (n: number) => `${n} page${n === 1 ? '' : 's'}`
-  if (!after) return `Before: ${pages(before.value)} failing ${outcome.ruleId}.`
-  return `Before: ${pages(before.value)} failing. After: ${pages(after.value)} failing.`
-}
-
-/**
- * The same names and timing the worker's traffic sweep uses (packages/audit/src/traffic-outcome.ts),
- * restated because the web app may not import a package that reaches the database (ADR-0009).
- */
-const CLICKS_METRIC = 'Search clicks, 28 days'
-const IMPRESSIONS_METRIC = 'Search impressions, 28 days'
-const TRAFFIC_READY_DAYS = 28 + 3
-
-function trafficLine(outcome: FixOutcome): string | null {
-  const verification = outcome.verification
-  if (!verification) return null
-  const value = (metrics: { metric: string; value: number }[], name: string) =>
-    metrics.find((metric) => metric.metric === name)?.value
-  const clicksAfter = value(verification.after.metrics, CLICKS_METRIC)
-  if (clicksAfter === undefined) {
-    const ready = new Date(
-      new Date(verification.verifiedAt).getTime() + TRAFFIC_READY_DAYS * 86_400_000,
-    )
-    return `Search traffic before and after: ready around ${day.format(ready)}, if Search Console is connected.`
-  }
-  const clicksBefore = value(verification.before.metrics, CLICKS_METRIC) ?? 0
-  const impressionsBefore = value(verification.before.metrics, IMPRESSIONS_METRIC) ?? 0
-  const impressionsAfter = value(verification.after.metrics, IMPRESSIONS_METRIC) ?? 0
-  const n = (count: number) => count.toLocaleString('en-US')
-  return (
-    `Search traffic to these pages, 28 days before and after: ${n(clicksBefore)} to ${n(clicksAfter)} ` +
-    `clicks, ${n(impressionsBefore)} to ${n(impressionsAfter)} impressions.`
-  )
-}
 
 export default async function OutcomesPage({
   searchParams,
@@ -158,71 +94,7 @@ export default async function OutcomesPage({
           </EmptyState>
         </div>
       ) : (
-        <ul className="m-0 mt-6 flex list-none flex-col gap-3 p-0">
-          {outcomes.map((outcome) => {
-            const status = STATUS[outcome.status]
-            const line = metricLine(outcome)
-            return (
-              <li
-                key={outcome.rowId}
-                className="card"
-                style={{ padding: 'var(--space-5)', gap: 'var(--space-3)' }}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={status.tag}>{status.label}</span>
-                  <span className="tag tag-neutral" style={{ fontFamily: 'var(--font-mono)' }}>
-                    {outcome.ruleId}
-                  </span>
-                </div>
-                <Link href={`/findings/${outcome.rowId}`} className="card-title">
-                  {outcome.title}
-                </Link>
-                <p className="text-muted m-0 text-[13px]">
-                  {outcome.verification?.summary ?? status.detail}
-                  {outcome.verification &&
-                    ` Checked ${day.format(new Date(outcome.verification.verifiedAt))}.`}
-                </p>
-                {outcome.note && <p className="text-muted m-0 text-[13px]">{outcome.note}</p>}
-                {line && (
-                  <div
-                    className="mono tnum"
-                    style={{
-                      padding: 'var(--space-2) var(--space-3)',
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {line}
-                  </div>
-                )}
-                {trafficLine(outcome) && (
-                  <p className="tnum m-0 text-sm">
-                    {trafficLine(outcome)}
-                    {outcome.verification?.after.metrics.some(
-                      (metric) => metric.metric === CLICKS_METRIC,
-                    ) && (
-                      <span className="text-muted block text-[12px]">
-                        Traffic moves for many reasons, including seasons and Google updates. This
-                        is what changed, not proof of why.
-                      </span>
-                    )}
-                  </p>
-                )}
-                <div className="card-foot">
-                  <details className="min-w-0 flex-1">
-                    <summary className="cursor-pointer">How we check it worked</summary>
-                    <div className="mt-2 max-w-[68ch]">{outcome.falsification}</div>
-                  </details>
-                  {outcome.prUrl && (
-                    <a href={outcome.prUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                      View the pull request &rarr;
-                    </a>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <OutcomesTable outcomes={outcomes} siteId={site.id} />
       )}
     </main>
   )

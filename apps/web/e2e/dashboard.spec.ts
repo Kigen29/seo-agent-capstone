@@ -193,7 +193,7 @@ test('audits are a history: every run is listed, and an audit says what changed 
 
   await expect(page.getByRole('heading', { name: 'Audit history' })).toBeVisible()
   const row = page.locator('main table tbody tr').first()
-  await expect(row).toContainText('complete')
+  await expect(row).toContainText('Complete')
   // One seeded audit, so it is the first and says so instead of showing a comparison.
   await expect(row).toContainText('First audit')
   await row.getByRole('link', { name: /View/ }).click()
@@ -625,7 +625,7 @@ test('competitor watch shows what changed beside citations, and claims no cause'
   await expect(main.getByText(/^Read \d{1,2} \w{3,4} \d{4}, 2 pages$/)).toBeVisible()
   await expect(main.getByText(/robots\.txt asks crawlers like ours to stay out/)).toBeVisible()
 
-  const batch = page.locator('article').first()
+  const batch = page.getByRole('row').filter({ hasText: 'New page' }).first()
   await expect(batch.getByText('What a guided day costs, and what is included')).toBeVisible()
   await expect(batch.getByText('New page')).toBeVisible()
   await expect(batch.getByText(/cited in \d+ of \d+ checks in the 7 days before/i)).toBeVisible()
