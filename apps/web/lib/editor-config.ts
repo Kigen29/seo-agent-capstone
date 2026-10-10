@@ -55,7 +55,15 @@ export function editorJson(input: EditorConfigInput): string {
   )
 }
 
-/** One command for Claude Code, which registers the server without a file being edited. */
+/**
+ * One command for Claude Code, which registers the server without a file being edited.
+ *
+ * On one line, and that is deliberate. It was first written across four lines joined with a
+ * backslash, which is how a long command is usually shown and is only valid in a Unix shell.
+ * Pasted into PowerShell or the Windows command prompt, a trailing backslash is not a line
+ * continuation: the first line runs alone and the rest are errors. One line works in all of
+ * them, and the block it is shown in scrolls sideways.
+ */
 export function claudeCodeCommand(input: EditorConfigInput): string {
   const { command, args } = launch(input)
   return [
@@ -63,7 +71,7 @@ export function claudeCodeCommand(input: EditorConfigInput): string {
     `--env SEO_API_URL=${input.apiUrl}`,
     `--env SEO_API_TOKEN=${input.token}`,
     `-- ${command} ${args.join(' ')}`,
-  ].join(' \\\n  ')
+  ].join(' ')
 }
 
 /** The steps that come first when the server is run from a clone. */

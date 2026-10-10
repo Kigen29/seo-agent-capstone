@@ -47,6 +47,15 @@ describe('claudeCodeCommand', () => {
     expect(command.trimEnd().endsWith('-- npx -y rankwright-mcp')).toBe(true)
   })
 
+  it('is a single line, so it can be pasted into PowerShell as well as a Unix shell', () => {
+    for (const input of [base, { ...base, packageName: 'rankwright-mcp' }]) {
+      const command = claudeCodeCommand(input)
+      expect(command).not.toContain('\n')
+      // A trailing backslash continues a line in bash and nowhere on Windows.
+      expect(command).not.toContain('\\')
+    }
+  })
+
   it('points at the built file in a clone otherwise', () => {
     expect(claudeCodeCommand(base).trimEnd().endsWith(`-- node ${CLONE_SERVER_PATH}`)).toBe(true)
   })
