@@ -127,7 +127,18 @@ export function connectionRoutes(app: FastifyInstance, deps: RouteDeps): void {
         if (installationIds.length > 0) {
           const seen = new Set<string>()
           const repos: { fullName: string; installationId: number }[] = []
+          const accounts: { login: string; allRepositories: boolean; manageUrl: string }[] = []
           for (const installationId of installationIds) {
+            /**
+             * Whose account, and whether the App was let into all of it. Without this the picker
+             * shows the few repositories that were ticked at install and nothing says the rest
+             * exist. A failure here costs the explanation, never the list.
+             */
+            try {
+              accounts.push(await options.github.app.describeInstallation(installationId))
+            } catch (error) {
+              request.log.warn({ err: error }, 'could not describe a GitHub installation')
+            }
             for (const repo of await options.github.app.listInstallationRepositories(
               installationId,
             )) {
@@ -139,6 +150,7 @@ export function connectionRoutes(app: FastifyInstance, deps: RouteDeps): void {
           return {
             mode: 'pick' as const,
             repos,
+            accounts,
             // Where the user grants access to a repo the App cannot see yet. The generic
             // installations page, not one installation, because a tenant may have installed the
             // App on more than one account and this lists them all.

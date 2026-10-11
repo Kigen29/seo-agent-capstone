@@ -3,10 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { ErrorNote } from '@/components/ui/error-note'
+import type { RepoAccount } from '@seo/api-client'
+import { repoAccessNotes } from '@/lib/repo-access'
 import type { UserError } from '@/lib/user-error'
 import { beginConnectRepo, chooseRepo } from './actions'
 
-type Pick = { repos: { fullName: string }[]; manageUrl: string }
+type Pick = { repos: { fullName: string }[]; manageUrl: string; accounts?: RepoAccount[] }
 
 /**
  * Connect a repository to a site.
@@ -15,6 +17,12 @@ type Pick = { repos: { fullName: string }[]; manageUrl: string }
  * Every repo after that, the App is already installed, so re-installing would drop our signed state
  * and look cancelled; instead this shows the repositories the App can already see and lets the user
  * pick one. No guessing a repo from the site's name: a repo can be called anything.
+ *
+ * The picker says what its list is. The App sees only what it was granted, so somebody who
+ * ticked three repositories at install was shown those three and nothing else, with no sign
+ * that the rest of their account existed. Each account now gets a sentence saying whether the
+ * list is all of it, and when it is not, a button to the one page on GitHub that changes that.
+ * GitHub sends them back here afterwards (the App's "redirect on update" setting).
  */
 export function ConnectRepo({
   siteId,
@@ -44,10 +52,15 @@ export function ConnectRepo({
       }
       if (result.mode === 'pick') {
         if (result.repos.length === 0) {
-          window.location.href = result.manageUrl // installed but no repos granted yet
+          // Installed with nothing granted: the only useful place is where that is changed.
+          window.location.href = result.accounts?.[0]?.manageUrl ?? result.manageUrl
           return
         }
-        setPick({ repos: result.repos, manageUrl: result.manageUrl })
+        setPick({
+          repos: result.repos,
+          manageUrl: result.manageUrl,
+          ...(result.accounts ? { accounts: result.accounts } : {}),
+        })
         setSelected(result.repos[0]!.fullName)
       }
     })
@@ -68,6 +81,8 @@ export function ConnectRepo({
   }
 
   if (pick) {
+    const notes = repoAccessNotes(pick.accounts, pick.repos)
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
         <div
@@ -98,9 +113,28 @@ export function ConnectRepo({
             Cancel
           </button>
         </div>
-        <a href={pick.manageUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-          Repository not listed? Grant the app access on GitHub &rarr;
-        </a>
+        {notes.map((note) => (
+          <div key={note.login} className="note note-info max-w-[60ch] text-left">
+            <p>{note.text}</p>
+            {note.manageUrl && (
+              <>
+                <p className="mt-2">
+                  To choose from all of them, open GitHub, select{' '}
+                  <span className="font-semibold">All repositories</span> (or tick the ones you
+                  want) and press Save. You are brought back here.
+                </p>
+                <a href={note.manageUrl} className="btn btn-secondary btn-sm mt-2">
+                  Show all my repositories
+                </a>
+              </>
+            )}
+          </div>
+        ))}
+        {notes.length === 0 && (
+          <a href={pick.manageUrl} style={{ fontSize: 12 }}>
+            Repository not listed? Grant the app access on GitHub &rarr;
+          </a>
+        )}
         <ErrorNote error={error} />
       </div>
     )
