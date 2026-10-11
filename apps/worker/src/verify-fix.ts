@@ -229,13 +229,11 @@ export async function runVerifyFix(
     if (deployed.has(id)) {
       return 'Deployment confirmed, but the required pages or root files could not be checked completely. The worker will check again; no success is inferred from missing evidence.'
     }
-    const checks = result.verificationCoverage.checks
-    const observed = checks
-      ? checks[id]
-      : reconcileFixVerifications([byId.get(id)!], result.findings, {
-          ...result.verificationCoverage,
-          deploymentConfirmed: true,
-        }).get(id)
+    // What the site showed, leaving aside whether that is enough to decide.
+    const observed = reconcileFixVerifications([byId.get(id)!], result.findings, {
+      ...result.verificationCoverage,
+      deploymentConfirmed: true,
+    }).get(id)
     const seen =
       observed === 'rejected'
         ? `${LIVE_CHECK_NOTE} on ${stamp(now)}: the problem is still there. That usually means the merge has not been deployed yet. It is checked again over the next two days, and is recorded as not working only if it is still there ${MERGE_SETTLED_HOURS} hours after the merge.`

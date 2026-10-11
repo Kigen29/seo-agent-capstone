@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { ApiAsleep } from '@/components/api-asleep'
 import { GoogleCallbackNote } from '@/components/google-connection'
 import { RepoCallback } from '@/components/repo-callback'
-import { OutcomeNote, outcomeFor, type Outcome } from '@/components/ui/outcome-note'
+import { OutcomeNote, type Outcome } from '@/components/ui/outcome-note'
 import { PageHeader } from '@/components/ui/page-header'
 import { handleApiError } from '@/lib/api-error'
 import { getClient, getSites } from '@/lib/session'
@@ -15,26 +15,6 @@ import { SitesTable } from './sites-table'
 import { hostOf } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
-
-/** The banner shown after a Verify-with-a-PR click, keyed on the ?verify= status. */
-const VERIFY: Record<string, Outcome> = {
-  queued: {
-    tone: 'ok',
-    title: 'Verification started',
-    detail:
-      'The agent is opening a pull request that adds the ownership tag. It will appear against this site shortly.',
-  },
-  precondition: {
-    tone: 'warn',
-    title: 'Two connections are needed first',
-    detail: 'Connect a repository and Google Search Console to this site, then verify.',
-  },
-  failed: {
-    tone: 'error',
-    title: 'We could not start verification',
-    detail: 'That is a fault on our side, not something you did. Try again in a moment.',
-  },
-}
 
 /** `startAudit` comes back here with this when the API did not answer. */
 const AUDIT_NOT_QUEUED: Outcome = {
@@ -52,7 +32,6 @@ export default async function Dashboard({
   searchParams: Promise<{
     google?: string
     github?: string
-    verify?: string
     asleep?: string
     siteId?: string
   }>
@@ -60,13 +39,7 @@ export default async function Dashboard({
   const api = await getClient()
   if (!api) return null
 
-  const {
-    google: googleCallback,
-    github: githubCallback,
-    verify: verifyCallback,
-    asleep,
-    siteId,
-  } = await searchParams
+  const { google: googleCallback, github: githubCallback, asleep, siteId } = await searchParams
 
   let sites
   let connections
@@ -129,8 +102,6 @@ export default async function Dashboard({
         button appeared to do nothing at all.
       */}
       {asleep && <OutcomeNote outcome={AUDIT_NOT_QUEUED} className="mt-4" />}
-
-      <OutcomeNote outcome={outcomeFor(VERIFY, verifyCallback)} className="mt-4" />
 
       {activeSite && (
         <Overview

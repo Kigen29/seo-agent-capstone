@@ -10,7 +10,18 @@ const indexable = (page: CrawledPage) =>
   page.extract.metaRobots.index && !(page.xRobotsTag ?? '').toLowerCase().includes('noindex')
 const verdict = (passed: boolean): FixVerdict => (passed ? 'verified' : 'rejected')
 
-/** Positive checks of the promised change, never absence of a skipped diagnostic rule. */
+/**
+ * Positive checks of the promised change, for the rules that have one.
+ *
+ * A rule with no check here gets no entry in the result, which is different from an entry saying
+ * "inconclusive". Inconclusive means the check ran and could not tell: the page was unreachable,
+ * the file could not be read. No entry means there is no purpose-built check, and the caller
+ * falls back to running the rule that found the problem (ADR-0049).
+ *
+ * They used to be the same value, and that made every fix for a rule not listed below
+ * undecidable for good, with or without a deployment report: about a dozen fixable rules,
+ * shared canonicals and missing alt text among them.
+ */
 export function checkDeployedFixes(
   crawl: CrawlResult,
   refs: readonly MergedFindingRef[],
@@ -23,7 +34,7 @@ export function checkDeployedFixes(
     if (!byUrl.has(key(page.finalUrl))) byUrl.set(key(page.finalUrl), page)
   }
   const sitemap = new Set(crawl.sitemapUrls.map(key))
-  const check = (ref: MergedFindingRef): FixVerdict => {
+  const check = (ref: MergedFindingRef): FixVerdict | undefined => {
     if (!ref.affectedUrls.length) return 'inconclusive'
     const pages = ref.affectedUrls.map((url) => byUrl.get(key(url)))
     switch (ref.ruleId) {
@@ -96,8 +107,13 @@ export function checkDeployedFixes(
           ),
         )
       default:
-        return 'inconclusive'
+        return undefined
     }
   }
-  return Object.fromEntries(refs.map((ref) => [ref.id, check(ref)]))
+  return Object.fromEntries(
+    refs.flatMap((ref) => {
+      const result = check(ref)
+      return result === undefined ? [] : [[ref.id, result]]
+    }),
+  )
 }

@@ -87,6 +87,8 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
               set: {
                 accountEmail: tokens.email,
                 refreshTokenEncrypted: encryptToken(tokens.refreshToken),
+                // A fresh grant. Whatever Google refused before, it has just granted this.
+                needsReconnectAt: null,
                 updatedAt: sql`now()`,
               },
             }),

@@ -13,6 +13,7 @@ export {
   buildAuthUrl,
   exchangeCode,
   googleOAuthConfigFromEnv,
+  GoogleReauthRequiredError,
   refreshAccessToken,
   signState,
   verifyState,

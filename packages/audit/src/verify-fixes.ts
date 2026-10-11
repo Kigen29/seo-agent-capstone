@@ -25,7 +25,10 @@ export interface MergedFindingRef {
 export type FixVerdict = 'verified' | 'rejected' | 'inconclusive'
 
 export interface VerificationCoverage {
-  /** Rule-specific checks, keyed by persisted finding ID. Missing means inconclusive. */
+  /**
+   * Rule-specific checks, keyed by persisted finding ID. A finding with no entry has no
+   * purpose-built check, and is decided by whether its own rule still fires (ADR-0049).
+   */
   checks?: Record<string, FixVerdict>
   successfulUrls: readonly string[]
   evaluatedRuleIds: readonly string[]
@@ -131,8 +134,9 @@ export function reconcileFixVerifications(
       coverage.evaluatedRuleIds.includes(finding.ruleId) &&
       finding.affectedUrls.length > 0 &&
       finding.affectedUrls.every((url) => coverage.successfulUrls.includes(url))
-    const observed: FixVerdict = coverage.checks
-      ? (coverage.checks[finding.id] ?? 'inconclusive')
+    const specific = coverage.checks?.[finding.id]
+    const observed: FixVerdict = specific
+      ? specific
       : covered
         ? stillPresent(finding, current)
           ? 'rejected'

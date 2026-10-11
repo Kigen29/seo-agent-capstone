@@ -156,6 +156,11 @@ export const sites = pgTable(
       .default('none'),
     /** The pull request that adds the verification meta tag, while it is open or after merge. */
     gscVerificationPrUrl: text('gsc_verification_pr_url'),
+    /**
+     * Why the last verification attempt failed, in words safe to show (ADR-0048). Null when the
+     * last attempt worked or none has been made. The worker writes it; nothing else does.
+     */
+    gscVerificationError: text('gsc_verification_error'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

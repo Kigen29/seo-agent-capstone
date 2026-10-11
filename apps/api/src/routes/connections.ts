@@ -20,7 +20,10 @@ export function connectionRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app.withTypeProvider<ZodTypeProvider>().get('/connections', async (request) => {
     const [google] = await withTenant(db, request.tenantId, (tx) =>
       tx
-        .select({ email: oauthCredentials.accountEmail })
+        .select({
+          email: oauthCredentials.accountEmail,
+          needsReconnectAt: oauthCredentials.needsReconnectAt,
+        })
         .from(oauthCredentials)
         .where(eq(oauthCredentials.provider, 'google'))
         .limit(1),
@@ -37,7 +40,19 @@ export function connectionRoutes(app: FastifyInstance, deps: RouteDeps): void {
       .filter((name): name is string => Boolean(name))
 
     return {
-      google: google ? { connected: true, email: google.email } : { connected: false },
+      /*
+        Three states, and the third is the one that was missing. A grant Google has refused still
+        has its row, so "is there a row" answered yes while nothing that needed Google could run.
+        `connected` stays true so the account is still named; `needsReconnect` is what a page
+        reads to say so and offer the button.
+      */
+      google: google
+        ? {
+            connected: true,
+            email: google.email,
+            needsReconnect: google.needsReconnectAt !== null,
+          }
+        : { connected: false, needsReconnect: false },
       github: { connected: repos.length > 0, repos },
     }
   })

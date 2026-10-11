@@ -134,29 +134,22 @@ export async function chooseRepo(
 }
 
 /**
- * Queue the Search Console auto-verification PR for a site. The worker creates the property,
- * fetches the token, and opens a PR that adds the verification meta tag. A 409 means a
- * precondition is missing (no repo, or Google not connected), which is the user's to fix.
+ * Ask for a site's ownership to be verified, and return what the API said.
+ *
+ * The same request as `verifySite`, answering in place and not by redirect, so a refusal can be
+ * shown beside the button in the words the API chose: a repository is needed, Google has to be
+ * connected again, a pull request is already open.
  */
-export async function verifySite(formData: FormData): Promise<void> {
-  const siteId = String(formData.get('siteId') ?? '')
-  if (!siteId) throw new Error('verifySite called without a siteId; the hidden field is missing.')
-
-  const api = await getClient()
-  if (!api) redirect('/login')
-
-  try {
+export async function requestVerification(siteId: string): Promise<ActionResult<true>> {
+  const result = await act('start verifying this site', async (api) => {
     await api.verifySite(siteId)
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 409) {
-      redirect('/dashboard?verify=precondition')
-    }
-    handleApiError(error)
-    redirect('/dashboard?verify=failed')
+    return true as const
+  })
+  if (result.ok) {
+    revalidatePath('/site')
+    revalidatePath('/dashboard')
   }
-
-  revalidatePath('/dashboard')
-  redirect('/dashboard?verify=queued')
+  return result
 }
 
 /** The Google Business Profile connected to a site, for the panel that edits it. */

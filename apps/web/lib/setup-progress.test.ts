@@ -65,4 +65,13 @@ describe('setupSteps', () => {
 
     expect(steps.find((step) => step.id === 'ownership')?.done).toBe(false)
   })
+
+  it('does not count a Google connection that Google has stopped accepting', () => {
+    // ADR-0048. The row is still there, and the step is not done: nothing can read search data.
+    const usable = setupSteps(site(), { connected: true, needsReconnect: false }, null)
+    const refused = setupSteps(site(), { connected: true, needsReconnect: true }, null)
+
+    expect(usable.find((step) => step.id === 'search_console')?.done).toBe(true)
+    expect(refused.find((step) => step.id === 'search_console')?.done).toBe(false)
+  })
 })

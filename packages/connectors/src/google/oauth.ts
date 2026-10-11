@@ -186,6 +186,21 @@ export async function exchangeCode(
   }
 }
 
+/**
+ * Google will not honour the saved grant, and no retry will change that.
+ *
+ * Two ordinary causes. The person removed our access in their Google account. Or the OAuth
+ * client is still in "Testing" in Google Cloud, where every refresh token expires seven days
+ * after it is issued. Either way the only remedy is to connect again, so this is a distinct
+ * error for callers to record, and not one more failed request to log.
+ */
+export class GoogleReauthRequiredError extends Error {
+  constructor() {
+    super('Google rejected the saved sign-in. The account has to be connected again.')
+    this.name = 'GoogleReauthRequiredError'
+  }
+}
+
 /** Trade a stored refresh token for a fresh access token, just before calling an API. */
 export async function refreshAccessToken(
   config: OAuthConfig,
@@ -205,8 +220,11 @@ export async function refreshAccessToken(
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
-    // A 400 here usually means the user revoked us, or the token expired in Testing mode
-    // (7 days). Either way the tenant must re-consent, and the caller should surface that.
+    // `invalid_grant` is Google saying the grant itself is dead: revoked, or expired because the
+    // OAuth client is in Testing mode (seven days). The tenant must consent again.
+    if (response.status === 400 && body.includes('invalid_grant')) {
+      throw new GoogleReauthRequiredError()
+    }
     throw new Error(`Google token refresh failed: ${response.status} ${body.slice(0, 200)}`)
   }
 

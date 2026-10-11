@@ -183,9 +183,72 @@ describe('without a deployment report (ADR-0047)', () => {
         checks: { a: 'inconclusive' },
       }).get('a'),
     ).toBe('inconclusive')
-    expect(
-      reconcileFixVerifications(refs, [], { ...base, mergeSettled: true, checks: {} }).get('a'),
-    ).toBe('inconclusive')
+  })
+
+  describe('a rule with no purpose-built check (ADR-0049)', () => {
+    // No entry for this finding: there is no bespoke check, so its own rule decides.
+    const noEntry = {
+      ...coverage,
+      checks: {} as Record<string, 'verified' | 'rejected' | 'inconclusive'>,
+    }
+
+    it('is verified when its rule ran over the same pages and did not fire', () => {
+      for (const deploymentConfirmed of [true, false]) {
+        expect(
+          reconcileFixVerifications(refs, [], { ...noEntry, deploymentConfirmed }).get('a'),
+        ).toBe('verified')
+      }
+    })
+
+    it('is rejected when its rule still fires on one of those pages, given a report or a settled merge', () => {
+      expect(
+        reconcileFixVerifications(refs, stillThere, { ...noEntry, deploymentConfirmed: true }).get(
+          'a',
+        ),
+      ).toBe('rejected')
+      expect(
+        reconcileFixVerifications(refs, stillThere, {
+          ...noEntry,
+          deploymentConfirmed: false,
+          mergeSettled: true,
+        }).get('a'),
+      ).toBe('rejected')
+      expect(
+        reconcileFixVerifications(refs, stillThere, { ...noEntry, deploymentConfirmed: false }).get(
+          'a',
+        ),
+      ).toBe('inconclusive')
+    })
+
+    it('is not decided when a page it flagged was not read', () => {
+      expect(
+        reconcileFixVerifications(refs, [], {
+          ...noEntry,
+          successfulUrls: [],
+          deploymentConfirmed: true,
+        }).get('a'),
+      ).toBe('inconclusive')
+    })
+
+    it('is not decided for a rule that cannot be judged from its own pages', () => {
+      // An orphan page is about who links to it, which is other pages entirely.
+      const orphan = [merged('o', 'TECH-013', [url])]
+      expect(
+        reconcileFixVerifications(orphan, [], { ...noEntry, deploymentConfirmed: true }).get('o'),
+      ).toBe('inconclusive')
+    })
+
+    it('leaves a finding that does have a check to that check, alongside one that does not', () => {
+      const both = [merged('a', 'TECH-007', [url]), merged('b', 'TECH-007', [url])]
+      const verdicts = reconcileFixVerifications(both, [], {
+        ...coverage,
+        deploymentConfirmed: true,
+        checks: { a: 'inconclusive' },
+      })
+      // The check ran and could not tell, which is not the same as there being no check.
+      expect(verdicts.get('a')).toBe('inconclusive')
+      expect(verdicts.get('b')).toBe('verified')
+    })
   })
 
   it('needs no settling when a deployment was reported: what the site shows is the verdict', () => {

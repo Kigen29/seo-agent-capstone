@@ -26,7 +26,7 @@ export interface SetupStep {
 
 export function setupSteps(
   site: Site,
-  google: { connected: boolean },
+  google: { connected: boolean; needsReconnect?: boolean },
   profile: Pick<SiteProfile, 'brand' | 'offering' | 'market' | 'competitors'> | null,
 ): SetupStep[] {
   return [
@@ -43,7 +43,7 @@ export function setupSteps(
     {
       id: 'search_console',
       next: 'connect Google Search Console, so real searches feed your audits',
-      done: google.connected,
+      done: google.connected && !google.needsReconnect,
     },
     {
       id: 'competitors',

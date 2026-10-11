@@ -13,6 +13,8 @@ export interface SiteSummary {
   gscVerificationStatus: VerificationStatus
   /** The open or merged verification PR, if one has been opened. */
   gscVerificationPrUrl: string | null
+  /** Why the last verification attempt failed, or null. */
+  gscVerificationError: string | null
   /** A Google Business Profile link is attached (it carried a CID or a Place ID). */
   businessProfileConnected: boolean
   /** How many AI-visibility questions are tracked for this site. */
@@ -47,6 +49,7 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         repoFullName: sites.repoFullName,
         gscVerificationStatus: sites.gscVerificationStatus,
         gscVerificationPrUrl: sites.gscVerificationPrUrl,
+        gscVerificationError: sites.gscVerificationError,
         gbpCid: sites.gbpCid,
         gbpPlaceId: sites.gbpPlaceId,
       })
@@ -85,6 +88,7 @@ export async function listSites(db: Database, tenantId: string): Promise<SiteSum
         repoFullName: site.repoFullName ?? null,
         gscVerificationStatus: site.gscVerificationStatus,
         gscVerificationPrUrl: site.gscVerificationPrUrl ?? null,
+        gscVerificationError: site.gscVerificationError ?? null,
         businessProfileConnected: Boolean(site.gbpCid || site.gbpPlaceId),
         trackedPrompts: promptsBySite.get(site.id) ?? 0,
         latestAudit: audit

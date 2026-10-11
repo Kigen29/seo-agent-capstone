@@ -57,6 +57,11 @@ export const oauthCredentials = pgTable(
     accountEmail: text('account_email'),
 
     refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
+    /**
+     * When the provider last refused this grant (ADR-0048). The row stays, so the account is
+     * known, but the connection is not usable until the person connects again, which clears it.
+     */
+    needsReconnectAt: timestamp('needs_reconnect_at', { withTimezone: true }),
     scopes: text('scopes')
       .array()
       .notNull()

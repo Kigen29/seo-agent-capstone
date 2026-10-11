@@ -352,7 +352,7 @@ export function createApiClient(options: ApiClientOptions) {
     /** What this tenant has connected: Google Search Console, and any connected repositories. */
     getConnections: async () =>
       request<{
-        google: { connected: boolean; email?: string | null }
+        google: { connected: boolean; email?: string | null; needsReconnect?: boolean }
         github: { connected: boolean; repos: string[] }
       }>('/connections'),
 
