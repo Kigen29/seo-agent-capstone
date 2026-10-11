@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createApiClient } from '@seo/api-client'
 import { registerReadTools } from './tools/read.js'
 import { registerReportTools } from './tools/reports.js'
+import { registerSuggestionTools } from './tools/suggest.js'
 import { writePermissions } from './permissions.js'
 import { registerAccountTools } from './tools/account.js'
 import { DEFAULT_MAX_PRS, registerRepositoryTools } from './tools/write.js'
@@ -68,10 +69,11 @@ async function main(): Promise<void> {
     timeoutMs: TIMEOUT_MS,
   })
 
-  const server = new McpServer({ name: 'seo-agent', version: '0.3.0' })
+  const server = new McpServer({ name: 'seo-agent', version: '0.4.0' })
 
   registerReadTools(server, api)
   registerReportTools(server, api)
+  registerSuggestionTools(server, api)
   if (env.account) registerAccountTools(server, api)
   if (env.repository) registerRepositoryTools(server, api, { maxPrs: env.maxPrs })
 

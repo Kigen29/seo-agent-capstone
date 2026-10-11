@@ -95,13 +95,14 @@ rule that matters: never label from engine output.
 ## Use it from your editor (MCP)
 
 The agent is also an [MCP](https://modelcontextprotocol.io) server, so Claude Code, Cursor or
-any MCP client can drive it directly. Twenty-five tools:
+any MCP client can drive it directly. Twenty-eight tools:
 
 | | Tools |
 |---|---|
 | Findings and audits | `list_sites`, `list_findings`, `get_finding`, `get_audit`, `audit_status`, `list_audits`, `audit_changes` |
 | Reports | `get_outcomes` (did each fix work), `get_visibility` (AI citations, as k of N checks), `get_competitor_watch`, `get_schedule` |
 | Billed research | `keyword_ideas`, `keyword_gap` |
+| Billed suggestions, nothing saved | `suggest_competitors`, `suggest_questions`, `find_publications` |
 | Account changes, off by default | `run_audit`, `set_audit_schedule`, `add_tracked_questions`, `change_competitors`, `name_competitor`, `mark_not_us`, `update_site_details`, `add_site`, `connect_repository`, `set_finding_status` |
 | Pull requests, off by default | `fix_finding`, `verify_site` |
 

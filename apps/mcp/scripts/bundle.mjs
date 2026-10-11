@@ -122,6 +122,7 @@ Cursor (\`.cursor/mcp.json\`) and most other editors:
 | Findings and audits | \`list_sites\`, \`list_findings\`, \`get_finding\`, \`get_audit\`, \`audit_status\`, \`list_audits\`, \`audit_changes\` |
 | Reports | \`get_outcomes\`, \`get_visibility\`, \`get_competitor_watch\`, \`get_schedule\` |
 | Billed research | \`keyword_ideas\`, \`keyword_gap\` |
+| Billed suggestions, nothing saved | \`suggest_competitors\`, \`suggest_questions\`, \`find_publications\` |
 | Account changes, off by default | \`run_audit\`, \`set_audit_schedule\`, \`add_tracked_questions\`, \`change_competitors\`, \`name_competitor\`, \`mark_not_us\`, \`update_site_details\`, \`add_site\`, \`connect_repository\`, \`set_finding_status\` |
 | Pull requests, off by default | \`fix_finding\`, \`verify_site\` |
 
