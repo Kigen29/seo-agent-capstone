@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createSerpApiProvider } from '../src/serp/serpapi.js'
+import { createSerpApiProvider, serpApiKeys } from '../src/serp/serpapi.js'
 import { SerpRequestError } from '../src/serp/types.js'
 
 /**
@@ -118,6 +118,106 @@ describe('the SerpApi provider', () => {
     const url = String((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0])
     expect(url).toContain('gl=ug')
     expect(url).toContain('hl=en')
+  })
+})
+
+describe('more than one key', () => {
+  /** Answers by key: a Response, or a function of the request for one. */
+  const byKey = (answers: Record<string, () => Response>) =>
+    vi.fn(async (input: string) => {
+      const key = new URL(input).searchParams.get('api_key') ?? ''
+      return (answers[key] ?? (() => new Response('{}', { status: 500 })))()
+    })
+
+  const ok = () => new Response(JSON.stringify({ related_questions: [{ question: 'A?' }] }))
+  const spent = () =>
+    new Response(JSON.stringify({ error: 'Your account has run out of searches.' }), {
+      status: 429,
+    })
+  const keysUsed = (fetchImpl: ReturnType<typeof vi.fn>) =>
+    fetchImpl.mock.calls.map((call) => new URL(String(call[0])).searchParams.get('api_key'))
+
+  const withKeys = (apiKey: string, fetchImpl: ReturnType<typeof vi.fn>) =>
+    createSerpApiProvider({ apiKey, fetch: fetchImpl as unknown as typeof fetch })
+
+  it('reads a list in order, without blanks or repeats', () => {
+    expect(serpApiKeys(' first , second,,first ')).toEqual(['first', 'second'])
+    expect(serpApiKeys('only')).toEqual(['only'])
+    expect(serpApiKeys('')).toEqual([])
+  })
+
+  it('uses the second key when the first account has no searches left', async () => {
+    const fetchImpl = byKey({ first: spent, second: ok })
+    const result = await withKeys('first,second', fetchImpl).relatedQuestions('q')
+
+    expect(result.questions).toEqual(['A?'])
+    expect(keysUsed(fetchImpl)).toEqual(['first', 'second'])
+  })
+
+  it('remembers a spent key, so it costs one refused request and not one per question', async () => {
+    const fetchImpl = byKey({ first: spent, second: ok })
+    const provider = withKeys('first,second', fetchImpl)
+    await provider.relatedQuestions('one')
+    await provider.relatedQuestions('two')
+    await provider.relatedQuestions('three')
+
+    expect(keysUsed(fetchImpl)).toEqual(['first', 'second', 'second', 'second'])
+  })
+
+  it.each([
+    ['a 401', () => new Response('{}', { status: 401 })],
+    ['a 403', () => new Response('{}', { status: 403 })],
+    ['an invalid key said in a 200', () => new Response('{"error":"Invalid API key."}')],
+    [
+      'a spent account said in a 200',
+      () => new Response('{"error":"Your account has run out of searches."}'),
+    ],
+  ])('moves on from %s', async (_name, refusal) => {
+    const fetchImpl = byKey({ first: refusal, second: ok })
+
+    await expect(withKeys('first,second', fetchImpl).relatedQuestions('q')).resolves.toEqual({
+      query: 'q',
+      questions: ['A?'],
+    })
+  })
+
+  it('does not spend the second key on a failure that is not about the key', async () => {
+    const broken = byKey({ first: () => new Response('{}', { status: 500 }), second: ok })
+    await expect(withKeys('first,second', broken).relatedQuestions('q')).rejects.toThrow(
+      SerpRequestError,
+    )
+    expect(keysUsed(broken)).toEqual(['first'])
+
+    const refusedQuery = byKey({
+      first: () => new Response('{"error":"Google has not returned any results for this query."}'),
+      second: ok,
+    })
+    await expect(withKeys('first,second', refusedQuery).relatedQuestions('q')).rejects.toThrow()
+    expect(keysUsed(refusedQuery)).toEqual(['first'])
+  })
+
+  it('fails with the last refusal when every key is spent, and names no key', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const fetchImpl = byKey({ 'first-secret': spent, 'second-secret': spent })
+
+    await expect(
+      withKeys('first-secret,second-secret', fetchImpl).relatedQuestions('q'),
+    ).rejects.toThrow(expect.objectContaining({ status: 429 }))
+    expect(keysUsed(fetchImpl)).toEqual(['first-secret', 'second-secret'])
+
+    const logged = warn.mock.calls.flat().join(' ')
+    expect(logged).toContain('key 1 of 2')
+    expect(logged).not.toContain('secret')
+    warn.mockRestore()
+  })
+
+  it('behaves exactly as before with one key', async () => {
+    const fetchImpl = byKey({ only: spent })
+
+    await expect(withKeys('only', fetchImpl).relatedQuestions('q')).rejects.toThrow(
+      SerpRequestError,
+    )
+    expect(keysUsed(fetchImpl)).toEqual(['only'])
   })
 })
 
