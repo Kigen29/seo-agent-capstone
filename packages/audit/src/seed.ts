@@ -45,6 +45,17 @@ export const E2E = {
   canonicalFindingId: '00000000-0000-4000-8000-000000000006',
   siteUrl: 'https://seeded.example.com',
   secondSiteId: '00000000-0000-4000-8000-000000000007',
+  /**
+   * A third tenant with one site and one open finding, for the test that dismisses a finding and
+   * reopens it. The findings above are counted by tests that run at the same time, and the second
+   * tenant is the empty account the onboarding tests need, so neither can lend one.
+   */
+  dismissTenant: 'e2e-dismiss-tenant',
+  dismissToken: 'seo_e2e_dismiss_tenant_token_do_not_use',
+  dismissTenantId: '00000000-0000-4000-8000-0000000000d1',
+  dismissSiteId: '00000000-0000-4000-8000-0000000000d2',
+  dismissAuditId: '00000000-0000-4000-8000-0000000000d3',
+  dismissFindingId: '00000000-0000-4000-8000-0000000000d4',
 } as const
 
 const hash = (token: string) => createHash('sha256').update(token, 'utf8').digest('hex')
@@ -131,13 +142,16 @@ export async function seedE2E(): Promise<void> {
     await asOwner(db, async (tx) => {
       await tx.delete(tenants).where(eq(tenants.id, E2E.tenantId))
       await tx.delete(tenants).where(eq(tenants.id, E2E.otherTenantId))
+      await tx.delete(tenants).where(eq(tenants.id, E2E.dismissTenantId))
 
       await tx.insert(tenants).values([
         { id: E2E.tenantId, name: E2E.tenant },
         { id: E2E.otherTenantId, name: E2E.otherTenant },
+        { id: E2E.dismissTenantId, name: E2E.dismissTenant },
       ])
 
       await tx.insert(apiTokens).values([
+        { tenantId: E2E.dismissTenantId, name: 'e2e', tokenHash: hash(E2E.dismissToken) },
         { tenantId: E2E.tenantId, name: 'e2e', tokenHash: hash(E2E.token) },
         { tenantId: E2E.otherTenantId, name: 'e2e', tokenHash: hash(E2E.otherToken) },
         {
@@ -198,6 +212,50 @@ export async function seedE2E(): Promise<void> {
           status: d.status,
         })),
       )
+    })
+
+    await withTenant(db, E2E.dismissTenantId, async (tx) => {
+      const [finding] = e2eDrafts().slice(1)
+      if (!finding) throw new Error('The seed has no second finding to copy.')
+
+      await tx.insert(sites).values({
+        id: E2E.dismissSiteId,
+        tenantId: E2E.dismissTenantId,
+        url: 'https://dismiss.example.com',
+      })
+      await tx.insert(audits).values({
+        id: E2E.dismissAuditId,
+        tenantId: E2E.dismissTenantId,
+        siteId: E2E.dismissSiteId,
+        status: 'complete',
+        pagesCrawled: 1,
+        completedAt: new Date(),
+        scorecard: buildScorecard({
+          siteId: E2E.dismissSiteId,
+          findings: [finding],
+          coverage: ruleCoverage(),
+        }),
+      })
+      await tx.insert(findings).values({
+        id: E2E.dismissFindingId,
+        tenantId: E2E.dismissTenantId,
+        siteId: E2E.dismissSiteId,
+        auditId: E2E.dismissAuditId,
+        key: finding.id,
+        ruleId: finding.ruleId,
+        axis: finding.axis,
+        severity: finding.severity,
+        confidence: finding.confidence,
+        title: 'https://dismiss.example.com/ has no canonical tag',
+        evidence: finding.evidence,
+        affectedUrls: ['https://dismiss.example.com/'],
+        estimatedEffort: finding.estimatedEffort,
+        estimatedImpact: finding.estimatedImpact,
+        priorityScore: priorityScore(finding),
+        falsification: finding.falsification,
+        fixable: finding.fixable,
+        status: 'open',
+      })
     })
 
     // A second tenant with history, for the screens the sparse one above cannot populate.
