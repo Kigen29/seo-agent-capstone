@@ -151,6 +151,18 @@ describe('positive checks of every offered fix', () => {
       reconcileFixVerifications([ref], [], { ...base, checks: { fix: 'rejected' } }).get('fix'),
     ).toBe('inconclusive')
   })
+  it('gives no entry at all for a rule it has no check for, which is not the same as inconclusive', () => {
+    // ADR-0049. These used to be one value, and that left a dozen fixable rules undecidable.
+    const refs = [
+      { id: 'shared-canonical', ruleId: 'TECH-023', affectedUrls: [seed] },
+      { id: 'alt-text', ruleId: 'AGENT-004', affectedUrls: [seed] },
+      { id: 'noindex', ruleId: 'TECH-005', affectedUrls: [seed] },
+    ]
+    const checks = checkDeployedFixes(crawl(), refs, [])
+    expect(Object.keys(checks)).toEqual(['noindex'])
+    expect('shared-canonical' in checks).toBe(false)
+  })
+
   it('does not infer root coverage from an allow-all parser fallback', () => {
     const result = crawl()
     result.robots = ALLOW_ALL

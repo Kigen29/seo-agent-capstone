@@ -46,7 +46,7 @@ export function Topbar({
 }: {
   sites: TopbarSite[]
   /** Null when the connection state could not be read, in which case nothing is claimed. */
-  google: { connected: boolean } | null
+  google: { connected: boolean; needsReconnect?: boolean } | null
 }) {
   const { pathname, activeSite } = useActiveSite(sites)
   const section = SECTIONS.find((entry) => pathname.startsWith(entry.prefix))
@@ -68,7 +68,12 @@ export function Topbar({
 
       <div className="flex shrink-0 items-center gap-3">
         {google &&
-          (google.connected ? (
+          (google.connected && google.needsReconnect ? (
+            // Said on every page, because everything that reads search data is paused until then.
+            <Link href="/settings/connections" className="tag tag-dot tag-accent">
+              Google needs reconnecting
+            </Link>
+          ) : google.connected ? (
             <span className="tag tag-dot tag-success">Search Console connected</span>
           ) : (
             <Link href="/settings/connections" className="tag tag-dot tag-neutral">

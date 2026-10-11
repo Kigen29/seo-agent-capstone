@@ -281,6 +281,13 @@
       "when": 1792022400000,
       "tag": "0039_audit_cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792108800000,
+      "tag": "0040_verification_says_why",
+      "breakpoints": true
     }
   ]
 }

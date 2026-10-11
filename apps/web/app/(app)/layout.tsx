@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    */
   let sites: (SidebarSite & TopbarSite)[] = []
   let identity: SignedInIdentity | null = null
-  let google: { connected: boolean } | null = null
+  let google: { connected: boolean; needsReconnect?: boolean } | null = null
   try {
     const api = await getClient()
     if (api) {

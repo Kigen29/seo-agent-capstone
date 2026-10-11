@@ -53,6 +53,48 @@ export type { AuditResult, RunAuditOptions } from './run-types.js'
  */
 const PROGRESS_INTERVAL_MS = 1_000
 
+/** The most pages a verification crawl will read, however many a fix claims to have changed. */
+const VERIFICATION_MAX_PAGES = 200
+
+/**
+ * Rules whose verdict depends only on the pages they flagged.
+ *
+ * For these, "the rule ran again over those same pages and did not fire" is a sound reading of
+ * "the fix worked", provided every one of those pages was fetched (the caller checks that). A
+ * page's own canonical, title, description, headings, language, images and markup are all
+ * decided by that page's HTML, and a group rule such as "these pages share a title" is decided
+ * by the HTML of the pages in the group.
+ *
+ * Not here, on purpose, and so never decided this way:
+ *
+ *   - rules about the link graph (orphans, click depth, broken internal links), which depend on
+ *     pages other than the ones flagged;
+ *   - rules a verification crawl does not measure at all, because it skips outbound links and
+ *     the phone-width render to stay small (TECH-031, TECH-033).
+ */
+const RECHECKABLE_RULES = [
+  'TECH-005',
+  'TECH-006',
+  'TECH-011',
+  'TECH-015',
+  'TECH-016',
+  'TECH-017',
+  'TECH-018',
+  'TECH-019',
+  'TECH-020',
+  'TECH-021',
+  'TECH-023',
+  'TECH-024',
+  'TECH-025',
+  'TECH-026',
+  'TECH-027',
+  'TECH-028',
+  'TECH-032',
+  'AGENT-002',
+  'AGENT-003',
+  'AGENT-004',
+] as const
+
 export async function runAudit(db: Database, options: RunAuditOptions): Promise<AuditResult> {
   const { tenantId, siteId, seed } = options
 
@@ -120,7 +162,21 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
       {
         seed,
         priorityUrls: options.verificationFindings?.flatMap((finding) => finding.affectedUrls),
-        maxPages: options.maxPages ?? 50,
+        /*
+          A verification crawl has to reach every page a fix claimed to change, or that fix can
+          never be decided. So the page budget grows to cover them, up to a ceiling.
+        */
+        maxPages:
+          options.maxPages ??
+          (options.verificationFindings
+            ? Math.min(
+                VERIFICATION_MAX_PAGES,
+                Math.max(
+                  50,
+                  new Set(options.verificationFindings.flatMap((f) => f.affectedUrls)).size + 10,
+                ),
+              )
+            : 50),
         concurrency: options.concurrency ?? 2,
         egress: options.egress,
         // A verification re-crawl exists to re-check specific findings; outbound links are not
@@ -496,18 +552,7 @@ export async function runAudit(db: Database, options: RunAuditOptions): Promise<
               !(page.xRobotsTag ?? '').toLowerCase().includes('noindex'),
           )
           .flatMap((page) => [page.url, page.finalUrl]),
-        // Site-wide and graph rules require additional resource coverage before verification.
-        evaluatedRuleIds: [
-          'TECH-005',
-          'TECH-006',
-          'TECH-015',
-          'TECH-016',
-          'TECH-017',
-          'TECH-018',
-          'TECH-019',
-          'TECH-020',
-          'TECH-021',
-        ],
+        evaluatedRuleIds: [...RECHECKABLE_RULES],
       },
     }
   } catch (error) {

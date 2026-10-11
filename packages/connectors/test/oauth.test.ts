@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
+  GoogleReauthRequiredError,
   buildAuthUrl,
   exchangeCode,
   refreshAccessToken,
@@ -134,11 +135,33 @@ describe('refreshAccessToken', () => {
     expect(result.expiresAt).toBeGreaterThan(Date.now())
   })
 
-  it('throws when the refresh is rejected, so the caller can prompt re-consent', async () => {
-    // A 400 here usually means the user revoked us or the token expired (7 days in Testing
-    // mode). The tenant must re-consent, and the caller has to be told, not left retrying.
-    const fetch = jsonResponse(400, { error: 'invalid_grant' })
+  it('says the grant itself is dead when Google answers invalid_grant, so the caller can record it', async () => {
+    // The user revoked us, or the token expired (7 days while the OAuth client is in Testing).
+    // No retry changes that, so it is its own error and not one more failed request (ADR-0048).
+    const fetch = jsonResponse(400, { error: 'invalid_grant', error_description: 'Token expired' })
 
-    await expect(refreshAccessToken(CONFIG, 'refresh-1', fetch)).rejects.toThrow(/400/)
+    const failure = await refreshAccessToken(CONFIG, 'refresh-1', fetch).catch((error) => error)
+    expect(failure).toBeInstanceOf(GoogleReauthRequiredError)
+    // Nothing of Google's own wording, which a caller might otherwise put on a page.
+    expect(String(failure.message)).not.toContain('Token expired')
+  })
+
+  it('does not call any other failure a dead grant', async () => {
+    // A bad request of our own, an outage and a rate limit all leave the grant as good as it was.
+    for (const [status, body] of [
+      [400, { error: 'invalid_request' }],
+      [500, { error: 'internal_failure' }],
+      [503, { error: 'backend_error' }],
+      [429, { error: 'rate_limit_exceeded' }],
+    ] as const) {
+      const failure = await refreshAccessToken(
+        CONFIG,
+        'refresh-1',
+        jsonResponse(status, body),
+      ).catch((error) => error)
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure).not.toBeInstanceOf(GoogleReauthRequiredError)
+      expect(String(failure.message)).toContain(String(status))
+    }
   })
 })

@@ -1,8 +1,8 @@
 import type { Site } from '@seo/api-client'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { SubmitButton } from '@/components/ui/submit-button'
-import { connectGoogle, verifySite } from './actions'
+import { connectGoogle } from './actions'
+import { VerifyOwnership } from './verify-ownership'
 import { BusinessProfile } from './business-profile'
 import { ConnectRepo } from './connect-repo'
 
@@ -32,27 +32,41 @@ export function SetupChecklist({
   google,
 }: {
   site: Site
-  google: { connected: boolean; email?: string | null }
+  google: { connected: boolean; email?: string | null; needsReconnect?: boolean }
 }) {
   const verification = site.gscVerificationStatus ?? 'none'
+  /*
+    Connected and usable are two things. Google can refuse a saved sign-in, and until that was
+    recorded the row said "Connected" while nothing that needed Google could run (ADR-0048).
+  */
+  const googleUsable = google.connected && !google.needsReconnect
+  const verificationError = verification === 'none' ? (site.gscVerificationError ?? null) : null
   const prompts = site.trackedPrompts ?? 0
 
   const rows: { name: string; status: Status; detail: ReactNode; action?: ReactNode }[] = [
     {
       name: 'Google Search Console',
-      status: google.connected
+      status: googleUsable
         ? { label: 'Connected', tone: 'success' }
-        : { label: 'Not connected', tone: 'neutral' },
-      detail: google.connected
+        : google.needsReconnect
+          ? { label: 'Needs reconnecting', tone: 'accent' }
+          : { label: 'Not connected', tone: 'neutral' },
+      detail: googleUsable
         ? `Connected as ${google.email ?? 'your Google account'}. Real searches and clicks feed your audits.`
-        : 'Shows the searches people find you with. OAuth only; we never see your password.',
+        : google.needsReconnect
+          ? `Google has stopped accepting the sign-in saved for ${google.email ?? 'your account'}, so search data and verification are paused. Connect again to carry on. Nothing is lost.`
+          : 'Shows the searches people find you with. OAuth only; we never see your password.',
       action: (
         <form action={connectGoogle}>
           <button
             type="submit"
-            className={google.connected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
+            className={googleUsable ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
           >
-            {google.connected ? 'Use another account' : 'Connect'}
+            {googleUsable
+              ? 'Use another account'
+              : google.needsReconnect
+                ? 'Connect again'
+                : 'Connect'}
           </button>
         </form>
       ),
@@ -76,7 +90,9 @@ export function SetupChecklist({
             ? { label: 'Waiting for Google', tone: 'outline' }
             : verification === 'pr_open'
               ? { label: 'Needs your review', tone: 'accent' }
-              : { label: 'Not started', tone: 'neutral' },
+              : verificationError
+                ? { label: 'Did not work', tone: 'accent' }
+                : { label: 'Not started', tone: 'neutral' },
       detail:
         verification === 'verified'
           ? 'Google has confirmed you own this site.'
@@ -84,9 +100,13 @@ export function SetupChecklist({
             ? 'The tag is merged. Google confirms once your site redeploys with it.'
             : verification === 'pr_open'
               ? 'A pull request adds the verification tag. Merge it to finish.'
-              : site.repoFullName && google.connected
-                ? 'Proves to Google that you own the site, by pull request. No DNS or file uploads.'
-                : 'Needs Search Console and a repository connected first.',
+              : verificationError
+                ? verificationError
+                : site.repoFullName && googleUsable
+                  ? 'Checks whether your Google account already has this site verified. If it does, that is used and nothing is opened. If not, a pull request adds the tag that proves it.'
+                  : google.needsReconnect
+                    ? 'Waits until Google is connected again.'
+                    : 'Needs Search Console and a repository connected first.',
       action:
         verification === 'pr_open' && site.gscVerificationPrUrl ? (
           <a
@@ -97,13 +117,8 @@ export function SetupChecklist({
           >
             Review the pull request
           </a>
-        ) : verification === 'none' && site.repoFullName && google.connected ? (
-          <form action={verifySite}>
-            <input type="hidden" name="siteId" value={site.id} />
-            <SubmitButton className="btn btn-primary btn-sm" pendingLabel="Queueing...">
-              Verify with a pull request
-            </SubmitButton>
-          </form>
+        ) : verification === 'none' && site.repoFullName && googleUsable ? (
+          <VerifyOwnership siteId={site.id} retry={Boolean(verificationError)} />
         ) : undefined,
     },
     {

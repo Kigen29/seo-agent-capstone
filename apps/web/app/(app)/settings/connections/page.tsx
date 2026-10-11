@@ -48,7 +48,20 @@ export default async function ConnectionsSettingsPage() {
           */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 flex-col items-start gap-1">
-              {connections.google.connected ? (
+              {connections.google.connected && connections.google.needsReconnect ? (
+                <>
+                  <span className="tag tag-dot tag-accent">Needs reconnecting</span>
+                  <span className="max-w-[62ch] text-sm">
+                    Google has stopped accepting the sign-in saved for{' '}
+                    <span className="font-semibold break-all">
+                      {connections.google.email ?? 'your account'}
+                    </span>
+                    . Search data and ownership checks are paused until you connect again. That
+                    happens when access is removed in your Google account, or after seven days if
+                    this app&rsquo;s Google sign-in is still in testing.
+                  </span>
+                </>
+              ) : connections.google.connected ? (
                 <>
                   <span className="tag tag-dot tag-success">Connected</span>
                   <span className="text-sm font-semibold break-all">
@@ -65,11 +78,11 @@ export default async function ConnectionsSettingsPage() {
                 </>
               )}
             </div>
-            {!connections.google.connected && (
+            {(!connections.google.connected || connections.google.needsReconnect) && (
               <form action={connectGoogle} className="shrink-0">
                 {/* The page's one primary action: it is the connection every axis gains from. */}
                 <button type="submit" className="btn btn-primary btn-sm">
-                  Connect Search Console
+                  {connections.google.needsReconnect ? 'Connect again' : 'Connect Search Console'}
                 </button>
               </form>
             )}

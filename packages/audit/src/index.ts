@@ -139,3 +139,5 @@ export type { SiteProfile } from './site-profile.js'
 export { readSchedule, saveAuditCadence } from './schedule.js'
 export { enqueueDueAudits, SCHEDULED_AUDITS_PER_RUN } from './scheduled-audits.js'
 export type { ScheduledAuditOptions } from './scheduled-audits.js'
+
+export { googleAccessToken, GoogleNotConnectedError, matchProperty } from './google-access.js'

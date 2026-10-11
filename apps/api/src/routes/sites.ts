@@ -132,7 +132,7 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
       const [google] = await withTenant(db, request.tenantId, (tx) =>
         tx
-          .select({ id: oauthCredentials.id })
+          .select({ id: oauthCredentials.id, needsReconnectAt: oauthCredentials.needsReconnectAt })
           .from(oauthCredentials)
           .where(eq(oauthCredentials.provider, 'google'))
           .limit(1),
@@ -141,6 +141,14 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
         return reply
           .status(409)
           .send({ error: 'Conflict', message: 'Connect Google Search Console first.' })
+      }
+      // Said now, to the person who clicked, and not found out by a worker in ten minutes.
+      if (google.needsReconnectAt) {
+        return reply.status(409).send({
+          error: 'Conflict',
+          message:
+            'Google rejected the saved sign-in, so nothing can be done with it. Connect Google again, then verify.',
+        })
       }
 
       const job = { requestId: randomUUID(), tenantId: request.tenantId, siteId: site.id }
@@ -152,6 +160,8 @@ export function siteRoutes(app: FastifyInstance, deps: RouteDeps): void {
           .where(and(eq(sites.id, site.id), eq(sites.gscVerificationStatus, 'none')))
           .for('update')
         if (!locked) return false
+        // A new attempt. What the last one said no longer describes anything.
+        await tx.update(sites).set({ gscVerificationError: null }).where(eq(sites.id, site.id))
         await appendJob(tx, request.tenantId, `verify:${job.requestId}`, 'verify', job)
         return true
       })

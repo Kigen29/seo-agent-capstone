@@ -1,20 +1,17 @@
 import type { Finding, SearchMetrics } from '@seo/core'
 import {
   createGscClient,
-  decryptToken,
   defaultWindow,
   evaluateCannibalisation,
   evaluateQuestionGaps,
   evaluateQuickWins,
-  refreshAccessToken,
-  type GscProperty,
   type OAuthConfig,
   type PageSummary,
   type SearchAnalyticsQuery,
   type SearchAnalyticsRow,
 } from '@seo/connectors'
-import { oauthCredentials, withTenant, type Database } from '@seo/db'
-import { eq } from 'drizzle-orm'
+import type { Database } from '@seo/db'
+import { googleAccessToken, GoogleNotConnectedError, matchProperty } from './google-access.js'
 
 export interface SearchResult {
   findings: Finding[]
@@ -144,18 +141,14 @@ export async function openSearchConsole(
 ): Promise<{ gsc: ReturnType<typeof createGscClient>; property: string } | null> {
   if (!deps.config) return null
 
-  const [credential] = await withTenant(db, options.tenantId, (tx) =>
-    tx
-      .select({ token: oauthCredentials.refreshTokenEncrypted })
-      .from(oauthCredentials)
-      .where(eq(oauthCredentials.provider, 'google'))
-      .limit(1),
-  )
-
-  if (!credential) return null
-
-  const refreshToken = decryptToken(credential.token)
-  const { accessToken } = await refreshAccessToken(deps.config, refreshToken, deps.fetch)
+  let accessToken: string
+  try {
+    accessToken = await googleAccessToken(db, options.tenantId, deps.config, deps.fetch)
+  } catch (error) {
+    // Not connected is the ordinary unmeasured state. Anything else is the caller's to report.
+    if (error instanceof GoogleNotConnectedError) return null
+    throw error
+  }
   const gsc = createGscClient({ accessToken, fetch: deps.fetch })
 
   const property = options.gscProperty ?? matchProperty(await gsc.listProperties(), options.siteUrl)
@@ -241,46 +234,4 @@ export async function measureSearch(
     // failing the audit over. The other axes are real; this one is quietly unmeasured.
     return { findings: [], measured: false }
   }
-}
-
-/**
- * Find the verified Search Console property that matches a site's host.
- *
- * A site tracked as `https://example.com` is registered in Search Console as either
- * `sc-domain:example.com` or a URL-prefix property like `https://example.com/`, and the two
- * are not interchangeable. We match on host and accept either shape, and we skip a property
- * the tenant has not actually verified, because querying one returns a permission error, not
- * data.
- */
-function matchProperty(properties: GscProperty[], siteUrl: string): string | undefined {
-  let host: string
-  try {
-    host = new URL(siteUrl).host
-  } catch {
-    return undefined
-  }
-
-  const verified = properties.filter((p) => p.permissionLevel !== 'siteUnverifiedUser')
-
-  const domainProperty = verified.find((p) => p.siteUrl === `sc-domain:${host}`)
-  if (domainProperty) return domainProperty.siteUrl
-
-  // A host can have more than one URL-prefix property verified (http and https, or nested
-  // path prefixes). Prefer https, then the shortest path, so we land on the canonical root
-  // rather than an arbitrary first match.
-  const prefixProperties = verified
-    .map((p) => {
-      try {
-        return { property: p.siteUrl, url: new URL(p.siteUrl) }
-      } catch {
-        return undefined
-      }
-    })
-    .filter((entry): entry is { property: string; url: URL } => entry?.url.host === host)
-    .sort((a, b) => {
-      if (a.url.protocol !== b.url.protocol) return a.url.protocol === 'https:' ? -1 : 1
-      return a.url.pathname.length - b.url.pathname.length
-    })
-
-  return prefixProperties[0]?.property
 }
