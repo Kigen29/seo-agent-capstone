@@ -31,6 +31,56 @@ export interface VerificationCoverage {
   evaluatedRuleIds: readonly string[]
   /** Established by deployment evidence, never inferred from a merge alone. */
   deploymentConfirmed: boolean
+  /**
+   * There is no deployment report, and the merge is old enough that any deployment has happened.
+   * This is what allows a problem still on the live site to be called a failure without one
+   * (ADR-0047). It is never needed to call a fix a success.
+   */
+  mergeSettled?: boolean
+}
+
+/**
+ * How long after a merge a problem still on the live site is called a failure, when no host has
+ * reported a deployment. Long enough for a slow pipeline and a CDN to catch up; short enough that
+ * "merged, checking" is not where a fix goes to be forgotten.
+ */
+export const MERGE_SETTLED_HOURS = 48
+
+/**
+ * When, after a merge, the live site is looked at while there is no deployment report.
+ *
+ * Each look is a crawl and a row in the audit history, so it is not every hour. Most deployments
+ * finish in minutes, so the early looks are close together, and after a day it is once a day
+ * until something can be concluded.
+ */
+const LIVE_CHECK_HOURS = [1, 3, 6, 12, 24]
+const HOUR = 3_600_000
+
+/**
+ * Whether the live site should be looked at on this wake, for a fix with no deployment report.
+ *
+ * True when a checkpoint has passed since the previous look. With no previous look it is always
+ * true. With no record of when the merge happened, it is once a day.
+ */
+export function liveCheckDue(
+  mergedAt: Date | null,
+  previousCheckAt: Date | null,
+  now: Date,
+): boolean {
+  if (!previousCheckAt) return true
+  if (!mergedAt) return now.getTime() - previousCheckAt.getTime() >= 24 * HOUR
+
+  const since = (moment: Date) => (moment.getTime() - mergedAt.getTime()) / HOUR
+  const before = since(previousCheckAt)
+  const after = since(now)
+  if (LIVE_CHECK_HOURS.some((hours) => before < hours && hours <= after)) return true
+  // After the first day, each whole day since the merge is a checkpoint.
+  return after >= 24 && Math.floor(after / 24) > Math.floor(Math.max(before, 0) / 24)
+}
+
+/** Whether a merge is old enough that a problem still on the live site counts against the fix. */
+export function mergeSettled(mergedAt: Date | null, now: Date): boolean {
+  return mergedAt !== null && now.getTime() - mergedAt.getTime() >= MERGE_SETTLED_HOURS * HOUR
 }
 
 /**
@@ -51,8 +101,19 @@ export function stillPresent(merged: MergedFindingRef, current: readonly Finding
 }
 
 /**
- * Verdict for every merged finding against a fresh audit's findings. Verified when the finding no
- * longer reproduces, rejected when it does.
+ * Verdict for every merged finding against a fresh audit's findings.
+ *
+ * Two questions, kept apart. What did the live site show: the fix in place, the problem still
+ * there, or not enough to say. And is that enough to decide.
+ *
+ * With a deployment report, what the site showed is the verdict. Without one (ADR-0047):
+ *
+ *   - **The fix is on the live site.** Verified. The page itself is the evidence that the change
+ *     was deployed; a report from the host would add nothing to it.
+ *   - **The problem is still there.** Not a failure yet, because the commonest reason is that the
+ *     deployment has not happened. It becomes one only when the merge has settled.
+ *   - **Could not tell.** Inconclusive, as it always was. Nothing is inferred from a page that
+ *     could not be read.
  */
 export function reconcileFixVerifications(
   merged: readonly MergedFindingRef[],
@@ -61,23 +122,30 @@ export function reconcileFixVerifications(
 ): Map<string, FixVerdict> {
   const verdicts = new Map<string, FixVerdict>()
   for (const finding of merged) {
-    if (coverage?.checks) {
-      verdicts.set(
-        finding.id,
-        coverage.deploymentConfirmed
-          ? (coverage.checks[finding.id] ?? 'inconclusive')
-          : 'inconclusive',
-      )
+    if (!coverage) {
+      verdicts.set(finding.id, 'inconclusive')
       continue
     }
+
     const covered =
-      coverage?.deploymentConfirmed &&
       coverage.evaluatedRuleIds.includes(finding.ruleId) &&
       finding.affectedUrls.length > 0 &&
       finding.affectedUrls.every((url) => coverage.successfulUrls.includes(url))
+    const observed: FixVerdict = coverage.checks
+      ? (coverage.checks[finding.id] ?? 'inconclusive')
+      : covered
+        ? stillPresent(finding, current)
+          ? 'rejected'
+          : 'verified'
+        : 'inconclusive'
+
     verdicts.set(
       finding.id,
-      covered ? (stillPresent(finding, current) ? 'rejected' : 'verified') : 'inconclusive',
+      coverage.deploymentConfirmed || observed === 'verified'
+        ? observed
+        : observed === 'rejected' && coverage.mergeSettled
+          ? 'rejected'
+          : 'inconclusive',
     )
   }
   return verdicts

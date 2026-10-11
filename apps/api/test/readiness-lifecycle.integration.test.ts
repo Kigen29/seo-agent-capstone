@@ -105,36 +105,61 @@ it('audits, proposes a real generated patch, waits for deployment, recovers, the
     )[0]!
   const realAudit: typeof runAudit = (database, options) =>
     runAudit(database, { ...options, maxPages: 1, egress: { allowPrivateNetwork: true } })
-  for (const [status, expected] of [
-    [403, 'Deployments read permission'],
-    [401, 'authentication failed'],
-    [503, 'could not be read'],
-  ] as const) {
-    await expect(
-      runVerifyFix(
-        db,
-        { tenantId, siteId },
-        {
-          isDeployed: async () => {
-            throw Object.assign(new Error('sensitive upstream response'), { status })
-          },
-          audit: async () => {
-            throw new Error('Must not crawl without deployment evidence')
-          },
-        },
-      ),
-    ).rejects.toThrow(expected)
-    const denied = await read()
-    expect(denied.status).toBe('merged')
-    expect(denied.verification).toBeNull()
-    expect(denied.fixError).toContain(expected)
-    expect(denied.fixError).not.toContain('sensitive upstream response')
+  const brokenRobots = robots
+  const hour = 3_600_000
+  const mergedAt = Date.now()
+  const at = (hours: number) => new Date(mergedAt + hours * hour)
+  const neverCrawl: typeof runAudit = async () => {
+    throw new Error('Must not crawl: no checkpoint has passed since the last look')
   }
-  await expect(
-    runVerifyFix(db, { tenantId, siteId }, { isDeployed: async () => false, audit: realAudit }),
-  ).rejects.toThrow('inconclusive')
+
+  /*
+    No deployment report can be read, three different ways. The live site is looked at anyway
+    (ADR-0047). It still shows the problem, and the merge is an hour or so old, so nothing is
+    concluded: the fix stays merged, with a dated note saying what was seen and why there was
+    no report, in our words and never the provider's.
+  */
+  for (const [status, expected, hours] of [
+    [403, 'Deployments read permission', 2],
+    [401, 'authentication failed', 4],
+    [503, 'could not be read', 7],
+  ] as const) {
+    await runVerifyFix(
+      db,
+      { tenantId, siteId },
+      {
+        now: at(hours),
+        isDeployed: async () => {
+          throw Object.assign(new Error('sensitive upstream response'), { status })
+        },
+        audit: realAudit,
+      },
+    )
+    const waiting = await read()
+    expect(waiting.status).toBe('merged')
+    expect(waiting.verification).toBeNull()
+    expect(waiting.fixError).toMatch(/^Checked the live site on .* UTC: the problem is still there/)
+    expect(waiting.fixError).toContain(expected)
+    expect(waiting.fixError).not.toContain('sensitive upstream response')
+  }
+
+  // The host simply reports nothing. Same answer, and no reason to give for the missing report.
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(13), isDeployed: async () => false, audit: realAudit },
+  )
   expect((await read()).status).toBe('merged')
-  expect((await read()).verification).toBeNull()
+  expect((await read()).fixError).toMatch(/^Checked the live site/)
+  expect((await read()).fixError).not.toContain('No deployment report')
+
+  // Between checkpoints the site is not crawled again, and waiting is not a failed job.
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(14), isDeployed: async () => false, audit: neverCrawl },
+  )
+  expect((await read()).status).toBe('merged')
 
   // An exhausted queue is recovered from database state, independently of a new webhook.
   await withTenant(db, tenantId, (tx) =>
@@ -154,18 +179,61 @@ it('audits, proposes a real generated patch, waits for deployment, recovers, the
   expect(sent).toContainEqual({ tenantId, siteId })
 
   // Deployment happened, but it did not contain the intended change.
-  await runVerifyFix(db, { tenantId, siteId }, { isDeployed: async () => true, audit: realAudit })
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(15), isDeployed: async () => true, audit: realAudit },
+  )
   expect((await read()).status).toBe('rejected')
   expect((await read()).verification?.after.metrics[0]?.value).toBeGreaterThan(0)
+  // With a report, the basis is the report, and the record does not say otherwise.
+  expect((await read()).verification?.summary).not.toContain('no deployment report')
 
+  const reopen = () =>
+    withTenant(db, tenantId, (tx) =>
+      tx
+        .update(findings)
+        .set({ status: 'merged', verification: null, fixError: null })
+        .where(eq(findings.id, finding!.id)),
+    )
+
+  /*
+    The loop closing with no report at all, which is every host that sends none. The fix is
+    live, the worker looks, and the page is the evidence.
+  */
   robots = proposedRobots
-  await withTenant(db, tenantId, (tx) =>
-    tx.update(findings).set({ status: 'merged' }).where(eq(findings.id, finding!.id)),
+  await reopen()
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(16), isDeployed: async () => false, audit: realAudit },
   )
-  await runVerifyFix(db, { tenantId, siteId }, { isDeployed: async () => true, audit: realAudit })
   const final = await read()
   expect(final.status).toBe('verified')
   expect(final.fixError).toBeNull()
   expect(final.baseline?.metrics[0]?.value).toBeGreaterThan(0)
   expect(final.verification?.after.metrics[0]?.value).toBe(0)
+  expect(final.verification?.summary).toContain('Confirmed on the live site itself')
+
+  /*
+    And the other ending. The problem is still on the live site two days after the merge, and
+    nobody reported a deployment. That is recorded as not working, saying on what basis.
+  */
+  robots = brokenRobots
+  await reopen()
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(47), isDeployed: async () => false, audit: realAudit },
+  )
+  expect((await read()).status).toBe('merged')
+  await runVerifyFix(
+    db,
+    { tenantId, siteId },
+    { now: at(49), isDeployed: async () => false, audit: realAudit },
+  )
+  const failed = await read()
+  expect(failed.status).toBe('rejected')
+  expect(failed.verification?.summary).toContain('still there more than 48 hours after the merge')
+  expect(failed.verification?.summary).toContain('no deployment report')
 }, 120_000)

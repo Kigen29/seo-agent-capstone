@@ -21,7 +21,7 @@ const STATUS: Record<FixOutcome['status'], { label: string; tag: string; detail:
     label: 'Merged, checking',
     tag: 'tag tag-outline',
     detail:
-      'Merged. The agent re-audits once the change is deployed and records whether it worked.',
+      'Merged. The live site is checked over the next two days, starting within the hour. A fix that is live is confirmed as soon as it is seen.',
   },
   verified: {
     label: 'Worked',

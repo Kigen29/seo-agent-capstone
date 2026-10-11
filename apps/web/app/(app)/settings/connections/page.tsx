@@ -133,9 +133,10 @@ export default async function ConnectionsSettingsPage() {
       <section>
         <h2 className="h-section mb-1">Hosting</h2>
         <p className="text-muted mt-0 mb-3 max-w-[62ch] text-sm">
-          After you merge a fix, the agent checks it is live before calling it verified. That needs
-          proof of what your site is serving: connect each site&apos;s own Vercel project, or have
-          another host report its deployments through GitHub.
+          After you merge a fix, the agent checks the live site to see whether it worked. That needs
+          nothing from you. Connecting a site&apos;s host is optional, and buys two things: an
+          answer the moment a deployment finishes, where otherwise the site is checked over two
+          days, and certainty that a fix which did not work was deployed at all.
         </p>
         <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
           <div className="flex flex-wrap items-center justify-between gap-4">

@@ -135,15 +135,21 @@ describe('positive checks of every offered fix', () => {
     ).toBe('rejected')
     expect(check('TECH-015', crawl([]))).toBe('inconclusive')
   })
-  it('never accepts a positive check without deployment evidence', () => {
+  it('accepts a positive check from the live site without a deployment report, and not a negative one', () => {
+    // ADR-0047. The promised change being on the page is the evidence that it was deployed.
     const ref = { id: 'fix', ruleId: 'TECH-005', affectedUrls: [seed] }
-    const result = reconcileFixVerifications([ref], [], {
-      checks: { fix: 'verified' },
+    const base = {
       successfulUrls: [seed],
       evaluatedRuleIds: ['TECH-005'],
       deploymentConfirmed: false,
-    })
-    expect(result.get('fix')).toBe('inconclusive')
+    }
+    expect(
+      reconcileFixVerifications([ref], [], { ...base, checks: { fix: 'verified' } }).get('fix'),
+    ).toBe('verified')
+    // The change not being there yet is, most often, a deployment that has not happened.
+    expect(
+      reconcileFixVerifications([ref], [], { ...base, checks: { fix: 'rejected' } }).get('fix'),
+    ).toBe('inconclusive')
   })
   it('does not infer root coverage from an allow-all parser fallback', () => {
     const result = crawl()
