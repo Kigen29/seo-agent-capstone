@@ -48,7 +48,13 @@ export type { NameClusters, TopicsLlm, TopicsResult } from './topics.js'
 export { clusterByCosine, cosine, SIMILARITY_THRESHOLD, similarityThresholdFor } from './cluster.js'
 export type { AuthorityResult } from './authority.js'
 
-export { reconcileFixVerifications, stillPresent } from './verify-fixes.js'
+export {
+  liveCheckDue,
+  MERGE_SETTLED_HOURS,
+  mergeSettled,
+  reconcileFixVerifications,
+  stillPresent,
+} from './verify-fixes.js'
 export {
   baselineFor,
   failingPagesMetric,

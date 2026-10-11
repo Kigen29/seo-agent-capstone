@@ -125,7 +125,9 @@ export default async function FindingPage({
         </a>
       ) : finding.status === 'merged' ? (
         <Note tone="ok" className="mb-6">
-          The fix has been merged. It verifies once the change is deployed and re-crawled.
+          The fix has been merged. The live site is checked over the next two days, starting within
+          the hour, and this page says what was found. A fix that is live is confirmed as soon as it
+          is seen.
         </Note>
       ) : finding.status === 'verified' ? (
         <Note tone="ok" className="mb-6">
