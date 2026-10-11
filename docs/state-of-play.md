@@ -375,6 +375,8 @@ a pull request, and product page rules. The public `/check` page is approved in 
 
 ## Traps worth remembering
 
+- **A command shown to a user will be pasted into PowerShell.** The command for connecting Claude Code failed there twice, each time found by a person running it. Split across lines with a backslash, only the first line ran. Then ending in `-- npx -y <package>`, PowerShell consumed the bare `--` before `claude` saw it, so `-y` was refused as an unknown option. The form that works in PowerShell, the command prompt and a Unix shell has one line, no `--`, no quotes, and nothing dashed after the positional arguments; `npx` is told not to prompt through `npm_config_yes` in the environment. `apps/web/lib/editor-config.test.ts` holds the command to those properties. Test any new copy-and-paste command with `powershell.exe -NoProfile -Command`.
+
 - **A Drizzle column inside a raw `sql` subquery is written without its table.** In a query over one table Drizzle renders `${sites.id}` as a bare `"id"`. Inside `(select ... from audits a where a.site_id = ${sites.id})` that bare id is the audit's own, so the subquery matches nothing and returns null without an error. The scheduled-audit sweep treated every site as never audited because of it, and only an integration test that waited a week between audits showed it. Name the table in full, `"sites"."id"`, inside a subquery.
 
 Each of these cost real time in a previous session.

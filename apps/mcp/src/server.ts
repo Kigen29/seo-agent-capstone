@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     timeoutMs: TIMEOUT_MS,
   })
 
-  const server = new McpServer({ name: 'seo-agent', version: '0.2.1' })
+  const server = new McpServer({ name: 'seo-agent', version: '0.2.2' })
 
   registerReadTools(server, api)
   registerReportTools(server, api)

@@ -34,11 +34,30 @@ test('the config can be read before any token exists, and never turns writes on'
   })
   await expect(panel).toBeVisible()
   const command = panel.getByLabel('Run this in a terminal')
-  await expect(command).toContainText('claude mcp add rankwright')
+  await expect(command).toContainText('claude mcp add --env SEO_API_URL=')
   await expect(command).toContainText('seo_paste_your_token_here')
   // The switch is explained, and is in no config a person is handed.
   await expect(command).not.toContainText('SEO_MCP_ALLOW_WRITES')
-  await expect(panel.getByText(/It can only read until you add/)).toBeVisible()
+  // No double dash and nothing dashed after the name: PowerShell eats the first and then
+  // `claude` refuses the second.
+  const text = (await command.textContent()) ?? ''
+  expect(text.split(/\s+/)).not.toContain('--')
+  expect(text).toMatch(/--scope user rankwright (npx|node) /)
+
+  // Writes are a switch on the page, and ticking it changes what would be copied.
+  const allow = panel.getByRole('checkbox', { name: /Let it start audits and open pull requests/ })
+  await expect(allow).not.toBeChecked()
+  await allow.check()
+  await expect(command).toContainText('--env SEO_MCP_ALLOW_WRITES=1')
+  await panel.getByRole('tab', { name: 'Cursor, VS Code and others' }).click()
+  const json = JSON.parse(
+    (await panel.getByLabel("Add this to your editor's MCP config file").textContent()) ?? '',
+  )
+  expect(json.mcpServers.rankwright.env.SEO_MCP_ALLOW_WRITES).toBe('1')
+  await allow.uncheck()
+  await expect(panel.getByLabel("Add this to your editor's MCP config file")).not.toContainText(
+    'SEO_MCP_ALLOW_WRITES',
+  )
 })
 
 test('a signed-in person makes a token, sees it once, and gets a config that contains it', async ({

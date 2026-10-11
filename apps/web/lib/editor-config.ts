@@ -1,14 +1,13 @@
 /**
  * What a person pastes into their editor to connect it to this account over MCP.
  *
- * Pure, so the exact text can be tested: a config with one wrong quote is a support request,
+ * Pure, so the exact text can be tested: a config with one wrong character is a support request,
  * and the person reading it cannot tell which character is at fault.
  *
  * Two ways to run the server, and the page shows whichever is true for this deployment. From
  * npm when the package has been published, which is one line and no checkout. Otherwise from a
- * clone of the repository, which works today. Offering an `npx` command for a package that is
- * not on the registry would be a config that fails with an error about npm, on the first thing
- * a new user tries.
+ * clone of the repository. Offering an `npx` command for a package that is not on the registry
+ * would be a config that fails with an error about npm, on the first thing a new user tries.
  */
 
 /** Shown in place of the token until one has been made, so the config can be read first. */
@@ -25,28 +24,36 @@ export interface EditorConfigInput {
   token: string
   /** The npm package to run, or undefined when the server is run from a clone. */
   packageName?: string | undefined
+  /**
+   * Offer the tools that change things: start an audit, open a pull request. Off unless the
+   * person asks, because the one pasting a config has usually only decided to look.
+   */
+  allowWrites?: boolean | undefined
 }
 
-function launch(input: EditorConfigInput): { command: string; args: string[] } {
-  return input.packageName
-    ? { command: 'npx', args: ['-y', input.packageName] }
-    : { command: 'node', args: [CLONE_SERVER_PATH] }
+/** The two values the server needs, and a third only when writes were asked for. */
+function environment(input: EditorConfigInput): Record<string, string> {
+  return {
+    SEO_API_URL: input.apiUrl,
+    SEO_API_TOKEN: input.token,
+    ...(input.allowWrites ? { SEO_MCP_ALLOW_WRITES: '1' } : {}),
+  }
 }
 
 /**
  * The JSON most editors read: Cursor (`.cursor/mcp.json`), VS Code, Claude Desktop, Windsurf.
  *
- * Writes are not switched on here. They are off unless the person adds
- * `SEO_MCP_ALLOW_WRITES`, and a config that turned them on by default would let an agent open
- * pull requests for somebody who only meant to look.
+ * `npx -y` here, where it is safe: this is a file, and no shell reads it.
  */
 export function editorJson(input: EditorConfigInput): string {
   return JSON.stringify(
     {
       mcpServers: {
         rankwright: {
-          ...launch(input),
-          env: { SEO_API_URL: input.apiUrl, SEO_API_TOKEN: input.token },
+          ...(input.packageName
+            ? { command: 'npx', args: ['-y', input.packageName] }
+            : { command: 'node', args: [CLONE_SERVER_PATH] }),
+          env: environment(input),
         },
       },
     },
@@ -58,19 +65,36 @@ export function editorJson(input: EditorConfigInput): string {
 /**
  * One command for Claude Code, which registers the server without a file being edited.
  *
- * On one line, and that is deliberate. It was first written across four lines joined with a
- * backslash, which is how a long command is usually shown and is only valid in a Unix shell.
- * Pasted into PowerShell or the Windows command prompt, a trailing backslash is not a line
- * continuation: the first line runs alone and the rest are errors. One line works in all of
- * them, and the block it is shown in scrolls sideways.
+ * Every choice in it is about being pasted into a shell we do not get to pick. Two earlier
+ * versions failed on Windows, each found by somebody running it:
+ *
+ *   - It was four lines joined with a backslash. That continues a line in a Unix shell and does
+ *     nothing in PowerShell or the command prompt, where the first line ran alone.
+ *   - It then ended `-- npx -y <package>`. PowerShell consumes a bare `--` before the program
+ *     sees it, so `-y` was read as an option to `claude` and refused as unknown.
+ *
+ * So: one line, no `--`, and nothing after the server's name that starts with a dash. That
+ * needs two adjustments, and both are deliberate:
+ *
+ *   - `--env` takes any number of values, so the options are written first and closed by
+ *     `--scope user`, and the name and the command come after it.
+ *   - `npx` is told not to ask before installing through `npm_config_yes`, which is the same
+ *     setting as its `-y` flag, given as an environment value where a flag cannot go.
+ *
+ * `--scope user` is also the right scope for its own sake: the server belongs to the person's
+ * account, and without it Claude Code registers it only for the folder the command was run in.
  */
 export function claudeCodeCommand(input: EditorConfigInput): string {
-  const { command, args } = launch(input)
+  const values = {
+    ...environment(input),
+    ...(input.packageName ? { npm_config_yes: 'true' } : {}),
+  }
   return [
-    'claude mcp add rankwright',
-    `--env SEO_API_URL=${input.apiUrl}`,
-    `--env SEO_API_TOKEN=${input.token}`,
-    `-- ${command} ${args.join(' ')}`,
+    'claude mcp add',
+    ...Object.entries(values).map(([key, value]) => `--env ${key}=${value}`),
+    '--scope user',
+    'rankwright',
+    input.packageName ? `npx ${input.packageName}` : `node ${CLONE_SERVER_PATH}`,
   ].join(' ')
 }
 
