@@ -122,15 +122,25 @@ Cursor (\`.cursor/mcp.json\`) and most other editors:
 | Findings and audits | \`list_sites\`, \`list_findings\`, \`get_finding\`, \`get_audit\`, \`audit_status\`, \`list_audits\`, \`audit_changes\` |
 | Reports | \`get_outcomes\`, \`get_visibility\`, \`get_competitor_watch\`, \`get_schedule\` |
 | Billed research | \`keyword_ideas\`, \`keyword_gap\` |
-| Writes, off by default | \`run_audit\`, \`fix_finding\`, \`verify_site\`, \`set_audit_schedule\` |
+| Account changes, off by default | \`run_audit\`, \`set_audit_schedule\`, \`add_tracked_questions\`, \`change_competitors\`, \`name_competitor\`, \`mark_not_us\`, \`update_site_details\`, \`add_site\`, \`connect_repository\`, \`set_finding_status\` |
+| Pull requests, off by default | \`fix_finding\`, \`verify_site\` |
 
-## Writes are off until you turn them on
+## It can only read until you say otherwise
 
-Without anything else set, the server can only read. Add \`--env SEO_MCP_ALLOW_WRITES=1\` to the
-command, or \`"SEO_MCP_ALLOW_WRITES": "1"\` to the \`env\` block, and it can start an audit and
-open pull requests. The dashboard has a switch that writes either for you. A pull request never goes to
-your default branch, a person still merges it, and one session opens at most three
-(\`SEO_MCP_MAX_PRS\` changes that).
+Without anything else set, the server can only read. There are two things you can allow,
+separately:
+
+- **Changes to your account**, with \`SEO_MCP_ALLOW_ACCOUNT_WRITES=1\`: start an audit, set
+  how often a site is audited, add tracked questions, add or remove competitors, update a
+  site's details, dismiss or reopen a finding. All of it can be changed back in the dashboard,
+  and none of it touches your code.
+- **Pull requests on your repository**, with \`SEO_MCP_ALLOW_REPO_WRITES=1\`: open a fix for a
+  finding, and verify a Search Console property. A pull request never goes to your default
+  branch, a person still merges it, and one session opens at most three
+  (\`SEO_MCP_MAX_PRS\` changes that).
+
+\`SEO_MCP_ALLOW_WRITES=1\` allows both. The dashboard has a checkbox for each, and writes the
+config for you.
 
 ## Environment
 
@@ -138,7 +148,9 @@ your default branch, a person still merges it, and one session opens at most thr
 |---|---|
 | \`SEO_API_URL\` | The API's address. Required. |
 | \`SEO_API_TOKEN\` | A token from your account. Required. |
-| \`SEO_MCP_ALLOW_WRITES\` | \`1\` to offer the write tools. Default off. |
+| \`SEO_MCP_ALLOW_ACCOUNT_WRITES\` | \`1\` to let it change settings in your account. Default off. |
+| \`SEO_MCP_ALLOW_REPO_WRITES\` | \`1\` to let it open pull requests. Default off. |
+| \`SEO_MCP_ALLOW_WRITES\` | \`1\` for both of the above. |
 | \`SEO_MCP_MAX_PRS\` | Pull requests one session may open. Default 3. |
 
 The first call after a quiet spell can take up to a minute: the API runs on a free instance that

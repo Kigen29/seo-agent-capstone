@@ -139,6 +139,47 @@ export function createFakeApi(overrides: Partial<ApiClient> = {}): {
     })),
 
     startAudit: record('startAudit', async () => AUDIT_ID),
+
+    getVisibility: record('getVisibility', async () => ({
+      prompts: ['Who runs walking tours?'],
+      competitors: ['rival.example'],
+      brand: 'Acme',
+    })),
+    setVisibility: record('setVisibility', async (_siteId: string, settings: object) => settings),
+    getSiteProfile: record('getSiteProfile', async () => ({
+      url: 'https://example.com',
+      brand: 'Acme',
+      offering: 'Guided walks',
+      market: 'Kenya',
+      competitors: ['rival.example', 'other.example'],
+      mentionExclusions: ['same-name.example'],
+      competitorNames: {},
+    })),
+    saveSiteProfile: record('saveSiteProfile', async (_siteId: string, profile: object) => ({
+      url: 'https://example.com',
+      competitors: [],
+      mentionExclusions: [],
+      competitorNames: {},
+      brand: null,
+      offering: null,
+      market: null,
+      ...profile,
+    })),
+    saveCompetitors: record('saveCompetitors', async (_siteId: string, list: string[]) => list),
+    saveCompetitorName: record(
+      'saveCompetitorName',
+      async (_siteId: string, domain: string, name: string | null) => ({ [domain]: name }),
+    ),
+    saveMentionExclusions: record(
+      'saveMentionExclusions',
+      async (_siteId: string, list: string[]) => list,
+    ),
+    addSite: record('addSite', async (url: string) => ({ id: SITE_ID, url })),
+    setSiteRepo: record('setSiteRepo', async (_siteId: string, repoFullName: string) => ({
+      repoFullName,
+    })),
+    setFindingStatus: record('setFindingStatus', async (_id: string, status: string) => status),
+    setAuditCadence: record('setAuditCadence', async (_siteId: string, cadence: string) => cadence),
     fixFinding: record('fixFinding', async () => ({ status: 'queued' })),
     verifySite: record('verifySite', async () => ({ status: 'queued' })),
   } as unknown as ApiClient

@@ -339,6 +339,15 @@ export function createApiClient(options: ApiClientOptions) {
     fixFinding: async (id: string) =>
       request<{ status: string }>(`/findings/${id}/fix`, { method: 'POST' }),
 
+    /** Dismiss an open finding as "won't fix", or reopen a dismissed one. */
+    setFindingStatus: async (id: string, status: 'open' | 'wontfix') =>
+      (
+        await request<{ status: 'open' | 'wontfix' }>(`/findings/${id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status }),
+        })
+      ).status,
+
     /**
      * Ask for a pull request for several of a site's findings at once: the given ones, or the
      * most important open findings the agent can fix. Each still gets its own pull request.

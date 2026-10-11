@@ -12,7 +12,7 @@ import type {
 import { ApiRequestError } from '@seo/api-client'
 import { describe, expect, it } from 'vitest'
 import { registerReportTools } from '../src/tools/reports.js'
-import { registerWriteTools } from '../src/tools/write.js'
+import { registerAccountTools } from '../src/tools/account.js'
 import { AUDIT_ID, createFakeApi, FINDING_ROW_ID, SITE_ID, type Recorder } from './fake.js'
 
 /**
@@ -28,7 +28,7 @@ async function connect(overrides: Partial<ApiClient> = {}, writes = false) {
   const { api, recorder } = createFakeApi(overrides)
   const server = new McpServer({ name: 'test', version: '0.0.0' })
   registerReportTools(server, api)
-  if (writes) registerWriteTools(server, api, { maxPrs: 3 })
+  if (writes) registerAccountTools(server, api)
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test-client', version: '0.0.0' })

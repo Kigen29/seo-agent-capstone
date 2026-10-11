@@ -1,6 +1,8 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { act, type ActionResult } from '@/lib/action'
 import { getClient } from '@/lib/session'
 
 /**
@@ -27,4 +29,20 @@ export async function openFixPr(formData: FormData) {
   }
 
   redirect(`/findings/${id}?fix=${status}`)
+}
+
+/** Dismiss a finding as "won't fix", or reopen a dismissed one. */
+export async function setFindingStatus(
+  id: string,
+  status: 'open' | 'wontfix',
+): Promise<ActionResult<'open' | 'wontfix'>> {
+  const result = await act(
+    status === 'wontfix' ? 'dismiss this finding' : 'reopen this finding',
+    (api) => api.setFindingStatus(id, status),
+  )
+  if (result.ok) {
+    revalidatePath(`/findings/${id}`)
+    revalidatePath('/findings')
+  }
+  return result
 }

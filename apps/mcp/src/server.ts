@@ -4,7 +4,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createApiClient } from '@seo/api-client'
 import { registerReadTools } from './tools/read.js'
 import { registerReportTools } from './tools/reports.js'
-import { DEFAULT_MAX_PRS, registerWriteTools } from './tools/write.js'
+import { writePermissions } from './permissions.js'
+import { registerAccountTools } from './tools/account.js'
+import { DEFAULT_MAX_PRS, registerRepositoryTools } from './tools/write.js'
 
 /**
  * The MCP server: a second door to the product, for agents rather than browsers.
@@ -52,13 +54,7 @@ function readEnv() {
   return {
     baseUrl,
     token,
-    /**
-     * Writes are off unless asked for, and when off the tools are not registered at all rather
-     * than registered and refusing. A model cannot see a tool that was never listed, so it does
-     * not spend a turn calling one to be told no, and it does not report to the user that the
-     * agent "refused" when in fact nobody had enabled it.
-     */
-    allowWrites: process.env.SEO_MCP_ALLOW_WRITES === '1',
+    ...writePermissions(process.env),
     maxPrs: Number.isInteger(rawMax) && rawMax > 0 ? rawMax : DEFAULT_MAX_PRS,
   }
 }
@@ -72,13 +68,12 @@ async function main(): Promise<void> {
     timeoutMs: TIMEOUT_MS,
   })
 
-  const server = new McpServer({ name: 'seo-agent', version: '0.2.2' })
+  const server = new McpServer({ name: 'seo-agent', version: '0.3.0' })
 
   registerReadTools(server, api)
   registerReportTools(server, api)
-  if (env.allowWrites) {
-    registerWriteTools(server, api, { maxPrs: env.maxPrs })
-  }
+  if (env.account) registerAccountTools(server, api)
+  if (env.repository) registerRepositoryTools(server, api, { maxPrs: env.maxPrs })
 
   /**
    * stdout is the protocol. Anything written to it that is not JSON-RPC corrupts the stream and
@@ -86,7 +81,8 @@ async function main(): Promise<void> {
    * goes to neither.
    */
   process.stderr.write(
-    `seo-agent MCP: ${env.baseUrl}, writes ${env.allowWrites ? `on (max ${env.maxPrs} PRs)` : 'off'}\n`,
+    `seo-agent MCP: ${env.baseUrl}, account changes ${env.account ? 'on' : 'off'}, ` +
+      `pull requests ${env.repository ? `on (max ${env.maxPrs})` : 'off'}\n`,
   )
 
   await server.connect(new StdioServerTransport())

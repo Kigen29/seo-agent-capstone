@@ -5,7 +5,8 @@ import type { ApiClient } from '@seo/api-client'
 import { ApiRequestError } from '@seo/api-client'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { registerReadTools } from '../src/tools/read.js'
-import { registerWriteTools } from '../src/tools/write.js'
+import { registerAccountTools } from '../src/tools/account.js'
+import { registerRepositoryTools } from '../src/tools/write.js'
 import { AUDIT_ID, createFakeApi, FINDING_ROW_ID, SITE_ID, type Recorder } from './fake.js'
 
 /**
@@ -31,7 +32,10 @@ async function connect(options: {
 
   const server = new McpServer({ name: 'test', version: '0.0.0' })
   registerReadTools(server, api)
-  if (options.writes) registerWriteTools(server, api, { maxPrs: options.maxPrs ?? 3 })
+  if (options.writes) {
+    registerAccountTools(server, api)
+    registerRepositoryTools(server, api, { maxPrs: options.maxPrs ?? 3 })
+  }
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test-client', version: '0.0.0' })

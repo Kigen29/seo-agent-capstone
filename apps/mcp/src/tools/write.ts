@@ -1,24 +1,24 @@
 import { ApiRequestError, type ApiClient } from '@seo/api-client'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { auditCadenceSchema } from '@seo/core'
 import { z } from 'zod'
 import { guard, text, type ToolResult } from './result.js'
 
 /**
- * The write tools, and the reason this server is worth building.
+ * The repository tools, and the reason this server is worth building (ADR-0050).
  *
  * Every AI-SEO tool on the market can hand a model a list of problems. `fix_finding` is the one
  * that opens a pull request, and `verify_site` is the one that gets a Search Console property
- * verified by dropping the meta tag into the repo. Neither is possible without the repository,
- * which is why the products we are measured against do not offer them.
+ * verified by putting the tag in the repo. Neither is possible without the repository, which is
+ * why the products we are measured against do not offer them.
  *
- * These tools are registered only when the caller has asked for them, and they stop at a cap.
- * Nothing here can reach a default branch: every change lands on a `seo-agent/*` branch as a
- * pull request for a human to merge (CLAUDE.md rule 2). The gate below is not about that
- * danger, which is already handled. It is about the failure mode a tool call introduces that a
- * dashboard button does not, which is volume: a model that decides to fix everything can call
- * one tool forty times in a loop, and forty pull requests on a client's repository is a bad
- * afternoon for a human reviewer even when every one of them is correct.
+ * These are the two tools that reach somebody's code, and they have a switch of their own,
+ * apart from the tools that change settings in the account. Nothing here can reach a default
+ * branch: every change lands on a `seo-agent/*` branch as a pull request for a human to merge
+ * (CLAUDE.md rule 2). The cap below is not about that danger, which is already handled. It is
+ * about the failure a tool call introduces that a dashboard button does not, which is volume: a
+ * model that decides to fix everything can call one tool forty times in a loop, and forty pull
+ * requests on a client's repository is a bad afternoon for a reviewer even when every one is
+ * correct.
  */
 
 /** How many pull requests one server process may open before it refuses. */
@@ -68,62 +68,12 @@ function createPrBudget(max: number) {
   }
 }
 
-export function registerWriteTools(server: McpServer, api: ApiClient, options: WriteOptions = {}) {
+export function registerRepositoryTools(
+  server: McpServer,
+  api: ApiClient,
+  options: WriteOptions = {},
+) {
   const budget = createPrBudget(options.maxPrs ?? DEFAULT_MAX_PRS)
-
-  server.registerTool(
-    'run_audit',
-    {
-      title: 'Run an audit',
-      description:
-        'Queue a fresh crawl and audit for a site. Returns the new audit id immediately; the ' +
-        'crawl runs on a worker, so poll audit_status until it reports finished, then read the ' +
-        'result with get_audit. Changes nothing on the site itself.',
-      inputSchema: { siteId: z.string().uuid().describe('From list_sites.') },
-      // Not read-only (it creates an audit and costs a crawl), but nothing is destroyed.
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    },
-    async ({ siteId }) =>
-      guard(async () => {
-        const auditId = await api.startAudit(siteId)
-        return (
-          `Audit ${auditId} queued. Poll audit_status with this id until it reports finished, ` +
-          'then call get_audit for the scorecard and the findings.'
-        )
-      }),
-  )
-
-  server.registerTool(
-    'set_audit_schedule',
-    {
-      title: 'Set how often a site is audited',
-      description:
-        'Turn scheduled audits for a site on, off, or to another interval: off, weekly (every 7 ' +
-        'days) or monthly (every 30). Takes effect the next time the worker wakes. An audit ' +
-        'spends a little of the account’s monthly allowance on the topic map, which is why ' +
-        'this is off by default: do not turn it on unless the person asked for it. Check the ' +
-        'result with get_schedule.',
-      inputSchema: {
-        siteId: z.string().uuid().describe('From list_sites.'),
-        cadence: auditCadenceSchema,
-      },
-      // Changes a stored setting, and can be set straight back. Opens no pull request.
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async ({ siteId, cadence }) =>
-      guard(async () => {
-        const saved = await api.setAuditCadence(siteId, cadence)
-        return saved === 'off'
-          ? `Scheduled audits are off for ${siteId}. An audit now runs only when asked for.`
-          : `Site ${siteId} is now audited ${saved === 'weekly' ? 'every 7 days' : 'every 30 days'}. ` +
-              'Call get_schedule to see the day the next one is due.'
-      }),
-  )
 
   server.registerTool(
     'fix_finding',
