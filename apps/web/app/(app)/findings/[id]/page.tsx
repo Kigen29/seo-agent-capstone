@@ -11,6 +11,7 @@ import { Stat, StatRow } from '@/components/ui/stat'
 import { handleApiError } from '@/lib/api-error'
 import { getClient } from '@/lib/session'
 import { manualReasonFor } from '@/lib/manual-reason'
+import { DismissFinding } from './dismiss-finding'
 import { AffectedPages, FixAttempts } from './finding-tables'
 import { FixButton } from './fix-button'
 import { FixProgress } from './fix-progress'
@@ -232,6 +233,11 @@ export default async function FindingPage({
       )}
 
       {attempts.length > 0 && <FixAttempts attempts={attempts} />}
+
+      {/* Offered while nothing is in flight for it. A pull request open or merged is not dismissed. */}
+      {(finding.status === 'open' || finding.status === 'wontfix') && (
+        <DismissFinding id={id} dismissed={finding.status === 'wontfix'} />
+      )}
 
       <StatRow>
         <Stat

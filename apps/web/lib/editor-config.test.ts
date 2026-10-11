@@ -32,24 +32,36 @@ describe('editorJson', () => {
   })
 })
 
-describe('writes', () => {
+describe('permissions', () => {
+  const env = (input: Parameters<typeof editorJson>[0]) =>
+    JSON.parse(editorJson(input)).mcpServers.rankwright.env as Record<string, string>
+  const switches = (input: Parameters<typeof editorJson>[0]) =>
+    Object.keys(env(input)).filter((key) => key.startsWith('SEO_MCP_'))
+
   it('are off in every config unless they were asked for', () => {
     for (const input of [base, published]) {
-      expect(editorJson(input)).not.toContain('SEO_MCP_ALLOW_WRITES')
-      expect(claudeCodeCommand(input)).not.toContain('SEO_MCP_ALLOW_WRITES')
+      expect(switches(input)).toEqual([])
+      expect(claudeCodeCommand(input)).not.toContain('SEO_MCP_')
     }
   })
 
-  it('are one more value beside the other two when they were', () => {
-    const config = JSON.parse(editorJson({ ...published, allowWrites: true }))
-    expect(config.mcpServers.rankwright.env).toEqual({
-      SEO_API_URL: 'https://api.example',
-      SEO_API_TOKEN: 'seo_abc',
-      SEO_MCP_ALLOW_WRITES: '1',
-    })
-    expect(claudeCodeCommand({ ...published, allowWrites: true })).toContain(
-      '--env SEO_MCP_ALLOW_WRITES=1',
+  it('are one switch each when one was asked for', () => {
+    expect(switches({ ...published, allowAccountWrites: true })).toEqual([
+      'SEO_MCP_ALLOW_ACCOUNT_WRITES',
+    ])
+    expect(switches({ ...published, allowRepoWrites: true })).toEqual(['SEO_MCP_ALLOW_REPO_WRITES'])
+    expect(claudeCodeCommand({ ...published, allowRepoWrites: true })).toContain(
+      '--env SEO_MCP_ALLOW_REPO_WRITES=1',
     )
+    // Asking for one never grants the other.
+    expect(claudeCodeCommand({ ...published, allowAccountWrites: true })).not.toContain('REPO')
+  })
+
+  it('are the one older switch when both were asked for, which every published version reads', () => {
+    const both = { ...published, allowAccountWrites: true, allowRepoWrites: true }
+    expect(switches(both)).toEqual(['SEO_MCP_ALLOW_WRITES'])
+    expect(env(both).SEO_MCP_ALLOW_WRITES).toBe('1')
+    expect(claudeCodeCommand(both)).toContain('--env SEO_MCP_ALLOW_WRITES=1')
   })
 })
 
@@ -72,7 +84,12 @@ describe('claudeCodeCommand', () => {
     not something this code can choose, so the command has to survive all of them.
   */
   describe('survives being pasted into PowerShell, the command prompt and a Unix shell', () => {
-    const commands = [base, published, { ...published, allowWrites: true }].map(claudeCodeCommand)
+    const commands = [
+      base,
+      published,
+      { ...published, allowAccountWrites: true },
+      { ...published, allowAccountWrites: true, allowRepoWrites: true },
+    ].map(claudeCodeCommand)
 
     it('is one line with no backslash, which only continues a line on Unix', () => {
       for (const command of commands) {

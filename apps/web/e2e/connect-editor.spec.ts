@@ -45,18 +45,29 @@ test('the config can be read before any token exists, and never turns writes on'
   expect(text).toMatch(/--scope user rankwright (npx|node) /)
 
   // Writes are a switch on the page, and ticking it changes what would be copied.
-  const allow = panel.getByRole('checkbox', { name: /Let it start audits and open pull requests/ })
+  // Two permissions, each its own box, both off. Ticking one never grants the other.
+  const account = panel.getByRole('checkbox', { name: /Let it change settings in this account/ })
+  const allow = panel.getByRole('checkbox', {
+    name: /Let it open pull requests on your repository/,
+  })
+  await expect(account).not.toBeChecked()
   await expect(allow).not.toBeChecked()
+  await account.check()
+  await expect(command).toContainText('--env SEO_MCP_ALLOW_ACCOUNT_WRITES=1')
+  await expect(command).not.toContainText('REPO')
+  // Both together are the one switch every published version of the server understands.
   await allow.check()
   await expect(command).toContainText('--env SEO_MCP_ALLOW_WRITES=1')
+  await expect(command).not.toContainText('ALLOW_ACCOUNT_WRITES')
   await panel.getByRole('tab', { name: 'Cursor, VS Code and others' }).click()
   const json = JSON.parse(
     (await panel.getByLabel("Add this to your editor's MCP config file").textContent()) ?? '',
   )
   expect(json.mcpServers.rankwright.env.SEO_MCP_ALLOW_WRITES).toBe('1')
+  await account.uncheck()
   await allow.uncheck()
   await expect(panel.getByLabel("Add this to your editor's MCP config file")).not.toContainText(
-    'SEO_MCP_ALLOW_WRITES',
+    'SEO_MCP_',
   )
 })
 

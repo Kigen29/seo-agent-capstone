@@ -25,18 +25,35 @@ export interface EditorConfigInput {
   /** The npm package to run, or undefined when the server is run from a clone. */
   packageName?: string | undefined
   /**
-   * Offer the tools that change things: start an audit, open a pull request. Off unless the
-   * person asks, because the one pasting a config has usually only decided to look.
+   * Let it change settings in the account: questions, competitors, site details, the audit
+   * schedule, starting an audit, dismissing a finding. Off unless the person asks, because the
+   * one pasting a config has usually only decided to look.
    */
-  allowWrites?: boolean | undefined
+  allowAccountWrites?: boolean | undefined
+  /** Let it open pull requests on the connected repository. Its own switch, off unless asked. */
+  allowRepoWrites?: boolean | undefined
 }
 
-/** The two values the server needs, and a third only when writes were asked for. */
+/**
+ * The two values the server needs, and the permission that was asked for, if any.
+ *
+ * Both permissions together are written as the one older switch, `SEO_MCP_ALLOW_WRITES`, which
+ * means the same thing and is understood by every version of the server ever published. One
+ * permission alone needs its own switch, which the server has had since 0.3.0.
+ */
 function environment(input: EditorConfigInput): Record<string, string> {
+  const account = input.allowAccountWrites === true
+  const repository = input.allowRepoWrites === true
   return {
     SEO_API_URL: input.apiUrl,
     SEO_API_TOKEN: input.token,
-    ...(input.allowWrites ? { SEO_MCP_ALLOW_WRITES: '1' } : {}),
+    ...(account && repository
+      ? { SEO_MCP_ALLOW_WRITES: '1' }
+      : account
+        ? { SEO_MCP_ALLOW_ACCOUNT_WRITES: '1' }
+        : repository
+          ? { SEO_MCP_ALLOW_REPO_WRITES: '1' }
+          : {}),
   }
 }
 

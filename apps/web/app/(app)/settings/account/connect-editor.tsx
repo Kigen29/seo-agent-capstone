@@ -43,7 +43,8 @@ export function ConnectEditor({
   const [name, setName] = useState('My editor')
   const [days, setDays] = useState(90)
   const [made, setMade] = useState<CreatedToken | null>(null)
-  const [allowWrites, setAllowWrites] = useState(false)
+  const [allowAccountWrites, setAllowAccountWrites] = useState(false)
+  const [allowRepoWrites, setAllowRepoWrites] = useState(false)
   const [error, setError] = useState<UserError | null>(null)
   const [pending, start] = useTransition()
 
@@ -71,7 +72,13 @@ export function ConnectEditor({
     })
   }
 
-  const config = { apiUrl, token: made?.token ?? TOKEN_PLACEHOLDER, packageName, allowWrites }
+  const config = {
+    apiUrl,
+    token: made?.token ?? TOKEN_PLACEHOLDER,
+    packageName,
+    allowAccountWrites,
+    allowRepoWrites,
+  }
 
   return (
     <section aria-labelledby="connect-heading" className="mb-10">
@@ -152,32 +159,55 @@ export function ConnectEditor({
           </div>
         )}
         {/*
-          A switch, and not a sentence telling somebody to add a value "beside the other two".
+          Switches, and not a sentence telling somebody to add a value "beside the other two".
           That sentence was here first, and the first person to read it had to ask where beside
-          was. Ticking this rewrites both configs below, so what is copied is what was chosen.
+          was. Ticking one rewrites both configs below, so what is copied is what was chosen.
 
-          Off to begin with: opening pull requests is a second decision, made on purpose.
+          Two, because they are two different things to agree to (ADR-0050): changing settings
+          in this account, and opening pull requests on somebody's code. Both off to begin with.
         */}
-        <div className="card mb-4" style={{ padding: 'var(--space-4)', gap: 'var(--space-2)' }}>
+        <fieldset
+          className="card m-0 mb-4"
+          style={{ padding: 'var(--space-4)', gap: 'var(--space-3)' }}
+        >
+          <legend className="card-kicker px-1">What it may change</legend>
+          <div className="text-muted max-w-[64ch] text-[13px]">
+            With neither ticked it can read your findings, audits, outcomes and schedule, and change
+            nothing.
+          </div>
           <label className="flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"
               className="mt-1"
-              checked={allowWrites}
-              onChange={(event) => setAllowWrites(event.target.checked)}
+              checked={allowAccountWrites}
+              onChange={(event) => setAllowAccountWrites(event.target.checked)}
             />
             <span className="min-w-0">
-              <span className="font-semibold">Let it start audits and open pull requests</span>
+              <span className="font-semibold">Let it change settings in this account</span>
               <span className="text-muted block max-w-[64ch] text-[13px]">
-                {allowWrites
-                  ? 'On. The config below now lets your editor start an audit, open a fix as a pull request, verify a Search Console property and set how often a site is audited.'
-                  : 'Off. Your editor can read your findings, audits, outcomes and schedule, and change nothing.'}{' '}
-                Either way, a change is always a pull request on its own branch that you merge
-                yourself, never a push to your default branch, and one session opens three at most.
+                Start an audit, set how often a site is audited, add tracked questions, add or
+                remove competitors, update a site&rsquo;s details, and dismiss or reopen a finding.
+                All of it can be changed back here, and none of it touches your code.
               </span>
             </span>
           </label>
-        </div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={allowRepoWrites}
+              onChange={(event) => setAllowRepoWrites(event.target.checked)}
+            />
+            <span className="min-w-0">
+              <span className="font-semibold">Let it open pull requests on your repository</span>
+              <span className="text-muted block max-w-[64ch] text-[13px]">
+                Open a fix for a finding, and verify a Search Console property, each as a pull
+                request on its own branch. Never a push to your default branch, you merge each one
+                yourself, and one session opens three at most.
+              </span>
+            </span>
+          </label>
+        </fieldset>
 
         <Tabs defaultValue="claude">
           <TabsList aria-label="Which editor">

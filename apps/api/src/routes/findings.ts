@@ -6,7 +6,7 @@ import {
   listFixAttempts,
 } from '@seo/audit'
 import { axisSchema, findingStatusSchema, severitySchema } from '@seo/core'
-import { withTenant, sites } from '@seo/db'
+import { findings, withTenant, sites } from '@seo/db'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
@@ -125,6 +125,56 @@ export function findingRoutes(app: FastifyInstance, deps: RouteDeps): void {
         message: result.message,
       })
     })
+
+  /**
+   * Dismiss a finding as "won't fix", or reopen one (ADR-0050).
+   *
+   * The status has existed since the first schema, and an audit has always carried a dismissal
+   * forward to the same finding on the next one. Nothing could set it. A person looking at a
+   * finding they had decided to live with had no way to say so, and it came back in every
+   * count and every list.
+   *
+   * Only between `open` and `wontfix`. A finding with a pull request open, merged or checked
+   * is in the middle of something, and dismissing it would orphan that work, so those are
+   * refused with the reason. Nothing is deleted: the finding and its evidence stay.
+   */
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .put(
+      '/findings/:id/status',
+      { schema: { params: uuidParam, body: z.object({ status: z.enum(['open', 'wontfix']) }) } },
+      async (request, reply) => {
+        const result = await withTenant(db, request.tenantId, async (tx) => {
+          const [row] = await tx
+            .select({ status: findings.status })
+            .from(findings)
+            .where(eq(findings.id, request.params.id))
+            .for('update')
+          if (!row) return 'missing' as const
+          if (row.status !== 'open' && row.status !== 'wontfix') return row.status
+          await tx
+            .update(findings)
+            .set({ status: request.body.status })
+            .where(eq(findings.id, request.params.id))
+          return 'saved' as const
+        })
+
+        if (result === 'missing') return notFound(reply)
+        if (result !== 'saved') {
+          const why: Record<string, string> = {
+            pr_open: 'A pull request for this finding is open. Close or merge it first.',
+            merged: 'A fix for this finding has been merged and is being checked.',
+            verified:
+              'This finding was fixed and the fix was confirmed, so there is nothing to dismiss.',
+            rejected: 'A fix for this finding was merged and did not work. It stays on the record.',
+          }
+          return reply
+            .status(409)
+            .send({ error: 'Conflict', message: why[result] ?? 'This finding cannot be changed.' })
+        }
+        return { status: request.body.status }
+      },
+    )
 
   /**
    * Ask for a pull request for several findings of one site in one request.
