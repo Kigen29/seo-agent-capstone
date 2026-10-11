@@ -69,6 +69,28 @@ export class CanonicalRedirectFixer implements Fixer {
       }
     }
 
+    /**
+     * Still nothing, so look in the page's own source file.
+     *
+     * Found on the same site, after the component above had been fixed: one page wrote its own
+     * `<link rel="canonical">` with the whole address as a literal, overriding the component. The
+     * shared code was already right, so both earlier steps found nothing to change.
+     *
+     * Narrower than the steps above, because a page file is full of links that are not about the
+     * canonical. Only files named after the page's last path segment are opened, a file is changed
+     * only if it contains the exact declared address and the word "canonical", and only that
+     * address is rewritten. Any other link in the file on the old origin is left as it was.
+     */
+    if (files.length === 0 && ctx.tree) {
+      for (const path of pageSources(ctx.tree, plan.declared)) {
+        const content = await ctx.read(path)
+        if (content === null || !/canonical/i.test(content)) continue
+
+        const next = rewriteAddress(content, plan.declared, fromOrigin, toOrigin)
+        if (next !== content) files.push({ path, content: next })
+      }
+    }
+
     if (files.length === 0) return null
 
     return {
@@ -134,7 +156,48 @@ export function headComponents(tree: readonly string[]): string[] {
     .slice(0, MAX_HEAD_COMPONENTS)
 }
 
+/** How many page files are opened. A slug rarely names more than one or two. */
+const MAX_PAGE_SOURCES = 6
+
+/** Letters and digits only, so `bird-watching`, `BirdWatching` and `bird_watching` are one name. */
+const plainName = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** File names a framework gives the page of a directory, where the directory carries the name. */
+const DIRECTORY_PAGE = /^(index|page|\+page)$/i
+
+/**
+ * The source files named after a page, from the last segment of its address.
+ *
+ * `/bird-watching` offers `src/pages/BirdWatching.tsx` and `app/bird-watching/page.tsx`. The home
+ * page has no segment and offers nothing: its canonical is in the root document or the shared
+ * component, which the earlier steps read. A segment under three characters is too short to
+ * name one file.
+ */
+export function pageSources(tree: readonly string[], pageUrl: string): string[] {
+  let segment: string | undefined
+  try {
+    segment = new URL(pageUrl).pathname.split('/').filter(Boolean).pop()
+  } catch {
+    return []
+  }
+  const name = plainName(decodeURIComponent(segment ?? ''))
+  if (name.length < 3) return []
+
+  return tree
+    .filter((path) => {
+      if (!SOURCE_FILE.test(path) || NOT_SOURCE.test(path)) return false
+      const parts = path.split('/')
+      const base = (parts.pop() as string).replace(/\.[^.]+$/, '')
+      if (plainName(base) === name) return true
+      return DIRECTORY_PAGE.test(base) && plainName(parts.pop() ?? '') === name
+    })
+    .sort()
+    .slice(0, MAX_PAGE_SOURCES)
+}
+
 interface OriginPlan {
+  /** The canonical address as the page declares it, which redirects. */
+  declared: string
   /** The origin the canonical is declared on, which redirects. */
   fromOrigin: string
   /** The origin that actually serves the page with a 200. */
@@ -172,7 +235,28 @@ function planFor(finding: Finding): OriginPlan | null {
   // would not address it. Leave that for a fixer that understands the path mapping.
   if (fromOrigin === toOrigin) return null
 
-  return { fromOrigin, toOrigin }
+  return { declared, fromOrigin, toOrigin }
+}
+
+/**
+ * Move one whole address to another origin, and nothing else in the file.
+ *
+ * The address must end where it is written: a character that continues the path, or a further
+ * segment, means it is a longer and different address, which is left alone. A single trailing
+ * slash is the same page and is kept as written.
+ */
+function rewriteAddress(
+  content: string,
+  declared: string,
+  fromOrigin: string,
+  toOrigin: string,
+): string {
+  const address = declared.replace(/\/$/, '')
+  if (!address.startsWith(fromOrigin) || address === fromOrigin) return content
+
+  const escaped = address.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const whole = new RegExp(`${escaped}(?![A-Za-z0-9._~%-])(?!/[A-Za-z0-9._~%-])`, 'g')
+  return content.replace(whole, toOrigin + address.slice(fromOrigin.length))
 }
 
 /**
