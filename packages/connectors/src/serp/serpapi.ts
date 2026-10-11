@@ -22,6 +22,14 @@ import {
 const ENDPOINT = 'https://serpapi.com/search.json'
 
 export interface SerpApiOptions {
+  /**
+   * One key, or several separated by commas, tried in the order written.
+   *
+   * A second key is used only when the vendor refuses the one before it: the account has no
+   * searches left, or the key is not valid. It is the same idea as the model chains (ADR-0005),
+   * and for the same reason: an account running out should not take a measured axis dark until
+   * somebody notices and edits three environments.
+   */
   apiKey: string
   /** Injected so the contract test can drive it without a network or a key. */
   fetch?: typeof globalThis.fetch
@@ -102,18 +110,44 @@ function toSources(
  */
 export const DEFAULT_SERP_COST_PER_QUERY_USD = 0.025
 
+/** The keys in a setting, in order, without blanks or repeats. */
+export function serpApiKeys(setting: string): string[] {
+  return [...new Set(setting.split(',').map((key) => key.trim()))].filter(Boolean)
+}
+
+/**
+ * Whether a refusal is about the key and not about the question.
+ *
+ * 401 and 403 are a key the vendor does not accept, and 429 is an account with nothing left this
+ * month or this hour. SerpApi also says the first two in a 200 body. Anything else, a 500 or a
+ * malformed query, would fail the same way on every key, so trying the next would only spend it.
+ */
+function keyRefused(error: SerpRequestError): boolean {
+  if (error.status === 401 || error.status === 403 || error.status === 429) return true
+  return error.status === 200 && /run out of searches|invalid api key/i.test(error.message)
+}
+
 export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
   const doFetch = options.fetch ?? globalThis.fetch
+  const keys = serpApiKeys(options.apiKey)
 
-  async function search(
+  /**
+   * The first key not yet refused. Remembered for the life of this provider, so a spent account
+   * costs one refused request and not one per question. A provider is built per job, so a key
+   * that has been topped up is tried again on the next one.
+   */
+  let current = 0
+
+  async function searchWith(
+    apiKey: string,
     query: string,
-    query_options?: SerpQueryOptions,
-    extra: Record<string, string> = {},
+    query_options: SerpQueryOptions | undefined,
+    extra: Record<string, string>,
   ): Promise<SerpApiResponse> {
     const params = new URLSearchParams({
       engine: 'google',
       q: query,
-      api_key: options.apiKey,
+      api_key: apiKey,
       gl: query_options?.country ?? options.country ?? 'us',
       hl: query_options?.language ?? options.language ?? 'en',
       ...extra,
@@ -137,6 +171,26 @@ export function createSerpApiProvider(options: SerpApiOptions): SerpProvider {
     if (body.error) throw new SerpRequestError(200, `SerpApi: ${body.error}`)
 
     return body
+  }
+
+  async function search(
+    query: string,
+    query_options?: SerpQueryOptions,
+    extra: Record<string, string> = {},
+  ): Promise<SerpApiResponse> {
+    for (;;) {
+      try {
+        return await searchWith(keys[current] ?? '', query, query_options, extra)
+      } catch (error) {
+        const last = current >= keys.length - 1
+        if (last || !(error instanceof SerpRequestError) || !keyRefused(error)) throw error
+        // Which key was refused is said by its place in the list, never by its value.
+        console.warn(
+          `serpapi: key ${current + 1} of ${keys.length} was refused (${error.status}), using the next`,
+        )
+        current += 1
+      }
+    }
   }
 
   return {
