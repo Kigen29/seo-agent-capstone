@@ -62,6 +62,29 @@ export interface Fixer {
  * is exactly the anti-pattern the rule forbids, so the engine warns as it approaches the line
  * and refuses to cross it, whatever the fixer intended.
  */
+/**
+ * A fixer that looked, understood the case, and will not write a change, with the reason.
+ *
+ * Returning null means "not mine, let something else try", and the worker then offers the
+ * finding to the content fixer and to the agent that reads the repository. That is wrong when a
+ * fixer has found out why no change should be made at all: the next in line is a language model,
+ * and it would be asked to write the very change the fixer had just refused on evidence.
+ *
+ * It is also the only way the person learns the reason. A null ends in one sentence shared by
+ * every finding, that no safe fix could be generated. Somebody who pressed the button three
+ * times on a site with no sitemap was told that three times, and never that the site has no
+ * sitemap.
+ *
+ * Thrown, not returned, so it ends the attempt the way any refusal does, and the message is
+ * written for the person who clicked: it is stored on the attempt and shown on the finding.
+ */
+export class FixDeclinedError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'FixDeclinedError'
+  }
+}
+
 export const PAGE_CAP_WARN = 30
 export const PAGE_CAP_STOP = 50
 

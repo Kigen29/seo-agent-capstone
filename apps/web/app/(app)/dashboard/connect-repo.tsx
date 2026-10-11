@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { ErrorNote } from '@/components/ui/error-note'
 import type { RepoAccount } from '@seo/api-client'
-import { repoAccessNotes } from '@/lib/repo-access'
+import { filterRepos, repoAccessNotes, SEARCH_REPOS_FROM } from '@/lib/repo-access'
 import type { UserError } from '@/lib/user-error'
 import { beginConnectRepo, chooseRepo } from './actions'
 
@@ -23,6 +23,10 @@ type Pick = { repos: { fullName: string }[]; manageUrl: string; accounts?: RepoA
  * that the rest of their account existed. Each account now gets a sentence saying whether the
  * list is all of it, and when it is not, a button to the one page on GitHub that changes that.
  * GitHub sends them back here afterwards (the App's "redirect on update" setting).
+ *
+ * Past a handful of repositories the list has a search box, and while something is typed the
+ * matches are shown as an open list and not behind a closed menu. An account granted whole can
+ * hold hundreds, and a closed menu of hundreds is found by scrolling.
  */
 export function ConnectRepo({
   siteId,
@@ -35,6 +39,7 @@ export function ConnectRepo({
   const [pending, start] = useTransition()
   const [pick, setPick] = useState<Pick | null>(null)
   const [selected, setSelected] = useState('')
+  const [query, setQuery] = useState('')
   const [error, setError] = useState<UserError | null>(null)
 
   function begin() {
@@ -62,15 +67,16 @@ export function ConnectRepo({
           ...(result.accounts ? { accounts: result.accounts } : {}),
         })
         setSelected(result.repos[0]!.fullName)
+        setQuery('')
       }
     })
   }
 
-  function connect() {
-    if (!selected) return
+  function connect(repo: string) {
+    if (!repo) return
     setError(null)
     start(async () => {
-      const result = await chooseRepo(siteId, selected)
+      const result = await chooseRepo(siteId, repo)
       if (!result.ok) {
         setError(result.error)
         return
@@ -82,26 +88,63 @@ export function ConnectRepo({
 
   if (pick) {
     const notes = repoAccessNotes(pick.accounts, pick.repos)
+    const searchable = pick.repos.length >= SEARCH_REPOS_FROM
+    const shown = filterRepos(pick.repos, query)
+    const searching = query.trim() !== ''
+    // What Connect will use: the choice if it is still on show, or the first match.
+    const chosen = shown.some((repo) => repo.fullName === selected)
+      ? selected
+      : (shown[0]?.fullName ?? '')
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}
         >
-          <select
-            className="input"
-            value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-            style={{ minWidth: 220 }}
-            aria-label="Repository to connect"
+          {searchable && (
+            <input
+              type="search"
+              className="input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter connects the first match, so a search can be finished from the keyboard.
+                if (event.key === 'Enter' && chosen && !pending) connect(chosen)
+              }}
+              placeholder={`Search ${pick.repos.length} repositories`}
+              aria-label="Search repositories"
+              autoComplete="off"
+              spellCheck={false}
+              style={{ minWidth: 220, flex: '1 1 100%' }}
+            />
+          )}
+          {shown.length > 0 ? (
+            <select
+              className="input"
+              value={chosen}
+              onChange={(event) => setSelected(event.target.value)}
+              // An open list while searching, so the matches are read and not hunted for.
+              size={searching ? Math.min(8, Math.max(2, shown.length)) : undefined}
+              style={{ minWidth: 220, ...(searching ? { height: 'auto', flex: '1 1 100%' } : {}) }}
+              aria-label="Repository to connect"
+            >
+              {shown.map((repo) => (
+                <option key={repo.fullName} value={repo.fullName}>
+                  {repo.fullName}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p role="status" style={{ flex: '1 1 100%', fontSize: 14 }}>
+              No repository matches &ldquo;{query.trim()}&rdquo;.
+            </p>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => connect(chosen)}
+            disabled={pending || !chosen}
           >
-            {pick.repos.map((repo) => (
-              <option key={repo.fullName} value={repo.fullName}>
-                {repo.fullName}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn btn-primary" onClick={connect} disabled={pending}>
             {pending ? 'Connecting...' : 'Connect'}
           </button>
           <button

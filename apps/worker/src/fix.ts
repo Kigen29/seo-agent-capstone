@@ -1,7 +1,12 @@
 import { generateContentFix, generateRepoFix, type RepoFixLlm } from '@seo/agent'
 import { baselineFor, getFinding } from '@seo/audit'
 import { findings, fixAttempts, sites, withTenant, type Database } from '@seo/db'
-import { createFixerRegistry, detectFramework, type ReadRepoFile } from '@seo/fixers'
+import {
+  FixDeclinedError,
+  createFixerRegistry,
+  detectFramework,
+  type ReadRepoFile,
+} from '@seo/fixers'
 import type { FixJob } from '@seo/queue'
 import {
   createGitHubApp,
@@ -91,6 +96,17 @@ export async function runFix(db: Database, job: FixJob, deps: FixDeps = {}): Pro
     await recordFixFailure(db, job, error, attemptId).catch((writeError: unknown) => {
       console.error('fix: could not record why the fix failed:', writeError)
     })
+    /**
+     * A fixer that declined has answered, and the answer will not change on a second asking.
+     *
+     * Rethrowing made the queue try twice more, so one press of the button left three failed
+     * attempts on the finding, minutes apart, each with the same words. The reason is on the
+     * finding and in the history already; the job is finished.
+     */
+    if (error instanceof FixDeclinedError) {
+      console.log(`fix: declined for finding ${job.findingRowId}: ${error.message}`)
+      return
+    }
     throw error
   }
 }

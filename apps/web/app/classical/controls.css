@@ -130,6 +130,28 @@
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+/*
+  A select given a size is an open list, not a menu. It has nothing to open, so it carries no
+  arrow, and the chosen row is marked in the accent, since the browser's own mark went with the
+  native appearance. The gradient is how a background is set on a chosen option at all: a plain
+  colour is overridden by the browser's highlight.
+*/
+.classical select.input[size] {
+  height: auto;
+  padding: 4px;
+  background-image: none;
+}
+.classical select.input[size] option {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+.classical select.input[size] option:checked {
+  color: var(--color-text);
+  background: linear-gradient(
+    color-mix(in srgb, var(--color-accent) 24%, var(--color-bg)),
+    color-mix(in srgb, var(--color-accent) 24%, var(--color-bg))
+  );
+}
 @media (hover: hover) and (pointer: fine) {
   .classical .input:hover {
     border-color: var(--color-text-subtle);

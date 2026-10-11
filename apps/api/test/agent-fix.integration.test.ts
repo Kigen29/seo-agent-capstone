@@ -157,6 +157,93 @@ afterAll(async () => {
   await pool.end()
 })
 
+describe('a fixer that knows why no change should be made', () => {
+  it('says the reason once, does not ask the model, and is not tried again', async () => {
+    // A robots.txt with no Sitemap line, in a repository with no sitemap to name.
+    REPO['public/robots.txt'] = 'User-agent: *\nAllow: /\n'
+    const declarationId = await withTenant(db, tenantId, async (tx) => {
+      const [audit] = await tx
+        .select({ id: audits.id })
+        .from(audits)
+        .where(eq(audits.siteId, siteId))
+      const [finding] = await tx
+        .insert(findings)
+        .values({
+          tenantId,
+          siteId,
+          auditId: audit!.id,
+          ruleId: 'TECH-003',
+          key: 'TECH-003#0',
+          axis: 'crawl_health',
+          severity: 'medium',
+          confidence: 1,
+          title: 'No sitemap is declared in robots.txt',
+          evidence: {
+            kind: 'markup',
+            url: `${SITE}/robots.txt`,
+            locator: '/robots.txt',
+            snippet: 'robots.txt exists but contains no Sitemap: directive.',
+            observedAt: '2026-10-11T00:00:00.000Z',
+            source: 'crawler',
+          },
+          affectedUrls: [`${SITE}/`],
+          estimatedEffort: 'small',
+          estimatedImpact: 35,
+          falsification: 'Fetch /robots.txt and look for a Sitemap: line.',
+          fixable: true,
+          status: 'open',
+        })
+        .returning()
+      return finding!.id
+    })
+
+    try {
+      // A model that would happily write the line, to show it is never asked.
+      const eager = answering(
+        proposal({
+          edits: [
+            {
+              path: 'public/robots.txt',
+              find: 'Allow: /\n',
+              replace: `Allow: /\nSitemap: ${SITE}/sitemap.xml\n`,
+            },
+          ],
+        }),
+      )
+
+      // Resolves: a job that throws is retried, and this answer would be the same each time.
+      await expect(
+        runFix(
+          db,
+          { tenantId, siteId, findingRowId: declarationId, requestId: 'no-sitemap' },
+          { provider, llm: eager },
+        ),
+      ).resolves.toBeUndefined()
+
+      expect(prompts).toHaveLength(0)
+      expect(opened).toBeNull()
+
+      const [after] = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(findings).where(eq(findings.id, declarationId)),
+      )
+      expect(after!.status).toBe('open')
+      expect(after!.fixError).toContain('This site has no sitemap for robots.txt to point at')
+      expect(after!.fixError).toContain('Add a sitemap to the site first')
+
+      const attempts = await withTenant(db, tenantId, (tx) =>
+        tx.select().from(fixAttempts).where(eq(fixAttempts.findingId, declarationId)),
+      )
+      expect(attempts).toHaveLength(1)
+      expect(attempts[0]).toMatchObject({ outcome: 'failed' })
+    } finally {
+      delete REPO['public/robots.txt']
+      await withTenant(db, tenantId, (tx) =>
+        tx.delete(findings).where(eq(findings.id, declarationId)),
+      )
+    }
+  })
+})
+
 describe('the agent fixing a finding that has no hand-written fixer', () => {
   it('reads the repository, and opens a pull request with exactly the edited file', async () => {
     const llm = answering(

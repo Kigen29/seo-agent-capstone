@@ -1,5 +1,5 @@
 import type { Finding } from '@seo/core'
-import type { FixContext, Fixer, FixResult } from '../engine.js'
+import { FixDeclinedError, type FixContext, type Fixer, type FixResult } from '../engine.js'
 import type { ReadRepoFile } from '../framework/detect.js'
 import { GENERATED_SITEMAP_FILES, ROBOTS_FILES, SITEMAP_FILES } from '../root-files.js'
 
@@ -34,8 +34,21 @@ export class SitemapDeclarationFixer implements Fixer {
     const origin = originOf(ctx.finding)
     if (origin === null) return null
 
-    // Only claim a sitemap we can see. This is the check that stops the fixer inventing one.
-    if (!(await sitemapExists(ctx.read))) return null
+    /**
+     * Only claim a sitemap we can see. This is the check that stops the fixer inventing one.
+     *
+     * Said, and not passed on. Returning null here handed the finding to the agent that reads
+     * the repository, which would be asked to add the line this check had just refused, and
+     * left the person with a sentence that named no cause.
+     */
+    if (!(await sitemapExists(ctx.read))) {
+      throw new FixDeclinedError(
+        'This site has no sitemap for robots.txt to point at. Neither a sitemap file nor code ' +
+          'that generates one was found in the repository, and declaring one that does not ' +
+          'exist would send crawlers to a missing page. Add a sitemap to the site first, then ' +
+          'ask for this fix again.',
+      )
+    }
 
     const found = await findRobots(ctx.read)
     if (!found) return null
