@@ -43,6 +43,7 @@ export function ConnectEditor({
   const [name, setName] = useState('My editor')
   const [days, setDays] = useState(90)
   const [made, setMade] = useState<CreatedToken | null>(null)
+  const [allowWrites, setAllowWrites] = useState(false)
   const [error, setError] = useState<UserError | null>(null)
   const [pending, start] = useTransition()
 
@@ -70,7 +71,7 @@ export function ConnectEditor({
     })
   }
 
-  const config = { apiUrl, token: made?.token ?? TOKEN_PLACEHOLDER, packageName }
+  const config = { apiUrl, token: made?.token ?? TOKEN_PLACEHOLDER, packageName, allowWrites }
 
   return (
     <section aria-labelledby="connect-heading" className="mb-10">
@@ -150,6 +151,34 @@ export function ConnectEditor({
             <CopyBlock label="Get the server" text={CLONE_STEPS} what="the commands" />
           </div>
         )}
+        {/*
+          A switch, and not a sentence telling somebody to add a value "beside the other two".
+          That sentence was here first, and the first person to read it had to ask where beside
+          was. Ticking this rewrites both configs below, so what is copied is what was chosen.
+
+          Off to begin with: opening pull requests is a second decision, made on purpose.
+        */}
+        <div className="card mb-4" style={{ padding: 'var(--space-4)', gap: 'var(--space-2)' }}>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={allowWrites}
+              onChange={(event) => setAllowWrites(event.target.checked)}
+            />
+            <span className="min-w-0">
+              <span className="font-semibold">Let it start audits and open pull requests</span>
+              <span className="text-muted block max-w-[64ch] text-[13px]">
+                {allowWrites
+                  ? 'On. The config below now lets your editor start an audit, open a fix as a pull request, verify a Search Console property and set how often a site is audited.'
+                  : 'Off. Your editor can read your findings, audits, outcomes and schedule, and change nothing.'}{' '}
+                Either way, a change is always a pull request on its own branch that you merge
+                yourself, never a push to your default branch, and one session opens three at most.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <Tabs defaultValue="claude">
           <TabsList aria-label="Which editor">
             <TabsTrigger value="claude">Claude Code</TabsTrigger>
@@ -176,9 +205,9 @@ export function ConnectEditor({
           </TabsContent>
         </Tabs>
         <div className="text-muted mt-3 max-w-[68ch] text-[13px]">
-          It can only read until you add <code>SEO_MCP_ALLOW_WRITES=1</code> beside the other two
-          values. With that, it can start an audit and open pull requests, at most three in one
-          session, and never to your default branch.
+          Restart your editor after adding it. To change your mind later, remove it with{' '}
+          <code>claude mcp remove rankwright --scope user</code>, or delete the entry from the
+          config file, and add it again.
         </div>
       </div>
     </section>

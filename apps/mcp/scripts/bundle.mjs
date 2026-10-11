@@ -92,8 +92,11 @@ It runs on your machine and talks to the RankWright API with a token from your o
 Claude Code:
 
 \`\`\`bash
-claude mcp add rankwright --env SEO_API_URL=https://seo-agent-capstone.onrender.com --env SEO_API_TOKEN=seo_your_token -- npx -y ${name}
+claude mcp add --env SEO_API_URL=https://seo-agent-capstone.onrender.com --env SEO_API_TOKEN=seo_your_token --env npm_config_yes=true --scope user rankwright npx ${name}
 \`\`\`
+
+It is one line with no \`--\` on purpose, so it can be pasted into PowerShell, the Windows
+command prompt or a Unix shell.
 
 Cursor (\`.cursor/mcp.json\`) and most other editors:
 
@@ -123,8 +126,9 @@ Cursor (\`.cursor/mcp.json\`) and most other editors:
 
 ## Writes are off until you turn them on
 
-Without anything else set, the server can only read. Add \`SEO_MCP_ALLOW_WRITES=1\` beside the
-other two values and it can start an audit and open pull requests. A pull request never goes to
+Without anything else set, the server can only read. Add \`--env SEO_MCP_ALLOW_WRITES=1\` to the
+command, or \`"SEO_MCP_ALLOW_WRITES": "1"\` to the \`env\` block, and it can start an audit and
+open pull requests. The dashboard has a switch that writes either for you. A pull request never goes to
 your default branch, a person still merges it, and one session opens at most three
 (\`SEO_MCP_MAX_PRS\` changes that).
 
