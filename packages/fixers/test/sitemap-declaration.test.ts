@@ -1,6 +1,7 @@
 import type { Finding } from '@seo/core'
 import { describe, expect, it } from 'vitest'
 import type { ReadRepoFile } from '../src/framework/detect.js'
+import { FixDeclinedError } from '../src/engine.js'
 import { SitemapDeclarationFixer } from '../src/fixers/sitemap-declaration.js'
 import { makeFinding } from './fixtures.js'
 
@@ -62,9 +63,12 @@ describe('SitemapDeclarationFixer', () => {
     // The rule fires on a missing *declaration*, which says nothing about whether a sitemap
     // exists. The crawler cannot help: it only expands sitemaps robots.txt already declared, so
     // it has never looked. Guessing would turn a missing declaration into a broken one.
-    const result = await generate({ 'public/robots.txt': 'User-agent: *\nAllow: /\n' })
+    const attempt = generate({ 'public/robots.txt': 'User-agent: *\nAllow: /\n' })
 
-    expect(result).toBeNull()
+    // Declined with the reason, not passed on: a null would hand the finding to the model.
+    await expect(attempt).rejects.toBeInstanceOf(FixDeclinedError)
+    await expect(attempt).rejects.toThrow(/has no sitemap for robots\.txt to point at/)
+    await expect(attempt).rejects.toThrow(/Add a sitemap to the site first/)
   })
 
   it('accepts a framework-generated sitemap with nothing committed', async () => {

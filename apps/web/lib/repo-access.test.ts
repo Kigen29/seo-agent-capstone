@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { repoAccessNotes } from './repo-access'
+import { filterRepos, repoAccessNotes } from './repo-access'
 
 const MANAGE = 'https://github.com/settings/installations/7'
 const repos = [
@@ -63,5 +63,34 @@ describe('repoAccessNotes', () => {
   it('says nothing when the API did not describe the accounts', () => {
     expect(repoAccessNotes(undefined, repos)).toEqual([])
     expect(repoAccessNotes([], repos)).toEqual([])
+  })
+})
+
+describe('filterRepos', () => {
+  const list = [
+    { fullName: 'Kigen29/kenya-safari-architect' },
+    { fullName: 'Kigen29/code-5-website' },
+    { fullName: 'acme/Safari-Blog' },
+  ]
+  const names = (query: string) => filterRepos(list, query).map((repo) => repo.fullName)
+
+  it('returns everything, in order, for an empty or blank search', () => {
+    expect(names('')).toEqual(list.map((repo) => repo.fullName))
+    expect(names('   ')).toEqual(list.map((repo) => repo.fullName))
+  })
+
+  it('matches any part of the name, whatever the case', () => {
+    expect(names('SAFARI')).toEqual(['Kigen29/kenya-safari-architect', 'acme/Safari-Blog'])
+    expect(names('code-5')).toEqual(['Kigen29/code-5-website'])
+  })
+
+  it('needs every word, in any order', () => {
+    expect(names('architect safari')).toEqual(['Kigen29/kenya-safari-architect'])
+    expect(names('safari website')).toEqual([])
+  })
+
+  it('searches the owner as well as the repository', () => {
+    expect(names('acme')).toEqual(['acme/Safari-Blog'])
+    expect(names('kigen29 safari')).toEqual(['Kigen29/kenya-safari-architect'])
   })
 })

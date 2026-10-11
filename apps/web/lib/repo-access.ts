@@ -53,3 +53,26 @@ export function repoAccessNotes(
     }
   })
 }
+
+/** Above this many repositories the picker offers a search box. Below it, the eye is faster. */
+export const SEARCH_REPOS_FROM = 6
+
+/**
+ * The repositories whose name contains every word typed, in any order and any case.
+ *
+ * Words, not one phrase, because a repository is remembered in pieces: "safari architect" should
+ * find `kenya-safari-architect`. The owner is searched too, since two accounts can each hold a
+ * repository of the same name. The order of the list is kept.
+ */
+export function filterRepos<T extends { fullName: string }>(
+  repos: readonly T[],
+  query: string,
+): T[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return [...repos]
+
+  return repos.filter((repo) => {
+    const name = repo.fullName.toLowerCase()
+    return words.every((word) => name.includes(word))
+  })
+}
