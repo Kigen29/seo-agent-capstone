@@ -1,7 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { ErrorNote } from '@/components/ui/error-note'
 import type { UserError } from '@/lib/user-error'
 import { setFindingStatus } from './actions'
@@ -16,23 +15,29 @@ import { setFindingStatus } from './actions'
  * Quiet on purpose. It is the least important thing a person can do with a finding, so it is a
  * ghost button under the real action, and a dismissed finding says so plainly with one way back.
  * Nothing is deleted: the finding and its evidence stay, and so does the decision.
+ *
+ * The page is loaded again afterwards, and not refreshed in place. It was a `router.refresh()`
+ * inside a transition, on the belief that this route has no loading file. It has one: the
+ * `loading.tsx` beside the findings list covers this page as well. After a server action the
+ * router does not reliably apply a page that arrives in two parts, and here that left the
+ * button on "Dismissing..." for good about one press in four, with the change already stored.
+ * The browser test found it on its fourth run. `authority/not-us.tsx` has the measurements.
  */
 export function DismissFinding({ id, dismissed }: { id: string; dismissed: boolean }) {
-  const router = useRouter()
   const [error, setError] = useState<UserError | null>(null)
-  const [pending, start] = useTransition()
+  const [pending, setPending] = useState(false)
 
-  function set(status: 'open' | 'wontfix') {
+  async function set(status: 'open' | 'wontfix') {
     setError(null)
-    start(async () => {
-      const result = await setFindingStatus(id, status)
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      // No loading file on this route, so a refresh redraws the page in place.
-      router.refresh()
-    })
+    setPending(true)
+    const result = await setFindingStatus(id, status)
+    if (!result.ok) {
+      setError(result.error)
+      setPending(false)
+      return
+    }
+    // Left pending: the page is about to be replaced, and a second press must not get in first.
+    window.location.reload()
   }
 
   return (
