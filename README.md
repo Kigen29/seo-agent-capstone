@@ -143,11 +143,9 @@ It calls every tool that is free and changes nothing, and exits non-zero if any 
 `-- --write` with `SEO_MCP_ALLOW_WRITES=1` to also change one site's audit schedule and change it
 straight back.
 
-The repo ships a `.mcp.json`, so Claude Code picks the server up inside this project. It runs
-the published `rankwright-mcp` package, the same one a customer installs, and not the local
-build; to try a change to the server before publishing it, point `SEO_MCP_SERVER` at
-`apps/mcp/dist/server.js` and run the smoke command above. Writes
-stay off unless `SEO_MCP_ALLOW_WRITES=1`, and a single server process will open at most
+The repo ships no MCP config of its own. Working here, you connect the way a customer does, with
+the command the dashboard gives you, so the server you use is the published one. Writes stay off
+unless a permission is switched on, and a single server process will open at most
 `SEO_MCP_MAX_PRS` pull requests (default 3) before it refuses: nothing here can reach your
 default branch, but a model in a loop can still flood a reviewer. See
 [ADR-0020](docs/adr/0020-mcp-server-as-a-second-door.md).
