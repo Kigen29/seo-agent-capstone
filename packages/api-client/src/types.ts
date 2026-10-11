@@ -253,9 +253,19 @@ export interface PickableRepo {
   installationId: number
 }
 
+/** A GitHub account the App is installed on, and how much of it the App may see. */
+export interface RepoAccount {
+  login: string
+  /** True when the App was granted every repository, so the list is the whole account. */
+  allRepositories: boolean
+  /** Where on GitHub that grant is changed. */
+  manageUrl: string
+}
+
 /** The two ways connecting a repo can begin: a fresh install, or a pick from an existing one. */
 export type ConnectRepoResult =
-  { mode: 'install'; url: string } | { mode: 'pick'; repos: PickableRepo[]; manageUrl: string }
+  | { mode: 'install'; url: string }
+  | { mode: 'pick'; repos: PickableRepo[]; manageUrl: string; accounts?: RepoAccount[] }
 
 /**
  * What a site's AI-visibility axis is configured to measure: the customer questions we poll the

@@ -39,6 +39,12 @@ import { signInstallState, verifyInstallState } from '../src/github-state.js'
  * known secret, so the connect, callback, and webhook routes can be exercised without GitHub. */
 const WEBHOOK_SECRET = 'test-webhook-secret'
 const INSTALLATION_ID = 4242
+/** What the fake says about the installation. Set to an Error to make the lookup fail. */
+let installationAccount: { login: string; allRepositories: boolean } | Error = {
+  login: 'octo',
+  allRepositories: false,
+}
+
 const installationRepos: InstalledRepo[] = [
   { owner: 'octo', name: 'owned', fullName: 'octo/owned', defaultBranch: 'main' },
 ]
@@ -156,6 +162,13 @@ describe.skipIf(!shouldRun)('the API', () => {
             throw new Error('apiFor is not used in these tests')
           }) as never,
           listInstallationRepositories: async () => installationRepos,
+          describeInstallation: async (id: number) => {
+            if (installationAccount instanceof Error) throw installationAccount
+            return {
+              ...installationAccount,
+              manageUrl: `https://github.com/settings/installations/${id}`,
+            }
+          },
         },
         slug: 'rankwright-seo-agent',
         webhookSecret: WEBHOOK_SECRET,
@@ -840,6 +853,86 @@ describe.skipIf(!shouldRun)('the API', () => {
         return row
       })
       expect(site?.repoFullName).toBeNull()
+    })
+
+    it('says whose repositories the picker shows, and that they are not all of them', async () => {
+      const res = await postJson('/connections/github', { siteId }, token)
+
+      // The person granted a few repositories. The list is those, and this is what lets the
+      // page say so and point at the installation's own settings, not the general page.
+      expect(res.json().accounts).toEqual([
+        {
+          login: 'octo',
+          allRepositories: false,
+          manageUrl: `https://github.com/settings/installations/${INSTALLATION_ID}`,
+        },
+      ])
+    })
+
+    it('says so when the app was granted every repository', async () => {
+      installationAccount = { login: 'octo', allRepositories: true }
+      try {
+        const res = await postJson('/connections/github', { siteId }, token)
+        expect(res.json().accounts[0].allRepositories).toBe(true)
+      } finally {
+        installationAccount = { login: 'octo', allRepositories: false }
+      }
+    })
+
+    it('still offers the repositories when the installation cannot be described', async () => {
+      installationAccount = new Error('GitHub is having a moment')
+      try {
+        const res = await postJson('/connections/github', { siteId }, token)
+        expect(res.statusCode).toBe(200)
+        expect(res.json().accounts).toEqual([])
+        expect(res.json().repos).toContainEqual({
+          fullName: 'octo/owned',
+          installationId: INSTALLATION_ID,
+        })
+      } finally {
+        installationAccount = { login: 'octo', allRepositories: false }
+      }
+    })
+
+    it('sends somebody who changed the grant on GitHub back to choose, not to an error', async () => {
+      // GitHub carries no state through its settings page. This used to read as a cancelled
+      // install, to a person who had just allowed the repository they were asked to allow.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/connections/github/callback?installation_id=${INSTALLATION_ID}&setup_action=update`,
+      })
+
+      expect(res.statusCode).toBe(302)
+      expect(String(res.headers.location).endsWith('/site?github=updated')).toBe(true)
+    })
+
+    it('binds nothing on that return, because nothing signed says which site it is for', async () => {
+      const unbound = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({ tenantId, url: 'https://unbound.example.com' })
+          .returning()
+        return row!.id
+      })
+      await app.inject({
+        method: 'GET',
+        url: `/connections/github/callback?installation_id=${INSTALLATION_ID}&setup_action=update`,
+      })
+
+      const site = await withTenant(db, tenantId, async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, unbound)).limit(1)
+        return row
+      })
+      expect(site?.repoFullName).toBeNull()
+      expect(site?.githubInstallationId).toBeNull()
+    })
+
+    it('still reads a return with no state and no update as a cancelled install', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/connections/github/callback?installation_id=${INSTALLATION_ID}&setup_action=install`,
+      })
+      expect(res.headers.location).toContain('github=declined')
     })
 
     it('binds a repo the user picked via POST /sites/:id/repo', async () => {
@@ -2370,8 +2463,10 @@ describe.skipIf(!shouldRun)('the API', () => {
             payload,
           })
 
+        // Each makes a token and leaves it, so each has an account of its own per run. On one
+        // shared account the tenth run met the cap of ten and failed, on a database that is kept.
         it('gives a session a token once, that works, expires, and is stored only as a hash', async () => {
-          const session = await sessionFor('acct-create-token')
+          const session = await sessionFor('acct-create-token-' + Date.now())
           const res = await create(session, { name: '  My laptop  ', expiresInDays: 90 })
           expect(res.statusCode).toBe(201)
           const made = res.json() as { id: string; name: string; token: string; expiresAt: string }
@@ -2397,7 +2492,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         })
 
         it('does not let a token create another token', async () => {
-          const session = await sessionFor('acct-token-makes-token')
+          const session = await sessionFor('acct-token-makes-token-' + Date.now())
           const { token } = (await create(session, { name: 'first', expiresInDays: 30 })).json()
           const res = await create(token, { name: 'second', expiresInDays: 30 })
           expect(res.statusCode).toBe(403)
@@ -2405,7 +2500,7 @@ describe.skipIf(!shouldRun)('the API', () => {
         })
 
         it('stops working the moment it is revoked', async () => {
-          const session = await sessionFor('acct-revoke-made-token')
+          const session = await sessionFor('acct-revoke-made-token-' + Date.now())
           const made = (await create(session, { name: 'short-lived', expiresInDays: 30 })).json()
           expect((await call('GET', '/sites', made.token)).statusCode).toBe(200)
           expect((await call('DELETE', `/auth/tokens/${made.id}`, session)).statusCode).toBe(204)

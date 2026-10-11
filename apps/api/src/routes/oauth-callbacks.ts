@@ -129,6 +129,18 @@ export function oauthCallbackRoutes(app: FastifyInstance, deps: RouteDeps): void
     async (request, reply) => {
       const { installation_id: suppliedInstallationId, state, code } = request.query
 
+      /**
+       * Back from changing which repositories the App may see.
+       *
+       * GitHub sends the person here after they save the installation's settings, and carries no
+       * state through that page. It used to be reported as a cancelled install, to somebody who
+       * had just done exactly what the picker asked. Nothing is bound here, because nothing
+       * signed says which site this is for: they are sent back to choose from the new list.
+       */
+      if (!state && request.query.setup_action === 'update') {
+        return reply.redirect(`${webUrl.replace(/\/$/, '')}/site?github=updated`)
+      }
+
       if (!state) return reply.redirect(backToDashboardGithub('declined'))
       if (!options.github) return reply.redirect(backToDashboardGithub('unavailable'))
 

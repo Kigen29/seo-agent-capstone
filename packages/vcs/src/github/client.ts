@@ -94,7 +94,27 @@ export interface InstalledRepo {
 export interface GitHubApp {
   apiFor: GitHubApiFactory
   listInstallationRepositories(installationId: number): Promise<InstalledRepo[]>
+  describeInstallation(installationId: number): Promise<InstallationAccount>
 }
+
+/**
+ * Whose account an installation is on, and how much of it the App was let into.
+ *
+ * A GitHub App sees only the repositories its installation was granted. When the person chose
+ * "Only select repositories", the ones they did not tick cannot be listed by any call the App
+ * can make, so a picker built from the listing looks as if the account had nothing else in it.
+ * This is what lets the picker say which case it is in, and where to go to change it.
+ */
+export interface InstallationAccount {
+  login: string
+  /** True when the grant is "All repositories", so the listing is the whole account. */
+  allRepositories: boolean
+  /** The installation's own settings page on GitHub, where the grant is changed. */
+  manageUrl: string
+}
+
+/** How many pages of repositories are read. A hundred a page, so two thousand repositories. */
+const MAX_REPOSITORY_PAGES = 20
 
 /**
  * Build the App. One App instance signs the JWTs; installation Octokit clients are cached per
@@ -339,18 +359,50 @@ export function createGitHubApp(config: GitHubAppConfig): GitHubApp {
     }
   }
 
+  /**
+   * Every repository the installation was granted, not the first hundred.
+   *
+   * It read one page. That was every repository while people granted a handful, and silently a
+   * part of the list for anybody who granted their whole account.
+   */
   async function listInstallationRepositories(installationId: number): Promise<InstalledRepo[]> {
     const octokit = await octokitFor(installationId)
-    const { data } = await octokit.request('GET /installation/repositories', { per_page: 100 })
-    return data.repositories.map((r) => ({
-      owner: r.owner.login,
-      name: r.name,
-      fullName: r.full_name,
-      defaultBranch: r.default_branch,
-    }))
+    const repos: InstalledRepo[] = []
+
+    for (let page = 1; page <= MAX_REPOSITORY_PAGES; page += 1) {
+      const { data } = await octokit.request('GET /installation/repositories', {
+        per_page: 100,
+        page,
+      })
+      for (const r of data.repositories) {
+        repos.push({
+          owner: r.owner.login,
+          name: r.name,
+          fullName: r.full_name,
+          defaultBranch: r.default_branch,
+        })
+      }
+      if (data.repositories.length < 100) break
+    }
+
+    return repos
   }
 
-  return { apiFor, listInstallationRepositories }
+  async function describeInstallation(installationId: number): Promise<InstallationAccount> {
+    // Asked as the App itself: an installation's own token cannot read its installation record.
+    const { data } = await app.octokit.request('GET /app/installations/{installation_id}', {
+      installation_id: installationId,
+    })
+    const account = data.account as { login?: string; slug?: string } | null
+
+    return {
+      login: account?.login ?? account?.slug ?? 'your account',
+      allRepositories: data.repository_selection === 'all',
+      manageUrl: data.html_url,
+    }
+  }
+
+  return { apiFor, listInstallationRepositories, describeInstallation }
 }
 
 /** Back-compat: just the provider factory, for a caller that does not need installation listing. */

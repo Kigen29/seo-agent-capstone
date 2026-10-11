@@ -16,6 +16,12 @@ const CALLBACK: Record<string, Outcome> = {
     title: 'Repository connected',
     detail: 'Fixes can now arrive as pull requests for you to review.',
   },
+  updated: {
+    tone: 'ok',
+    title: 'GitHub access updated',
+    detail:
+      'Press Connect repo on the site you are setting up. The list now shows the repositories you just allowed.',
+  },
   declined: {
     tone: 'info',
     title: 'Nothing was connected',
